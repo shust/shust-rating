@@ -359,59 +359,7 @@
     
     Lampa.Template.add('maxsm_ratings_css', style);
     $('body').append(Lampa.Template.get('maxsm_ratings_css', {}, true));
-        
-    var loadingStyles = "<style id=\"maxsm_ratings_loading_animation\">" +
-                    ".loading-dots-container {" +
-                    "    position: absolute;" +
-                    "    top: 50%;" +
-                    "    left: 0;" +
-                    "    right: 0;" +
-                    "    text-align: left;" +
-                    "    transform: translateY(-50%);" +
-                    "    z-index: 10;" +
-                    "}" +
-                    ".full-start-new__rate-line {" +
-                    "    position: relative;" +
-                    "}" +
-                    ".loading-dots {" +
-                    "    display: inline-flex;" +
-                    "    align-items: center;" +
-                    "    gap: 0.4em;" +
-                    "    color: #ffffff;" +
-                    "    font-size: 1em;" +
-                    "    background: rgba(0, 0, 0, 0.3);" +
-                    "    padding: 0.6em 1em;" +
-                    "    border-radius: 0.5em;" +
-                    "}" +
-                    ".loading-dots__dot {" +
-                    "    width: 0.5em;" +
-                    "    height: 0.5em;" +
-                    "    border-radius: 50%;" +
-                    "    background-color: currentColor;" +
-                    "    opacity: 0.3;" +
-                    "    animation: loading-dots-fade 1.5s infinite both;" + 
-                    "}" +
-                    ".loading-dots__dot:nth-child(1) {" +
-                    "    animation-delay: 0s;" +
-                    "}" +
-                    ".loading-dots__dot:nth-child(2) {" +
-                    "    animation-delay: 0.5s;" + 
-                    "}" +
-                    ".loading-dots__dot:nth-child(3) {" +
-                    "    animation-delay: 1s;" +   
-                    "}" +
-                    "@keyframes loading-dots-fade {" +
-                    "    0%, 90%, 100% { opacity: 0.3; }" + 
-                    "    35% { opacity: 1; }" +             
-                    "}" +
-                    "@media screen and (max-width: 480px) { .loading-dots-container { -webkit-justify-content: center; justify-content: center; text-align: center; max-width: 100%; }}" +
-                    "</style>";
-
-
-    Lampa.Template.add('maxsm_ratings_loading_animation_css', loadingStyles);
-    $('body').append(Lampa.Template.get('maxsm_ratings_loading_animation_css', {}, true));
-    
-    // Глобальная переменная текущей карточки (сейчас не используется)
+// Глобальная переменная текущей карточки (сейчас не используется)
     var globalCurrentCard = null;
 
     // Перепемнные настройки 
@@ -696,41 +644,7 @@
         }
     }
 //-------------------------------------------------end---get---kinopoisk-----------------------------------
-    function addLoadingAnimation(localCurrentCard, render) {
-        //var render = Lampa.Activity.active().activity.render();
-        if (!render) return;
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Add loading animation");
-        var rateLine = $('.full-start-new__rate-line', render);
-        if (!rateLine.length || $('.loading-dots-container', rateLine).length) return;
 
-        rateLine.append(
-            '<div class="loading-dots-container">' +
-                '<div class="loading-dots">' +
-                    '<span class="loading-dots__dot"></span>' +
-                    '<span class="loading-dots__dot"></span>' +
-                    '<span class="loading-dots__dot"></span>' +
-                '</div>' +
-            '</div>'
-        );
-
-        $('.loading-dots-container', rateLine).css({
-            'opacity': '1',
-            'visibility': 'visible'
-        });
-    }
-
-    // Улучшенная функция удаления анимации
-    function removeLoadingAnimation(localCurrentCard, render) {
-        if (!render) return;
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Remove animation");
-        // Ищем контейнеры с анимацией только внутри render
-        var containers = $('.loading-dots-container', render);
-        containers.each(function(index, element) {
-            element.parentNode.removeChild(element);
-        });
-    }
-
-    
     // Вспомогательные функции
     function getCardType(card) {
         var type = card.media_type || card.type;
@@ -805,7 +719,6 @@
         if (rateLine.length) {
             rateLine.css('visibility', 'hidden');
             rateLine.addClass('done'); 
-            addLoadingAnimation(localCurrentCard, render);
         }
         
         var cacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.id);
@@ -921,9 +834,7 @@
             
             // Применяем индивидуальные настройки видимости источников
             applyRatingSourceVisibility(render);
-
-            // Убираем анимацию и возвращаем строку рейтингов     
-            removeLoadingAnimation(localCurrentCard, render);
+            // Показываем строку рейтингов после загрузки данных
             rateLine.css('visibility', 'visible');
             
             // Добавляем обработчик для портретного режима
@@ -1503,10 +1414,13 @@
         var rateLine = $('.full-start-new__rate-line', render);
         if (!rateLine.length) return;
     
+        // Средний рейтинг считается по доступным данным независимо от того,
+        // скрыта ли отдельная плашка источника в настройках.
+        // Переключатели источников влияют только на отображение их собственных рейтингов.
         var ratings = {
-            imdb: isRatingSourceEnabled('imdb') ? (parseFloat($('.rate--imdb div:first', rateLine).text()) || 0) : 0,
-            tmdb: isRatingSourceEnabled('tmdb') ? (parseFloat($('.rate--tmdb div:first', rateLine).text()) || 0) : 0,
-            kp: isRatingSourceEnabled('kp') ? (parseFloat($('.rate--kp div:first', rateLine).text()) || 0) : 0,
+            imdb: parseFloat($('.rate--imdb div:first', rateLine).text()) || 0,
+            tmdb: parseFloat($('.rate--tmdb div:first', rateLine).text()) || 0,
+            kp: parseFloat($('.rate--kp div:first', rateLine).text()) || 0,
             mc: (parseFloat($('.rate--mc div:first', rateLine).text()) || 0) / 10,
             rt: (parseFloat($('.rate--rt div:first', rateLine).text()) || 0) / 10
         };
