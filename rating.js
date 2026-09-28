@@ -124,6 +124,17 @@
             cs: 'Ikony místo textu',
             bg: 'Икони вместо текст'
         },
+        maxsm_ratings_avg_icon: {
+            ru: 'Иконка среднего рейтинга',
+            en: 'Average rating icon',
+            uk: 'Іконка середнього рейтингу',
+            be: 'Іконка сярэдняга рэйтынгу',
+            pt: 'Ícone da classificação média',
+            zh: '平均评分图标',
+            he: 'סמל דירוג ממוצע',
+            cs: 'Ikona průměrného hodnocení',
+            bg: 'Икона на средния рейтинг'
+        },
         maxsm_ratings_source_kp: {
             ru: 'Кинопоиск',
             en: 'Kinopoisk',
@@ -277,7 +288,7 @@
         "gap: 0.4em 0;" +
             "}" +
             ".full-start-new__rate-line > * {" +
-                "margin-right: 0.75em !important;" +
+                "margin-right: 0.6375em !important;" +
             "}" +
             ".rate--green  { color: #4caf50; }" +
             ".rate--lime   { color: #cddc39; }" +
@@ -1068,6 +1079,9 @@
         var showIcons =
             localStorage.getItem('maxsm_ratings_icons') === 'true';
 
+        var showAverageIcon =
+            localStorage.getItem('maxsm_ratings_avg_icon') !== 'false';
+
         function replaceIcon(className, svg, iconType) {
             var elements = $('.' + className, render);
             if (!elements.length) return;
@@ -1095,11 +1109,16 @@
                     );
                 }
 
-                if (!showIcons) return;
+                var shouldShowIcon =
+                    iconType === 'average'
+                        ? showAverageIcon
+                        : showIcons;
 
-                // Hide text only for the source label.
-                // Average rating has an empty label, so this is harmless there too.
-                if (sourceName.length) {
+                if (!shouldShowIcon) return;
+
+                // Hide text only for source ratings.
+                // The average rating has its own independent icon setting.
+                if (iconType !== 'average' && sourceName.length) {
                     sourceName.addClass('maxsm-source-text-hidden');
                 }
 
@@ -1570,6 +1589,9 @@
         if (!localStorage.getItem('maxsm_ratings_icons')) {
             localStorage.setItem('maxsm_ratings_icons', 'false');
         }
+        if (localStorage.getItem('maxsm_ratings_avg_icon') === null) {
+            localStorage.setItem('maxsm_ratings_avg_icon', 'true');
+        }
     
         if (!localStorage.getItem('maxsm_ratings_mode')) {
             localStorage.setItem('maxsm_ratings_mode', '0');
@@ -1708,6 +1730,23 @@ Lampa.SettingsApi.addComponent({
             },
             field: {
                 name: Lampa.Lang.translate("maxsm_ratings_icons"),
+                description: ''
+            },
+            onChange: function(value) {
+                var render = Lampa.Activity.active().activity.render();
+                insertIcons(globalCurrentCard, render);
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_avg_icon",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_avg_icon"),
                 description: ''
             },
             onChange: function(value) {
