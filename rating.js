@@ -173,6 +173,17 @@
             cs: 'Bílé',
             bg: 'Бели'
         },
+        maxsm_ratings_font_weight: {
+            ru: 'Толщина шрифта рейтинга',
+            en: 'Rating font weight',
+            uk: 'Товщина шрифту рейтингу',
+            be: 'Таўшчыня шрыфту рэйтынгу',
+            pt: 'Espessura da fonte da classificação',
+            zh: '评分字体粗细',
+            he: 'עובי גופן הדירוג',
+            cs: 'Tloušťka písma hodnocení',
+            bg: 'Дебелина на шрифта на рейтинга'
+        },
         maxsm_ratings_source_kp: {
             ru: 'Кинопоиск',
             en: 'Kinopoisk',
@@ -324,11 +335,20 @@
                 "visibility: hidden;" +
                 "flex-wrap: wrap;" +
                 "gap: 0.4em 0;" +
+                "padding-left: 0 !important;" +
+                "margin-left: 0 !important;" +
+                "left: 0 !important;" +
                 "padding-right: 1em !important;" +
                 "box-sizing: border-box;" +
             "}" +
+            ".full-start-new__rate-line > :first-child {" +
+                "margin-left: 0 !important;" +
+            "}" +
             ".full-start-new__rate-line > * {" +
                 "margin-right: 0.55em !important;" +
+            "}" +
+            ".full-start-new__rate-line > .full-start__pg {" +
+                "margin-left: 0.55em !important;" +
             "}" +
             ".rate--green  { color: #4caf50; }" +
             ".rate--lime   { color: #cddc39; }" +
@@ -470,7 +490,7 @@
             ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type, .rate--rt > div:first-of-type, .rate--mc > div:first-of-type {" +
                 "font-family: 'Inter', sans-serif !important;" +
                 "font-size: 1.04em !important;" +
-                "font-weight: 500 !important;" +
+                "font-weight: var(--maxsm-rating-font-weight, 500) !important;" +
                 "letter-spacing: -0.02em !important;" +
                 "line-height: 1.1;" +
             "}" +
@@ -771,6 +791,23 @@
         return card.name || card.original_name ? 'tv' : 'movie';
     }
     
+    function applyRatingFontWeight(value) {
+        var weight = String(
+            value !== undefined && value !== null
+                ? value
+                : (localStorage.getItem('maxsm_ratings_font_weight') || '500')
+        );
+
+        if (['400', '500', '600', '700'].indexOf(weight) === -1) {
+            weight = '500';
+        }
+
+        document.documentElement.style.setProperty(
+            '--maxsm-rating-font-weight',
+            weight
+        );
+    }
+
     function getRatingClass(rating) {
         if (rating >= 8.5) return 'rate--green';
         if (rating >= 7.0) return 'rate--lime';
@@ -1661,6 +1698,12 @@
         if (!localStorage.getItem('maxsm_ratings_mode')) {
             localStorage.setItem('maxsm_ratings_mode', '0');
         }
+
+        if (localStorage.getItem('maxsm_ratings_font_weight') === null) {
+            localStorage.setItem('maxsm_ratings_font_weight', '500');
+        }
+
+        applyRatingFontWeight();
 Lampa.SettingsApi.addComponent({
             component: "maxsm_ratings",
             name: Lampa.Lang.translate("maxsm_ratings"),
@@ -1676,6 +1719,12 @@ Lampa.SettingsApi.addComponent({
         var iconStyleValue = {};
         iconStyleValue[0] = Lampa.Lang.translate("maxsm_ratings_icon_style_color");
         iconStyleValue[1] = Lampa.Lang.translate("maxsm_ratings_icon_style_white");
+
+        var fontWeightValue = {};
+        fontWeightValue[400] = '400';
+        fontWeightValue[500] = '500';
+        fontWeightValue[600] = '600';
+        fontWeightValue[700] = '700';
         
       //  var isPortrait = window.innerHeight > window.innerWidth;
       //  if (!isPortrait) {
@@ -1696,6 +1745,23 @@ Lampa.SettingsApi.addComponent({
                 }
             });
     //    }
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_font_weight",
+                type: "select",
+                values: fontWeightValue,
+                default: 500
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_font_weight"),
+                description: ''
+            },
+            onChange: function(value) {
+                applyRatingFontWeight(value);
+            }
+        });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
