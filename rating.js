@@ -281,6 +281,38 @@
                 "padding: 0 !important;" +
                 "background: transparent !important;" +
                 "background-color: transparent !important;" +
+                "box-shadow: none !important;" +
+                "border: 0 !important;" +
+            "}" +
+            ".full-start__rate > div, .full-start__rate > span {" +
+                "padding: 0 !important;" +
+                "margin: 0 !important;" +
+                "background: transparent !important;" +
+                "background-color: transparent !important;" +
+                "box-shadow: none !important;" +
+                "border: 0 !important;" +
+                "border-radius: 0 !important;" +
+            "}" +
+            ".full-start__rate > div:first-child {" +
+                "padding: 0 !important;" +
+                "margin: 0 !important;" +
+                "background: transparent !important;" +
+                "background-color: transparent !important;" +
+                "box-shadow: none !important;" +
+                "border: 0 !important;" +
+                "border-radius: 0 !important;" +
+            "}" +
+            ".full-start-new__rate-line .full-start__rate {" +
+                "padding: 0 !important;" +
+                "min-width: 0 !important;" +
+                "min-height: 0 !important;" +
+                "width: auto !important;" +
+                "height: auto !important;" +
+            "}" +
+            ".full-start-new__rate-line .full-start__rate > div, .full-start-new__rate-line .full-start__rate > span {" +
+                "padding: 0 !important;" +
+                "min-width: 0 !important;" +
+                "min-height: 0 !important;" +
             "}" +
             ".rate--avg > div:first-child, .rate--tmdb > div:first-child, .rate--imdb > div:first-child, .rate--kp > div:first-child, .rate--rt > div:first-child, .rate--mc > div:first-child {" +
                 "font-size: 1.3em !important;" +
