@@ -35,6 +35,10 @@
     var imdb_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1228_123)\">\n<path d=\"M201.5 0.5V201.5H0.5V0.5H201.5ZM25.25 72.5938V129.406H41.0312V72.5938H25.25ZM47.3438 72.5938V129.406H60.7314L60.7832 91.8906L66.4189 129.406H75.9502L81.2998 91.0635L81.3389 129.406H94.6875V72.5938H74.7168L71.1846 99.1328L68.9902 84.6982C68.354 80.0746 67.7435 76.0396 67.1592 72.5938H47.3438ZM101 72.5938V129.406H125.633C131.21 129.406 135.719 124.917 135.719 119.38V82.6201C135.719 77.0757 131.203 72.5938 125.633 72.5938H101ZM142.031 72.5938V128.677H156.184L157.093 125.203C158.95 127.745 162.015 129.406 165.481 129.406H166.49C172.158 129.406 176.75 124.972 176.75 119.502V96.7227C176.75 91.2555 172.156 86.8184 166.49 86.8184H165.481C162.089 86.8185 159.083 88.4075 157.132 90.8389V72.5938H142.031ZM159.49 95.6006C160.323 95.6006 161.511 96.0322 161.809 96.7041C162.106 97.376 162.249 98.8362 162.249 101.061V114.522C162.249 117.059 162.118 118.67 161.856 119.33C161.595 119.99 160.347 120.34 159.49 120.34C158.634 120.34 157.409 119.979 157.123 119.33V96.542C157.373 95.9514 158.657 95.6007 159.49 95.6006ZM115.843 82.3174C117.585 82.3174 118.782 82.48 119.408 82.8184C120.048 83.1567 120.442 83.6834 120.619 84.4102C120.796 85.1371 120.892 86.7784 120.892 89.3467V111.375C120.892 115.159 120.62 117.465 120.089 118.317C119.558 119.182 118.142 119.595 115.843 119.595V82.3174Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1228_123\">\n<rect width=\"202\" height=\"202\" rx=\"50\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
     var kp_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1228_129)\">\n<path d=\"M202 0V202H0V0H202ZM41 161H61.7432V117.526L93.1143 161H118.657L73.7734 115.158L161 161V138.714L81.4434 106.798L161 112.143V89.8574L81.9473 94.9971L161 63.2861V41L72.5771 88.3301L118.657 41H93.1143L61.7432 84.5449V41H41V161Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1228_129\">\n<rect width=\"202\" height=\"202\" rx=\"50\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
     var tmdb_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<defs>\n<mask id=\"maxsm_tmdb_white_mask\">\n<rect width=\"202\" height=\"202\" rx=\"50\" fill=\"white\"/>\n<path d=\"M109.536 97.0107H162.904C166.641 97.0107 170.225 95.5267 172.869 92.885C175.512 90.2432 176.998 86.6599 177 82.9228C177 79.1844 175.515 75.599 172.871 72.9556C170.228 70.3121 166.643 68.827 162.904 68.827H109.536C105.798 68.827 102.212 70.3121 99.5687 72.9556C96.9253 75.599 95.4402 79.1844 95.4402 82.9228C95.4423 86.6599 96.9283 90.2432 99.5716 92.885C102.215 95.5267 105.799 97.0107 109.536 97.0107ZM39.3359 132.909H100.681C104.418 132.909 108.002 131.425 110.646 128.783C113.289 126.141 114.775 122.558 114.777 118.821C114.777 115.082 113.292 111.497 110.649 108.853C108.005 106.21 104.42 104.725 100.681 104.725H39.3359C35.5974 104.725 32.0121 106.21 29.3686 108.853C26.7251 111.497 25.24 115.082 25.24 118.821C25.2421 122.558 26.7281 126.141 29.3714 128.783C32.0147 131.425 35.5988 132.909 39.3359 132.909ZM33.5444 96.5002H39.7666V73.7649H47.8237V68.2446H25.4873V73.749H33.5444V96.5002ZM55.9605 96.5002H62.1828V74.8259H62.2626L69.4422 96.4842H74.2285L81.6474 74.8259H81.7272V96.4842H87.9495V68.2446H78.4964L71.955 86.6722H71.8752L65.3737 68.2446H55.9605V96.5002ZM146.838 112.654C146.006 110.919 144.769 109.409 143.232 108.251C141.637 107.085 139.826 106.249 137.903 105.794C135.798 105.268 133.636 105 131.466 104.996H122.132V133.236H132.303C134.346 133.245 136.379 132.936 138.326 132.318C140.165 131.759 141.883 130.86 143.392 129.67C144.859 128.479 146.049 126.981 146.878 125.282C147.774 123.395 148.219 121.325 148.178 119.235C148.243 116.968 147.784 114.716 146.838 112.654ZM140.911 122.969C140.444 124.033 139.72 124.965 138.805 125.681C137.853 126.381 136.766 126.875 135.614 127.133C134.306 127.434 132.967 127.582 131.625 127.572H128.394V110.819H132.064C133.323 110.813 134.577 110.982 135.789 111.322C136.905 111.623 137.954 112.129 138.884 112.814C139.737 113.485 140.43 114.338 140.911 115.311C141.459 116.432 141.732 117.668 141.708 118.916C141.743 120.309 141.471 121.693 140.911 122.969ZM176.513 122.865C176.232 122.094 175.804 121.384 175.253 120.775C174.705 120.169 174.051 119.669 173.322 119.299C172.528 118.898 171.674 118.629 170.794 118.502V118.422C172.162 118.029 173.387 117.247 174.32 116.172C175.239 115.051 175.716 113.632 175.66 112.184C175.72 110.884 175.401 109.596 174.742 108.474C174.142 107.56 173.318 106.813 172.349 106.304C171.307 105.766 170.178 105.415 169.015 105.267C167.794 105.093 166.562 105.005 165.329 105.004H154.799V133.244H166.366C167.632 133.244 168.894 133.111 170.132 132.845C171.336 132.604 172.491 132.158 173.546 131.528C174.544 130.933 175.391 130.114 176.019 129.135C176.691 128.009 177.024 126.713 176.976 125.402C176.977 124.537 176.829 123.679 176.537 122.865H176.513ZM161.021 110.301H165.249C165.745 110.303 166.239 110.351 166.725 110.444C167.197 110.529 167.654 110.683 168.081 110.899C168.476 111.114 168.81 111.424 169.055 111.801C169.324 112.236 169.457 112.741 169.438 113.253C169.449 113.753 169.331 114.247 169.094 114.688C168.879 115.076 168.573 115.404 168.201 115.646C167.814 115.891 167.388 116.066 166.941 116.164C166.478 116.273 166.004 116.327 165.529 116.324H161.021V110.301ZM170.371 126.255C170.131 126.672 169.798 127.027 169.398 127.293C168.992 127.565 168.537 127.755 168.057 127.851C167.581 127.958 167.094 128.012 166.606 128.01H161.021V121.629H165.728C166.262 121.634 166.795 121.674 167.324 121.748C167.885 121.825 168.434 121.973 168.959 122.187C169.448 122.392 169.879 122.715 170.211 123.128C170.558 123.586 170.736 124.15 170.714 124.724C170.739 125.256 170.621 125.785 170.371 126.255Z\" fill=\"black\"/>\n</mask>\n</defs>\n<rect width=\"202\" height=\"202\" rx=\"50\" fill=\"white\" mask=\"url(#maxsm_tmdb_white_mask)\"/>\n</svg>";
+    var avg_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1235_49)\">\n<path d=\"M201.5 0.5H0.5V201.5H201.5V0.5Z\" fill=\"white\" fill-opacity=\"0.2\"/>\n<path d=\"M108.957 41H93.0429L81.2101 77.4688L42.9177 77.4689L38 92.6253L68.9792 115.164L57.1464 151.633L70.0212 161L101 138.461L131.979 161L144.854 151.633L133.021 115.164L164 92.6252L159.082 77.4688H120.79L108.957 41Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1235_49\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
+    var imdb_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1235_52)\">\n<path d=\"M201.5 0.5H0.5V201.5H201.5V0.5Z\" fill=\"white\" fill-opacity=\"0.2\"/>\n<path d=\"M25.25 72.5938V129.406H41.0312V72.5938H25.25Z\" fill=\"white\"/>\n<path d=\"M74.7164 72.5938L71.1844 99.133L68.9899 84.698C68.3537 80.0744 67.7434 76.0396 67.159 72.5938H47.3438V129.406H60.7314L60.7833 91.8905L66.4189 129.406H75.95L81.2998 91.0635L81.3388 129.406H94.6875V72.5938H74.7164Z\" fill=\"white\"/>\n<path d=\"M101 129.406V72.5938H125.633C131.203 72.5938 135.719 77.0754 135.719 82.6199V119.38C135.719 124.917 131.211 129.406 125.633 129.406H101ZM119.408 82.8185C118.782 82.4802 117.585 82.3173 115.843 82.3173V119.595C118.142 119.595 119.558 119.182 120.088 118.317C120.619 117.465 120.891 115.159 120.891 111.375V89.3468C120.891 86.7781 120.796 85.1366 120.619 84.4098C120.442 83.6831 120.048 83.1568 119.408 82.8185Z\" fill=\"white\"/>\n<path d=\"M165.482 86.8185H166.491C172.157 86.8185 176.75 91.2556 176.75 96.7229V119.502C176.75 124.972 172.158 129.406 166.491 129.406H165.482C162.015 129.406 158.95 127.745 157.092 125.203L156.184 128.676H142.031V72.5938H157.132V90.8386C159.083 88.4071 162.09 86.8185 165.482 86.8185ZM162.249 114.522V101.06C162.249 98.8359 162.106 97.3762 161.809 96.7042C161.511 96.0323 160.324 95.6009 159.491 95.6009C158.658 95.6009 157.373 95.9515 157.123 96.5423V119.33C157.409 119.979 158.634 120.34 159.491 120.34C160.347 120.34 161.594 119.99 161.856 119.33C162.118 118.67 162.249 117.059 162.249 114.522Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1235_52\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
+    var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1235_55)\">\n<path d=\"M202 0H0V202H202V0Z\" fill=\"white\" fill-opacity=\"0.2\"/>\n<path d=\"M161 41L72.5771 88.3297L118.657 41H93.1143L61.7429 84.5446V41H41V161H61.7429V117.526L93.1143 161H118.657L73.7737 115.158L161 161V138.714L81.4434 106.798L161 112.143V89.8571L81.9474 94.9966L161 63.2857V41Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1235_55\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
+    var tmdb_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1235_43)\">\n<path d=\"M201.5 0.5H0.5V201.5H201.5V0.5Z\" fill=\"white\" fill-opacity=\"0.2\"/>\n<g clip-path=\"url(#clip1_1235_43)\">\n<path d=\"M109.536 97.0107H162.904C166.641 97.0107 170.225 95.5267 172.869 92.885C175.512 90.2432 176.998 86.6599 177 82.9228C177 79.1844 175.515 75.599 172.871 72.9556C170.228 70.3121 166.643 68.827 162.904 68.827H109.536C105.798 68.827 102.212 70.3121 99.5688 72.9556C96.9253 75.599 95.4402 79.1844 95.4402 82.9228C95.4423 86.6599 96.9283 90.2432 99.5716 92.885C102.215 95.5267 105.799 97.0107 109.536 97.0107ZM39.3359 132.909H100.681C104.418 132.909 108.002 131.425 110.646 128.783C113.289 126.141 114.775 122.558 114.777 118.821C114.777 115.082 113.292 111.497 110.649 108.853C108.005 106.21 104.42 104.725 100.681 104.725H39.3359C35.5974 104.725 32.0121 106.21 29.3686 108.853C26.7251 111.497 25.24 115.082 25.24 118.821C25.2421 122.558 26.7282 126.141 29.3714 128.783C32.0147 131.425 35.5988 132.909 39.3359 132.909ZM33.5444 96.5002H39.7667V73.7649H47.8237V68.2446H25.4873V73.749H33.5444V96.5002ZM55.9606 96.5002H62.1828V74.8259H62.2626L69.4422 96.4842H74.2286L81.6474 74.8259H81.7272V96.4842H87.9495V68.2446H78.4964L71.955 86.6722H71.8752L65.3738 68.2446H55.9606V96.5002ZM146.838 112.654C146.006 110.919 144.769 109.409 143.232 108.251C141.637 107.085 139.826 106.249 137.903 105.794C135.798 105.268 133.636 105 131.466 104.996H122.132V133.236H132.303C134.346 133.245 136.379 132.936 138.326 132.318C140.165 131.759 141.883 130.86 143.392 129.67C144.859 128.479 146.049 126.981 146.878 125.282C147.774 123.395 148.219 121.325 148.178 119.235C148.243 116.968 147.784 114.716 146.838 112.654ZM140.911 122.969C140.444 124.033 139.72 124.965 138.805 125.681C137.853 126.381 136.766 126.875 135.614 127.133C134.306 127.434 132.967 127.582 131.625 127.572H128.394V110.819H132.064C133.323 110.813 134.577 110.982 135.789 111.322C136.905 111.623 137.954 112.129 138.885 112.814C139.737 113.485 140.43 114.338 140.911 115.311C141.459 116.432 141.732 117.668 141.708 118.916C141.743 120.309 141.471 121.693 140.911 122.969ZM176.513 122.865C176.232 122.094 175.804 121.384 175.253 120.775C174.705 120.169 174.051 119.669 173.322 119.299C172.528 118.898 171.674 118.629 170.794 118.502V118.422C172.162 118.029 173.387 117.247 174.32 116.172C175.239 115.051 175.716 113.632 175.66 112.184C175.72 110.884 175.401 109.596 174.742 108.474C174.142 107.56 173.318 106.813 172.349 106.304C171.307 105.766 170.178 105.415 169.015 105.267C167.794 105.093 166.562 105.005 165.329 105.004H154.799V133.244H166.366C167.632 133.244 168.894 133.111 170.132 132.845C171.336 132.604 172.491 132.158 173.546 131.528C174.544 130.933 175.391 130.114 176.019 129.135C176.691 128.009 177.024 126.713 176.976 125.402C176.977 124.537 176.829 123.679 176.537 122.865H176.513ZM161.021 110.301H165.249C165.745 110.303 166.239 110.351 166.725 110.444C167.197 110.529 167.654 110.683 168.081 110.899C168.476 111.114 168.81 111.424 169.055 111.801C169.324 112.236 169.457 112.741 169.438 113.253C169.449 113.753 169.331 114.247 169.095 114.688C168.879 115.076 168.573 115.404 168.201 115.646C167.814 115.891 167.388 116.066 166.941 116.164C166.478 116.273 166.004 116.327 165.529 116.324H161.021V110.301ZM170.371 126.255C170.131 126.672 169.798 127.027 169.398 127.293C168.992 127.565 168.537 127.755 168.057 127.851C167.581 127.958 167.094 128.012 166.606 128.01H161.021V121.629H165.728C166.262 121.634 166.795 121.674 167.324 121.748C167.885 121.825 168.434 121.973 168.959 122.187C169.448 122.392 169.879 122.715 170.211 123.128C170.558 123.586 170.736 124.15 170.714 124.724C170.739 125.256 170.621 125.785 170.371 126.255Z\" fill=\"white\"/>\n</g>\n</g>\n<defs>\n<clipPath id=\"clip0_1235_43\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n<clipPath id=\"clip1_1235_43\">\n<rect width=\"151.76\" height=\"65.0309\" fill=\"white\" transform=\"translate(25.24 68.2446)\"/>\n</clipPath>\n</defs>\n</svg>";
 
     var rt_svg = '<svg id="svg3390" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.w3.org/2000/svg" height="141.25" viewBox="0 0 138.75 141.25" width="138.75" version="1.1" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/"> <metadata id="metadata3396">  <rdf:RDF>   <cc:Work rdf:about="">    <dc:format>image/svg+xml</dc:format>    <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>    <dc:title/>   </cc:Work>  </rdf:RDF> </metadata> <g id="layer1" fill="#f93208">  <path id="path3412" d="m20.154 40.829c-28.149 27.622-13.657 61.011-5.734 71.931 35.254 41.954 92.792 25.339 111.89-5.9071 4.7608-8.2027 22.554-53.467-23.976-78.009z"/>  <path id="path3471" d="m39.613 39.265 4.7778-8.8607 28.406-5.0384 11.119 9.2082z"/> </g> <g id="layer2">  <path id="path3437" d="m39.436 8.5696 8.9682-5.2826 6.7569 15.479c3.7925-6.3226 13.79-16.316 24.939-4.6684-4.7281 1.2636-7.5161 3.8553-7.7397 8.4768 15.145-4.1697 31.343 3.2127 33.539 9.0911-10.951-4.314-27.695 10.377-41.771 2.334 0.009 15.045-12.617 16.636-19.902 17.076 2.077-4.996 5.591-9.994 1.474-14.987-7.618 8.171-13.874 10.668-33.17 4.668 4.876-1.679 14.843-11.39 24.448-11.425-6.775-2.467-12.29-2.087-17.814-1.475 2.917-3.961 12.149-15.197 28.625-8.476z" fill="#02902e"/> </g></svg>';
     var mc_svg = '<svg xmlns="http://www.w3.org/2000/svg" width="88" height="88" viewBox="0 0 88 88"><circle fill="#001B36" stroke="#FC0" stroke-width="4.6" cx="44" cy="44" r="41.6"/><path transform="translate(-10,-961) matrix(1.2756629,-1.3487733,1.3685717,1.2634987,-267.04706,1066.0743)" fill="#FFF"d="m126.73438,92.087002 5.05859,0 0,2.832031 c 1.80989-2.200501 3.96483-3.30076 6.46484-3.300781 1.32811,2.1e-5 2.48045,.273458 3.45703,.820312 .97655,.546895 1.77733,1.373717 2.40235,2.480469 .91144-1.106752 1.89451-1.933574 2.94922-2.480469 1.05466-0.546854 2.18096-0.820291 3.3789-0.820312 1.52341,2.1e-5 2.81247,.309265 3.86719,.927734 1.05466,.618509 1.84242,1.526711 2.36328,2.724609 .37757,.885434 .56637,2.317724 .56641,4.296875 l 0,13.26172-5.48828,0 0-11.85547 c-3e-5-2.057277-0.18883-3.385401-0.56641-3.984375-0.50784-0.781233-1.28909-1.171858-2.34375-1.171875-0.76825,1.7e-5-1.49091,.234392-2.16797,.703125-0.6771,.468766-1.16538,1.155614-1.46484,2.060547-0.2995,.904961-0.44924,2.333998-0.44922,4.287108 l 0,9.96094-5.48828,0 0-11.36719 c-2e-5-2.018214-0.0977-3.320296-0.29297-3.906248-0.19533-0.585922-0.49806-1.02212-0.9082-1.308594-0.41017-0.286442-0.96681-0.429671-1.66993-0.429688-0.84636,1.7e-5-1.60808,.227882-2.28515,.683594-0.6771,.455745-1.16212,1.113297-1.45508,1.972656-0.29298,.859389-0.43946,2.28517-0.43945,4.27734 l 0,10.07813-5.48828,0z"/></svg>';
@@ -141,15 +145,15 @@
             bg: 'Икона на средния рейтинг'
         },
         maxsm_ratings_icon_style: {
-            ru: 'Цвет иконок',
-            en: 'Icon color',
-            uk: 'Колір іконок',
-            be: 'Колер іконак',
-            pt: 'Cor dos ícones',
-            zh: '图标颜色',
-            he: 'צבע הסמלים',
-            cs: 'Barva ikon',
-            bg: 'Цвят на иконите'
+            ru: 'Вид иконок рейтинга',
+            en: 'Rating icon style',
+            uk: 'Вигляд іконок рейтингу',
+            be: 'Выгляд іконак рэйтынгу',
+            pt: 'Estilo dos ícones de classificação',
+            zh: '评分图标样式',
+            he: 'סגנון אייקוני הדירוג',
+            cs: 'Styl ikon hodnocení',
+            bg: 'Вид на иконите за рейтинг'
         },
         maxsm_ratings_icon_style_color: {
             ru: 'Цветные',
@@ -183,6 +187,28 @@
             he: 'עובי גופן הדירוג',
             cs: 'Tloušťka písma hodnocení',
             bg: 'Дебелина на шрифта на рейтинга'
+        },
+        maxsm_ratings_icon_style_translucent: {
+            ru: 'Полупрозрачные',
+            en: 'Translucent',
+            uk: 'Напівпрозорі',
+            be: 'Паўпразрыстыя',
+            pt: 'Semitransparentes',
+            zh: '半透明',
+            he: 'חצי-שקופים',
+            cs: 'Poloprůhledné',
+            bg: 'Полупрозрачни'
+        },
+        maxsm_ratings_avg_separator: {
+            ru: 'Разделительная полоса после среднего рейтинга',
+            en: 'Separator after average rating',
+            uk: 'Розділювальна смуга після середнього рейтингу',
+            be: 'Раздзяляльная паласа пасля сярэдняга рэйтынгу',
+            pt: 'Separador após a classificação média',
+            zh: '平均评分后的分隔线',
+            he: 'מפריד אחרי הדירוג הממוצע',
+            cs: 'Oddělovač za průměrným hodnocením',
+            bg: 'Разделител след средния рейтинг'
         },
         maxsm_ratings_source_kp: {
             ru: 'Кинопоиск',
@@ -349,6 +375,16 @@
             "}" +
             ".full-start-new__rate-line > .full-start__pg {" +
                 "margin-left: 0.55em !important;" +
+            "}" +
+            ".full-start__rate.rate--avg.maxsm-has-separator::after {" +
+                "content: '';" +
+                "display: block;" +
+                "width: 1px;" +
+                "height: 1.45em;" +
+                "margin-left: 0.55em;" +
+                "background: rgba(255,255,255,0.28);" +
+                "border-radius: 1px;" +
+                "pointer-events: none;" +
             "}" +
             ".rate--green  { color: #4caf50; }" +
             ".rate--lime   { color: #cddc39; }" +
@@ -791,6 +827,32 @@
         return card.name || card.original_name ? 'tv' : 'movie';
     }
     
+    function updateAverageSeparator(render) {
+        if (!render) return;
+
+        var rateLine = $('.full-start-new__rate-line', render);
+        if (!rateLine.length) return;
+
+        $('.rate--avg', rateLine).removeClass('maxsm-has-separator');
+
+        var showSeparator =
+            localStorage.getItem('maxsm_ratings_avg_separator') !== 'false';
+
+        if (!showSeparator) return;
+
+        var avgElement = $('.rate--avg:not(.hide):not(.maxsm-source-disabled)', rateLine).first();
+        if (!avgElement.length) return;
+
+        var otherRatings = $('.full-start__rate', rateLine)
+            .not('.rate--avg')
+            .not('.hide')
+            .not('.maxsm-source-disabled');
+
+        if (otherRatings.length) {
+            avgElement.addClass('maxsm-has-separator');
+        }
+    }
+
     function applyRatingFontWeight(value) {
         var weight = String(
             value !== undefined && value !== null
@@ -844,9 +906,8 @@
             var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
             if (mode !== 2) calculateAverageRating(globalCurrentCard, render);
 
-            if (localStorage.getItem('maxsm_ratings_icons') === 'true') {
-                insertIcons(globalCurrentCard, render);
-            }
+            insertIcons(globalCurrentCard, render);
+            updateAverageSeparator(render);
         } catch (e) {
             if (C_LOGGING) console.warn('MAXSM-RATINGS', 'Unable to refresh source visibility', e);
         }
@@ -982,14 +1043,12 @@
             
             // Считаем и отображаем средний рейтинг
             if (mode !== 2)
-                calculateAverageRating(localCurrentCard, render);
-            
-            //Меняем лейблы на иконки если надо
-            var showIcons = localStorage.getItem('maxsm_ratings_icons')  === 'true';
-            if (showIcons) insertIcons(localCurrentCard, render);
-            
+                calculateAverageRating(localCurrentCard, render);            // Применяем иконки с учетом текущих настроек
+            insertIcons(localCurrentCard, render);
+
             // Применяем индивидуальные настройки видимости источников
             applyRatingSourceVisibility(render);
+            updateAverageSeparator(render);
             // Показываем строку рейтингов после загрузки данных
             rateLine.css('visibility', 'visible');
             
@@ -1160,13 +1219,13 @@
         var showAverageIcon =
             localStorage.getItem('maxsm_ratings_avg_icon') !== 'false';
 
-        var useWhiteIcons =
-            localStorage.getItem('maxsm_ratings_icon_style') === '1';
+        var iconStyle =
+            localStorage.getItem('maxsm_ratings_icon_style') || '0';
 
         var colorizeAverageIcon =
             localStorage.getItem('maxsm_ratings_colors') === 'true';
 
-        function replaceIcon(className, coloredSvg, whiteSvg, iconType) {
+        function replaceIcon(className, coloredSvg, whiteSvg, translucentSvg, iconType) {
             var elements = $('.' + className, render);
             if (!elements.length) return;
 
@@ -1213,9 +1272,11 @@
                         : 'maxsm-source-icon';
 
                 var styleClass =
-                    useWhiteIcons
+                    iconStyle === '1'
                         ? 'maxsm-icon-style-white'
-                        : 'maxsm-icon-style-color';
+                        : (iconStyle === '2'
+                            ? 'maxsm-icon-style-translucent'
+                            : 'maxsm-icon-style-color');
 
                 var colorClass =
                     iconType === 'average' && colorizeAverageIcon
@@ -1232,9 +1293,11 @@
                 );
 
                 iconWrap.html(
-                    useWhiteIcons
+                    iconStyle === '1'
                         ? whiteSvg
-                        : coloredSvg
+                        : (iconStyle === '2'
+                            ? translucentSvg
+                            : coloredSvg)
                 );
 
                 if (ratingValue.length) {
@@ -1245,10 +1308,10 @@
             });
         }
 
-        replaceIcon('rate--avg', avg_svg, avg_white_svg, 'average');
-        replaceIcon('rate--imdb', imdb_svg, imdb_white_svg, 'source');
-        replaceIcon('rate--kp', kp_svg, kp_white_svg, 'source');
-        replaceIcon('rate--tmdb', tmdb_svg, tmdb_white_svg, 'source');
+        replaceIcon('rate--avg', avg_svg, avg_white_svg, avg_translucent_svg, 'average');
+        replaceIcon('rate--imdb', imdb_svg, imdb_white_svg, imdb_translucent_svg, 'source');
+        replaceIcon('rate--kp', kp_svg, kp_white_svg, kp_translucent_svg, 'source');
+        replaceIcon('rate--tmdb', tmdb_svg, tmdb_white_svg, tmdb_translucent_svg, 'source');
     }
 
     // Функции работы с кешем
@@ -1719,6 +1782,7 @@ Lampa.SettingsApi.addComponent({
         var iconStyleValue = {};
         iconStyleValue[0] = Lampa.Lang.translate("maxsm_ratings_icon_style_color");
         iconStyleValue[1] = Lampa.Lang.translate("maxsm_ratings_icon_style_white");
+        iconStyleValue[2] = Lampa.Lang.translate("maxsm_ratings_icon_style_translucent");
 
         var fontWeightValue = {};
         fontWeightValue[400] = '400';
@@ -1871,6 +1935,7 @@ Lampa.SettingsApi.addComponent({
             onChange: function(value) {
                 var render = Lampa.Activity.active().activity.render();
                 insertIcons(globalCurrentCard, render);
+                updateAverageSeparator(render);
             }
         });
 
@@ -1889,6 +1954,7 @@ Lampa.SettingsApi.addComponent({
             onChange: function(value) {
                 var render = Lampa.Activity.active().activity.render();
                 insertIcons(globalCurrentCard, render);
+                updateAverageSeparator(render);
             }
         });
 
@@ -1906,6 +1972,24 @@ Lampa.SettingsApi.addComponent({
             onChange: function(value) {
                 var render = Lampa.Activity.active().activity.render();
                 insertIcons(globalCurrentCard, render);
+                updateAverageSeparator(render);
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_avg_separator",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_avg_separator"),
+                description: ''
+            },
+            onChange: function(value) {
+                var render = Lampa.Activity.active().activity.render();
+                updateAverageSeparator(render);
             }
         });
 Lampa.SettingsApi.addParam({
