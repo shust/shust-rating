@@ -116,6 +116,39 @@
             cs: 'Ikony',
             bg: 'Икони'
         },
+        maxsm_ratings_source_kp: {
+            ru: 'Кинопоиск',
+            en: 'Kinopoisk',
+            uk: 'Кінопошук',
+            be: 'Кінапошук',
+            pt: 'Kinopoisk',
+            zh: 'Kinopoisk',
+            he: 'Kinopoisk',
+            cs: 'Kinopoisk',
+            bg: 'Kinopoisk'
+        },
+        maxsm_ratings_source_tmdb: {
+            ru: 'TMDB',
+            en: 'TMDB',
+            uk: 'TMDB',
+            be: 'TMDB',
+            pt: 'TMDB',
+            zh: 'TMDB',
+            he: 'TMDB',
+            cs: 'TMDB',
+            bg: 'TMDB'
+        },
+        maxsm_ratings_source_imdb: {
+            ru: 'IMDb',
+            en: 'IMDb',
+            uk: 'IMDb',
+            be: 'IMDb',
+            pt: 'IMDb',
+            zh: 'IMDb',
+            he: 'IMDb',
+            cs: 'IMDb',
+            bg: 'IMDb'
+        },
         maxsm_ratings_colors: {
             ru: 'Цвета',
             en: 'Colors',
@@ -236,7 +269,7 @@
         "gap: 0.4em 0;" +
             "}" +
             ".full-start-new__rate-line > * {" +
-                "margin-right: 0.5em !important;" +
+                "margin-right: 0.75em !important;" +
             "}" +
             ".rate--green  { color: #4caf50; }" +
             ".rate--lime   { color: #cddc39; }" +
@@ -313,6 +346,9 @@
                 "padding: 0 !important;" +
                 "min-width: 0 !important;" +
                 "min-height: 0 !important;" +
+            "}" +
+            ".maxsm-source-disabled {" +
+                "display: none !important;" +
             "}" +
             ".rate--avg > div:first-child, .rate--tmdb > div:first-child, .rate--imdb > div:first-child, .rate--kp > div:first-child, .rate--rt > div:first-child, .rate--mc > div:first-child {" +
                 "font-size: 1.3em !important;" +
@@ -709,6 +745,43 @@
         return 'rate--red';
     }
 
+    function isRatingSourceEnabled(source) {
+        var keyMap = {
+            kp: 'maxsm_ratings_source_kp',
+            tmdb: 'maxsm_ratings_source_tmdb',
+            imdb: 'maxsm_ratings_source_imdb'
+        };
+        var key = keyMap[source];
+        return !key || localStorage.getItem(key) !== 'false';
+    }
+
+    function applyRatingSourceVisibility(render) {
+        if (!render) return;
+        $('.rate--kp', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('kp'));
+        $('.rate--tmdb', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('tmdb'));
+        $('.rate--imdb', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('imdb'));
+    }
+
+    function refreshRatingSourceSettings() {
+        try {
+            var active = Lampa.Activity.active();
+            if (!active || !active.activity) return;
+            var render = active.activity.render();
+            if (!render) return;
+
+            applyRatingSourceVisibility(render);
+
+            var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
+            if (mode !== 2) calculateAverageRating(globalCurrentCard, render);
+
+            if (localStorage.getItem('maxsm_ratings_icons') === 'true') {
+                insertIcons(globalCurrentCard, render);
+            }
+        } catch (e) {
+            if (C_LOGGING) console.warn('MAXSM-RATINGS', 'Unable to refresh source visibility', e);
+        }
+    }
+
     // Основная функция
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
@@ -846,6 +919,9 @@
             var showIcons = localStorage.getItem('maxsm_ratings_icons')  === 'true';
             if (showIcons) insertIcons(localCurrentCard, render);
             
+            // Применяем индивидуальные настройки видимости источников
+            applyRatingSourceVisibility(render);
+
             // Убираем анимацию и возвращаем строку рейтингов     
             removeLoadingAnimation(localCurrentCard, render);
             rateLine.css('visibility', 'visible');
@@ -890,7 +966,7 @@
         
         // Собираем рейтинги в нужном порядке
         ratingOrder.forEach(function(className) {
-            var element = $('.' + className, rateLine);
+            var element = $('.' + className, rateLine).not('.maxsm-source-disabled');
             if (element.length) {
                 // Берем значение из первого дочернего элемента
                 var value = element.children().eq(0).text().trim();
@@ -1428,9 +1504,9 @@
         if (!rateLine.length) return;
     
         var ratings = {
-            imdb: parseFloat($('.rate--imdb div:first', rateLine).text()) || 0,
-            tmdb: parseFloat($('.rate--tmdb div:first', rateLine).text()) || 0,
-            kp: parseFloat($('.rate--kp div:first', rateLine).text()) || 0,
+            imdb: isRatingSourceEnabled('imdb') ? (parseFloat($('.rate--imdb div:first', rateLine).text()) || 0) : 0,
+            tmdb: isRatingSourceEnabled('tmdb') ? (parseFloat($('.rate--tmdb div:first', rateLine).text()) || 0) : 0,
+            kp: isRatingSourceEnabled('kp') ? (parseFloat($('.rate--kp div:first', rateLine).text()) || 0) : 0,
             mc: (parseFloat($('.rate--mc div:first', rateLine).text()) || 0) / 10,
             rt: (parseFloat($('.rate--rt div:first', rateLine).text()) || 0) / 10
         };
@@ -1494,6 +1570,15 @@
         if (!localStorage.getItem('maxsm_ratings_colors')) {
             localStorage.setItem('maxsm_ratings_colors', 'false');
         }
+        if (localStorage.getItem('maxsm_ratings_source_kp') === null) {
+            localStorage.setItem('maxsm_ratings_source_kp', 'true');
+        }
+        if (localStorage.getItem('maxsm_ratings_source_tmdb') === null) {
+            localStorage.setItem('maxsm_ratings_source_tmdb', 'true');
+        }
+        if (localStorage.getItem('maxsm_ratings_source_imdb') === null) {
+            localStorage.setItem('maxsm_ratings_source_imdb', 'true');
+        }
         
         if (!localStorage.getItem('maxsm_ratings_icons')) {
             localStorage.setItem('maxsm_ratings_icons', 'false');
@@ -1533,6 +1618,54 @@ Lampa.SettingsApi.addComponent({
                 }
             });
     //    }
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_source_kp",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_source_kp"),
+                description: ''
+            },
+            onChange: function(value) {
+                refreshRatingSourceSettings();
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_source_tmdb",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_source_tmdb"),
+                description: ''
+            },
+            onChange: function(value) {
+                refreshRatingSourceSettings();
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_source_imdb",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_source_imdb"),
+                description: ''
+            },
+            onChange: function(value) {
+                refreshRatingSourceSettings();
+            }
+        });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
