@@ -407,7 +407,7 @@
                 "border-radius: 30% !important;" +
             "}" +
 
-            ".full-start__rate > .maxsm-average-icon.maxsm-icon-style-color svg path {" +
+            ".full-start__rate > .maxsm-average-icon.maxsm-average-rating-color svg path {" +
                 "fill: currentColor !important;" +
             "}" +
 
@@ -1126,6 +1126,9 @@
         var useWhiteIcons =
             localStorage.getItem('maxsm_ratings_icon_style') === '1';
 
+        var colorizeAverageIcon =
+            localStorage.getItem('maxsm_ratings_colors') === 'true';
+
         function replaceIcon(className, coloredSvg, whiteSvg, iconType) {
             var elements = $('.' + className, render);
             if (!elements.length) return;
@@ -1177,11 +1180,17 @@
                         ? 'maxsm-icon-style-white'
                         : 'maxsm-icon-style-color';
 
+                var colorClass =
+                    iconType === 'average' && colorizeAverageIcon
+                        ? ' maxsm-average-rating-color'
+                        : '';
+
                 var iconWrap = $(
                     '<span class="maxsm-rating-leading-icon maxsm-icon-container ' +
                     extraClass +
                     ' ' +
                     styleClass +
+                    colorClass +
                     '"></span>'
                 );
 
@@ -1778,6 +1787,7 @@ Lampa.SettingsApi.addComponent({
                 description: ''
             },
             onChange: function(value) {
+                refreshRatingSourceSettings();
             }
         });
         
