@@ -293,8 +293,8 @@
                 "display: inline-flex;" +
                 "align-items: center;" +
                 "justify-content: center;" +
-                "width: 1.6em;" +
-                "height: 1.6em;" +
+                "width: 1.12em;" +
+                "height: 1.12em;" +
                 "padding: 0 !important;" +
                 "margin: 0 !important;" +
                 "overflow: hidden;" +
@@ -320,8 +320,8 @@
                 "align-items: center;" +
                 "justify-content: center;" +
                 "flex: 0 0 auto;" +
-                "width: 1.6em !important;" +
-                "height: 1.6em !important;" +
+                "width: 1.12em !important;" +
+                "height: 1.12em !important;" +
                 "padding: 0 !important;" +
                 "margin: 0 0.30em 0 !important;" +
                 "overflow: hidden;" +
