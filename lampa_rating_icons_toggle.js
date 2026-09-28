@@ -3,10 +3,10 @@
 
     var PLUGIN_ID = 'rating_icons_toggle';
     var SETTING = 'rating_icons_show';
+    var STYLE_ID = 'lampa-rating-icons-toggle-style';
     var HIDE_CLASS = 'lampa-rating-provider-icon-hidden';
-    var BODY_CLASS = 'lampa-rating-provider-icons-off';
     var observer = null;
-    var scanTimer = null;
+    var rescanTimer = null;
 
     function boolValue(value, fallback) {
         if (value === undefined || value === null) return fallback;
@@ -15,106 +15,141 @@
         return fallback;
     }
 
+    function iconsEnabled() {
+        return boolValue(Lampa.Storage.get(SETTING, true), true);
+    }
+
     function addStyles() {
-        if (document.getElementById('lampa-rating-icons-toggle-style')) return;
+        if (document.getElementById(STYLE_ID)) return;
 
         var style = document.createElement('style');
-        style.id = 'lampa-rating-icons-toggle-style';
+        style.id = STYLE_ID;
         style.textContent = [
-            '.' + HIDE_CLASS + '{display:none!important;visibility:hidden!important;width:0!important;min-width:0!important;max-width:0!important;margin:0!important;padding:0!important;}',
-
-            /* Common rating layouts: hide image/SVG provider badges, never the rating container itself */
-            'body.' + BODY_CLASS + ' .card__rate img,',
-            'body.' + BODY_CLASS + ' .card__rate svg,',
-            'body.' + BODY_CLASS + ' .full-start__rate img,',
-            'body.' + BODY_CLASS + ' .full-start__rate svg,',
-            'body.' + BODY_CLASS + ' [class*="rating"] img,',
-            'body.' + BODY_CLASS + ' [class*="rating"] svg,',
-            'body.' + BODY_CLASS + ' [class*="rate"] img,',
-            'body.' + BODY_CLASS + ' [class*="rate"] svg{display:none!important;}',
-
-            /* Providers commonly used by Lampa rating plugins */
-            'body.' + BODY_CLASS + ' [class*="imdb" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="imdb" i]::after,',
-            'body.' + BODY_CLASS + ' [class*="kinopoisk" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="kinopoisk" i]::after,',
-            'body.' + BODY_CLASS + ' [class*="kp-rate" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="kp-rate" i]::after,',
-            'body.' + BODY_CLASS + ' [class*="tmdb" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="tmdb" i]::after,',
-            'body.' + BODY_CLASS + ' [class*="metacritic" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="metacritic" i]::after,',
-            'body.' + BODY_CLASS + ' [class*="letterboxd" i]::before,',
-            'body.' + BODY_CLASS + ' [class*="letterboxd" i]::after{display:none!important;content:none!important;background:none!important;}'
+            /* Only elements explicitly marked by this plugin are hidden. */
+            '.' + HIDE_CLASS + '{',
+            '  display:none!important;',
+            '  visibility:hidden!important;',
+            '  width:0!important;',
+            '  min-width:0!important;',
+            '  max-width:0!important;',
+            '  height:0!important;',
+            '  min-height:0!important;',
+            '  max-height:0!important;',
+            '  margin:0!important;',
+            '  padding:0!important;',
+            '  border:0!important;',
+            '}'
         ].join('\n');
         document.head.appendChild(style);
     }
 
-    function isRatingContainer(el) {
-        if (!el || el.nodeType !== 1) return false;
-        var cls = String(el.className || '').toLowerCase();
-        return cls.indexOf('rate') !== -1 || cls.indexOf('rating') !== -1;
-    }
-
     function providerHint(el) {
         if (!el || el.nodeType !== 1) return false;
-        var s = [
+
+        var attrs = [
             el.className || '',
             el.id || '',
             el.getAttribute('alt') || '',
             el.getAttribute('title') || '',
             el.getAttribute('aria-label') || '',
             el.getAttribute('data-source') || '',
-            el.getAttribute('data-provider') || ''
+            el.getAttribute('data-provider') || '',
+            el.getAttribute('src') || ''
         ].join(' ').toLowerCase();
 
-        return /(imdb|kinopoisk|кино?поиск|\bkp\b|tmdb|rottentomatoes|rotten|metacritic|letterboxd|trakt|mdblist|shikimori|myshows|rating[-_]?logo|rate[-_]?logo)/i.test(s);
+        return /(imdb|kinopoisk|kinopoisk|кинопоиск|kp[_-]?(?:logo|rate|rating)|tmdb|rottentomatoes|rotten[_-]?tomatoes|metacritic|letterboxd|trakt|mdblist|shikimori|myshows|rating[_-]?logo|rate[_-]?logo)/i.test(attrs);
     }
 
     function hasNumericRating(text) {
-        text = String(text || '').replace(/\s+/g, ' ').trim();
-        return /\d(?:[\.,]\d)?/.test(text);
+        return /\d(?:[\.,]\d)?/.test(String(text || '').replace(/\s+/g, ' ').trim());
     }
 
-    function markIcons(root) {
-        if (!root || !root.querySelectorAll) return;
+    function isCard(el) {
+        return !!(el && el.nodeType === 1 && el.matches && el.matches('.card, .card--small, .card--wide, [class~="card"]'));
+    }
 
-        var containers = [];
-        if (isRatingContainer(root)) containers.push(root);
+    function closestCard(el) {
+        if (!el || el.nodeType !== 1) return null;
+        if (isCard(el)) return el;
+        return el.closest ? el.closest('.card, .card--small, .card--wide, [class~="card"]') : null;
+    }
 
-        var found = root.querySelectorAll('.card__rate,.full-start__rate,[class*="rating"],[class*="rate"]');
-        for (var i = 0; i < found.length; i++) containers.push(found[i]);
+    /*
+     * IMPORTANT: We only inspect rating areas that live INSIDE movie/series cards.
+     * Nothing in menus, settings, buttons, player controls, posters, etc. is scanned.
+     */
+    function ratingBoxes(card) {
+        if (!card || !card.querySelectorAll) return [];
 
-        for (var c = 0; c < containers.length; c++) {
-            var box = containers[c];
-            if (!box || !box.querySelectorAll) continue;
+        var selectors = [
+            '.card__rate',
+            '.card__rating',
+            '.card__vote',
+            '.card__vote-rate',
+            '.card__vote-number',
+            '[class^="card__rate-"]',
+            '[class*=" card__rate-"]',
+            '[class^="card__rating-"]',
+            '[class*=" card__rating-"]'
+        ].join(',');
 
-            /* Images/SVGs inside a rating badge are provider artwork in the common plugins. */
-            var graphics = box.querySelectorAll('img,svg,picture');
-            for (var g = 0; g < graphics.length; g++) graphics[g].classList.add(HIDE_CLASS);
+        return Array.prototype.slice.call(card.querySelectorAll(selectors));
+    }
 
-            /* Handle icon spans/divs rendered with a CSS background image. */
-            var children = box.querySelectorAll('span,i,b,em,div');
-            for (var j = 0; j < children.length; j++) {
-                var child = children[j];
-                if (child === box) continue;
+    function markProviderIconsInBox(box) {
+        if (!box || !box.querySelectorAll) return;
 
-                if (providerHint(child)) {
-                    /* Keep an element if it itself contains the numeric score. */
-                    if (!hasNumericRating(child.textContent)) child.classList.add(HIDE_CLASS);
-                    continue;
-                }
+        /* Provider logos rendered as images/SVGs inside the rating badge. */
+        var graphics = box.querySelectorAll('img,svg,picture');
+        for (var i = 0; i < graphics.length; i++) {
+            var graphic = graphics[i];
 
-                try {
-                    var cs = window.getComputedStyle(child);
-                    var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
-                    if (bg !== 'none' && !hasNumericRating(child.textContent)) {
-                        var rect = child.getBoundingClientRect();
-                        if (rect.width <= 90 && rect.height <= 90) child.classList.add(HIDE_CLASS);
-                    }
-                } catch (e) {}
-            }
+            /* In card rating boxes, small graphics are provider icons. Never touch poster images. */
+            var rect = null;
+            try { rect = graphic.getBoundingClientRect(); } catch (e) {}
+
+            var smallGraphic = !rect || ((rect.width || 0) <= 80 && (rect.height || 0) <= 80);
+            if (providerHint(graphic) || smallGraphic) graphic.classList.add(HIDE_CLASS);
         }
+
+        /* Provider logos may be spans/divs with background-image or pseudo-element. */
+        var children = box.querySelectorAll('span,i,b,em,div');
+        for (var j = 0; j < children.length; j++) {
+            var child = children[j];
+            if (hasNumericRating(child.textContent)) continue;
+
+            if (providerHint(child)) {
+                child.classList.add(HIDE_CLASS);
+                continue;
+            }
+
+            try {
+                var cs = window.getComputedStyle(child);
+                var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
+                var rect2 = child.getBoundingClientRect();
+
+                /* Only tiny background-image elements inside a known card rating box. */
+                if (bg !== 'none' && rect2.width <= 80 && rect2.height <= 80) {
+                    child.classList.add(HIDE_CLASS);
+                }
+            } catch (e2) {}
+        }
+    }
+
+    function scanCard(card) {
+        if (!card || !card.querySelectorAll) return;
+        var boxes = ratingBoxes(card);
+        for (var i = 0; i < boxes.length; i++) markProviderIconsInBox(boxes[i]);
+    }
+
+    function scan(root) {
+        if (iconsEnabled() || !root || !root.querySelectorAll) return;
+
+        var ownCard = closestCard(root);
+        if (ownCard) scanCard(ownCard);
+
+        var cards = root.querySelectorAll('.card, .card--small, .card--wide, [class~="card"]');
+        for (var i = 0; i < cards.length; i++) scanCard(cards[i]);
     }
 
     function clearMarks() {
@@ -122,24 +157,14 @@
         for (var i = 0; i < marked.length; i++) marked[i].classList.remove(HIDE_CLASS);
     }
 
-    function iconsEnabled() {
-        return boolValue(Lampa.Storage.get(SETTING, true), true);
-    }
-
     function applySetting() {
         addStyles();
-
-        if (iconsEnabled()) {
-            document.body.classList.remove(BODY_CLASS);
-            clearMarks();
-        } else {
-            document.body.classList.add(BODY_CLASS);
-            markIcons(document.body);
-        }
+        clearMarks();
+        if (!iconsEnabled()) scan(document.body);
     }
 
     function observeDom() {
-        if (observer || typeof MutationObserver === 'undefined') return;
+        if (observer || typeof MutationObserver === 'undefined' || !document.body) return;
 
         observer = new MutationObserver(function (mutations) {
             if (iconsEnabled()) return;
@@ -147,7 +172,7 @@
             for (var i = 0; i < mutations.length; i++) {
                 var nodes = mutations[i].addedNodes || [];
                 for (var j = 0; j < nodes.length; j++) {
-                    if (nodes[j] && nodes[j].nodeType === 1) markIcons(nodes[j]);
+                    if (nodes[j] && nodes[j].nodeType === 1) scan(nodes[j]);
                 }
             }
         });
@@ -156,33 +181,22 @@
     }
 
     function rescanBurst() {
-        if (scanTimer) clearInterval(scanTimer);
-        var count = 0;
-        scanTimer = setInterval(function () {
-            applySetting();
-            count++;
-            if (count >= 12) {
-                clearInterval(scanTimer);
-                scanTimer = null;
+        if (rescanTimer) clearInterval(rescanTimer);
+        var n = 0;
+        rescanTimer = setInterval(function () {
+            if (!iconsEnabled()) scan(document.body);
+            n++;
+            if (n >= 10) {
+                clearInterval(rescanTimer);
+                rescanTimer = null;
             }
         }, 500);
     }
 
     function startPlugin() {
-        if (window.__lampa_rating_icons_toggle_loaded) return;
-        window.__lampa_rating_icons_toggle_loaded = true;
+        if (window.__lampa_rating_icons_toggle_fixed_loaded) return;
+        window.__lampa_rating_icons_toggle_fixed_loaded = true;
 
-        if (Lampa.Manifest && Lampa.Manifest.plugins) {
-            Lampa.Manifest.plugins = {
-                type: 'other',
-                version: '1.0.0',
-                name: 'Иконки рейтингов',
-                description: 'Показывать или скрывать логотипы IMDb, Кинопоиска и других источников возле рейтинга',
-                component: PLUGIN_ID
-            };
-        }
-
-        /* The switch is placed directly in Settings -> Interface. */
         Lampa.SettingsApi.addParam({
             component: 'interface',
             param: {
@@ -192,7 +206,7 @@
             },
             field: {
                 name: 'Иконки возле рейтинга',
-                description: 'Показывать логотипы IMDb, Кинопоиска и других источников рядом с цифрами рейтинга'
+                description: 'Показывать логотипы IMDb, Кинопоиска и других источников только на карточках фильмов и сериалов'
             },
             onChange: function () {
                 setTimeout(function () {
@@ -202,15 +216,17 @@
             }
         });
 
-        Lampa.Storage.listener.follow('change', function (event) {
-            if (!event) return;
-            if (event.name === SETTING || event.name === 'activity') {
-                setTimeout(function () {
-                    applySetting();
-                    if (!iconsEnabled()) rescanBurst();
-                }, event.name === 'activity' ? 350 : 30);
-            }
-        });
+        if (Lampa.Storage && Lampa.Storage.listener && Lampa.Storage.listener.follow) {
+            Lampa.Storage.listener.follow('change', function (event) {
+                if (!event) return;
+                if (event.name === SETTING || event.name === 'activity') {
+                    setTimeout(function () {
+                        applySetting();
+                        if (!iconsEnabled()) rescanBurst();
+                    }, event.name === 'activity' ? 300 : 30);
+                }
+            });
+        }
 
         addStyles();
         applySetting();
