@@ -324,7 +324,7 @@
                 "visibility: hidden;" +
                 "flex-wrap: wrap;" +
                 "gap: 0.4em 0;" +
-                "padding-right: 0.25em !important;" +
+                "padding-right: 1em !important;" +
                 "box-sizing: border-box;" +
             "}" +
             ".full-start-new__rate-line > * {" +
@@ -470,7 +470,7 @@
             ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type, .rate--rt > div:first-of-type, .rate--mc > div:first-of-type {" +
                 "font-family: 'Inter', sans-serif !important;" +
                 "font-size: 1.04em !important;" +
-                "font-weight: 700 !important;" +
+                "font-weight: 500 !important;" +
                 "letter-spacing: -0.02em !important;" +
                 "line-height: 1.1;" +
             "}" +
