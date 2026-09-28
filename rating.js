@@ -149,17 +149,6 @@
             cs: 'Hodnocení',
             bg: 'Оценка'
         },
-        maxsm_ratings_loading: {
-            ru: 'Загрузка',
-            en: 'Loading',
-            uk: 'Завантаження',
-            be: 'Загрузка',
-            pt: 'Carregando',
-            zh: '加载中',
-            he: 'טוען',
-            cs: 'Načítání',
-            bg: 'Зареждане'
-        },
         maxsm_ratings_oscars: { 
             ru: 'Оскар',
             en: 'Oscar',
@@ -255,7 +244,7 @@
             ".rate--red    { color: #f44336; }" +
             ".rate--gold   { color: gold; }" +
             ".rate--icon    { height: 1.8em; }" +
-            ".full-start__rate > div:last-child { padding: 0.2em 0.4em; }" +
+            ".full-start__rate > div:last-child { padding: 0 !important; }" +
             ".jr { min-width: 5.0em; }" +
             ".rutor { min-width: 7.0em; }" +            
             // Новые стили для системы иконок
@@ -289,6 +278,9 @@
             ".full-start__rate {" +
                 "display: flex;" +
                 "align-items: center;" +
+                "padding: 0 !important;" +
+                "background: transparent !important;" +
+                "background-color: transparent !important;" +
             "}" +
             ".rate--avg > div:first-child, .rate--tmdb > div:first-child, .rate--imdb > div:first-child, .rate--kp > div:first-child, .rate--rt > div:first-child, .rate--mc > div:first-child {" +
                 "font-size: 1.3em !important;" +
@@ -322,9 +314,6 @@
                     "    background: rgba(0, 0, 0, 0.3);" +
                     "    padding: 0.6em 1em;" +
                     "    border-radius: 0.5em;" +
-                    "}" +
-                    ".loading-dots__text {" +
-                    "    margin-right: 1em;" +
                     "}" +
                     ".loading-dots__dot {" +
                     "    width: 0.5em;" +
@@ -649,7 +638,6 @@
         rateLine.append(
             '<div class="loading-dots-container">' +
                 '<div class="loading-dots">' +
-                    '<span class="loading-dots__text">' + Lampa.Lang.translate("maxsm_ratings_loading") + '</span>' +
                     '<span class="loading-dots__dot"></span>' +
                     '<span class="loading-dots__dot"></span>' +
                     '<span class="loading-dots__dot"></span>' +
