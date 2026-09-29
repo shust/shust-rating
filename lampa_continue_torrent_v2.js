@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.0
+ * Version: 2.4.0
  */
 (function () {
     'use strict';
@@ -83,7 +83,7 @@
 
         if (!s || !e) return '';
 
-        return 'Сезон ' + s + ' • Серия ' + e;
+        return 'S' + s + '• Серия ' + e;
     }
 
     function load() {
@@ -1166,7 +1166,7 @@
         if (isSeries(card)) {
             if (done) return 'Следующая серия';
             return ep
-                ? ep + ' · ' + formatTime(record.time)
+                ? ep + ' • ' + formatTime(record.time)
                 : formatTime(record.time);
         }
 
@@ -1191,7 +1191,7 @@
 
         var label = labelFor(currentCard, record);
         button.find('span').text(
-            label ? 'Продолжить · ' + label : 'Продолжить'
+            label ? 'Продолжить • ' + label : 'Продолжить'
         );
     }
 
@@ -1200,7 +1200,7 @@
             '<svg viewBox="0 0 24 24" aria-hidden="true">' +
             '<path fill="currentColor" d="M8 5.5v13L18.5 12 8 5.5z"></path>' +
             '</svg>' +
-            '<span>' + (label ? 'Продолжить · ' + label : 'Продолжить') + '</span>' +
+            '<span>' + (label ? 'Продолжить • ' + label : 'Продолжить') + '</span>' +
             '</div>';
     }
 
@@ -1413,7 +1413,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.4] Lampa + TorrServer + Vimu ready'
         );
     }
 
