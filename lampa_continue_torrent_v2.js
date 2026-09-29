@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.8
+ * Version: 2.3.10
  */
 (function () {
     'use strict';
@@ -60,7 +60,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.8]');
+        args.unshift('[ContinueTorrent v2.3.10]');
 
         try {
             console.log.apply(console, args);
@@ -792,6 +792,20 @@
             time: n(take('time', 0)),
             duration: n(take('duration', 0)),
             percent: n(take('percent', 0)),
+            torrent_episode_count:
+                n(take('torrent_episode_count', 0)),
+            has_next_episode:
+                take('has_next_episode', false) === true,
+            next_season:
+                n(take('next_season', 0)),
+            next_episode:
+                n(take('next_episode', 0)),
+            is_last_torrent_episode:
+                take('is_last_torrent_episode', false) === true,
+            last_released_season:
+                n(take('last_released_season', 0)),
+            last_released_episode:
+                n(take('last_released_episode', 0)),
             time_untrusted:
                 take('time_untrusted', false) === true,
             native_state_pending:
@@ -2335,6 +2349,326 @@
         return timeline;
     }
 
+    function releasedEpisodeMeta(card) {
+        card = card || {};
+
+        var candidates = [
+            card.last_episode_to_air,
+            card.last_episode,
+            card.last_aired_episode
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            var item = candidates[i];
+
+            if (!item) continue;
+
+            var season =
+                n(
+                    item.season_number !== undefined
+                        ? item.season_number
+                        : item.season
+                );
+
+            var episode =
+                n(
+                    item.episode_number !== undefined
+                        ? item.episode_number
+                        : item.episode
+                );
+
+            if (season && episode) {
+                return {
+                    season: season,
+                    episode: episode
+                };
+            }
+        }
+
+        // If TMDB gives the next scheduled episode but omits
+        // last_episode_to_air, the previous episode in the same season
+        // is the latest aired one.
+        var next =
+            card.next_episode_to_air ||
+            card.next_episode;
+
+        if (next) {
+            var nextSeason =
+                n(
+                    next.season_number !== undefined
+                        ? next.season_number
+                        : next.season
+                );
+
+            var nextEpisode =
+                n(
+                    next.episode_number !== undefined
+                        ? next.episode_number
+                        : next.episode
+                );
+
+            if (nextSeason &&
+                nextEpisode > 1) {
+                return {
+                    season: nextSeason,
+                    episode: nextEpisode - 1
+                };
+            }
+        }
+
+        // Conservative fallback for completed/cancelled shows only.
+        // For currently-airing shows episode_count can include episodes
+        // which have not aired yet, so we deliberately do not use it.
+        var status =
+            t(card.status).toLowerCase();
+
+        if (status === 'ended' ||
+            status === 'canceled' ||
+            status === 'cancelled') {
+
+            var seasons =
+                Array.isArray(card.seasons)
+                    ? card.seasons.slice()
+                    : [];
+
+            seasons = seasons.filter(function(item) {
+                var season =
+                    n(
+                        item &&
+                        (
+                            item.season_number !== undefined
+                                ? item.season_number
+                                : item.season
+                        )
+                    );
+
+                return season > 0 &&
+                    n(item && item.episode_count) > 0;
+            });
+
+            seasons.sort(function(a, b) {
+                return n(
+                    a.season_number !== undefined
+                        ? a.season_number
+                        : a.season
+                ) -
+                n(
+                    b.season_number !== undefined
+                        ? b.season_number
+                        : b.season
+                );
+            });
+
+            if (seasons.length) {
+                var last =
+                    seasons[
+                        seasons.length - 1
+                    ];
+
+                return {
+                    season:
+                        n(
+                            last.season_number !== undefined
+                                ? last.season_number
+                                : last.season
+                        ),
+                    episode:
+                        n(last.episode_count)
+                };
+            }
+        }
+
+        return {
+            season: 0,
+            episode: 0
+        };
+    }
+
+    function parsedEpisodeForPlaylist(
+        card,
+        playlist,
+        item
+    ) {
+        var season = n(item && item.season);
+        var episode = n(item && item.episode);
+
+        if (season && episode) {
+            return {
+                season: season,
+                episode: episode
+            };
+        }
+
+        if (!item) {
+            return {
+                season: 0,
+                episode: 0
+            };
+        }
+
+        var parsed =
+            parseFile(
+                card,
+                playlist || [],
+                item
+            );
+
+        return {
+            season:
+                season || n(parsed.season),
+            episode:
+                episode || n(parsed.episode)
+        };
+    }
+
+    function torrentEpisodeMeta(
+        card,
+        playlist,
+        current
+    ) {
+        playlist =
+            Array.isArray(playlist)
+                ? playlist
+                : [];
+
+        var episodes = [];
+        var seen = {};
+
+        playlist.forEach(function(item) {
+            if (!item) return;
+
+            var parsed =
+                parsedEpisodeForPlaylist(
+                    card,
+                    playlist,
+                    item
+                );
+
+            if (!parsed.season ||
+                !parsed.episode) {
+                return;
+            }
+
+            var key =
+                parsed.season +
+                ':' +
+                parsed.episode;
+
+            if (seen[key]) return;
+
+            seen[key] = true;
+
+            episodes.push({
+                season:
+                    parsed.season,
+                episode:
+                    parsed.episode
+            });
+        });
+
+        episodes.sort(function(a, b) {
+            return a.season - b.season ||
+                a.episode - b.episode;
+        });
+
+        var currentParsed =
+            parsedEpisodeForPlaylist(
+                card,
+                playlist,
+                current
+            );
+
+        var next = null;
+
+        if (currentParsed.season &&
+            currentParsed.episode) {
+
+            for (var i = 0; i < episodes.length; i++) {
+                var candidate = episodes[i];
+
+                if (
+                    candidate.season >
+                        currentParsed.season ||
+                    (
+                        candidate.season ===
+                            currentParsed.season &&
+                        candidate.episode >
+                            currentParsed.episode
+                    )
+                ) {
+                    next = candidate;
+                    break;
+                }
+            }
+        }
+
+        var currentIsKnown =
+            Boolean(
+                currentParsed.season &&
+                currentParsed.episode
+            );
+
+        var last = episodes.length
+            ? episodes[episodes.length - 1]
+            : null;
+
+        var isLast =
+            Boolean(
+                currentIsKnown &&
+                last &&
+                currentParsed.season ===
+                    last.season &&
+                currentParsed.episode ===
+                    last.episode
+            );
+
+        // If episode parsing failed completely, we still know the number
+        // of video entries in the playlist, but we do not guess which
+        // episode number comes next.
+        var count =
+            episodes.length ||
+            playlist.length;
+
+        return {
+            count: count,
+            hasNext:
+                Boolean(next),
+            nextSeason:
+                next ? next.season : 0,
+            nextEpisode:
+                next ? next.episode : 0,
+            isLast:
+                isLast
+        };
+    }
+
+    function recordIsLastReleasedEpisode(
+        card,
+        record
+    ) {
+        if (!record) return false;
+
+        var released =
+            releasedEpisodeMeta(card);
+
+        var lastSeason =
+            released.season ||
+            n(record.last_released_season);
+
+        var lastEpisode =
+            released.episode ||
+            n(record.last_released_episode);
+
+        return Boolean(
+            lastSeason &&
+            lastEpisode &&
+            n(record.season) ===
+                lastSeason &&
+            n(record.episode) ===
+                lastEpisode
+        );
+    }
+
     function buildPlaylist(card, hash, files, viewed) {
         var source = files.filter(function(file) {
             return isVideo(file.path);
@@ -2602,6 +2936,17 @@
 
                 var item = target.item;
                 var time = target.completed ? 0 : n(record.time);
+
+                var targetTorrentMeta =
+                    torrentEpisodeMeta(
+                        card,
+                        playlist,
+                        item
+                    );
+
+                var targetReleasedMeta =
+                    releasedEpisodeMeta(card);
+
                 var useNativeState =
                     record.native_state_pending === true &&
                     supportsNativeStateResume();
@@ -2623,6 +2968,22 @@
                         : (n(item.timeline.duration)
                             ? time / n(item.timeline.duration) * 100
                             : n(record.percent)),
+                    torrent_episode_count:
+                        targetTorrentMeta.count,
+                    has_next_episode:
+                        targetTorrentMeta.hasNext,
+                    next_season:
+                        targetTorrentMeta.nextSeason,
+                    next_episode:
+                        targetTorrentMeta.nextEpisode,
+                    is_last_torrent_episode:
+                        targetTorrentMeta.isLast,
+                    last_released_season:
+                        targetReleasedMeta.season ||
+                        n(record.last_released_season),
+                    last_released_episode:
+                        targetReleasedMeta.episode ||
+                        n(record.last_released_episode),
                     time_untrusted:
                         useNativeState
                             ? true
@@ -2842,6 +3203,30 @@
         var old = get(card) || {};
         var timeline = data.timeline || {};
 
+        var currentEpisodeForMeta =
+            Object.assign(
+                {},
+                data,
+                {
+                    season:
+                        n(data.season) ||
+                        parsed.season,
+                    episode:
+                        n(data.episode) ||
+                        parsed.episode
+                }
+            );
+
+        var torrentMeta =
+            torrentEpisodeMeta(
+                card,
+                data.playlist || [],
+                currentEpisodeForMeta
+            );
+
+        var releasedMeta =
+            releasedEpisodeMeta(card);
+
         var pending = runtime.pendingTorrent;
         var pendingFresh =
             pending &&
@@ -2954,6 +3339,31 @@
             time: sessionTime,
             duration: sessionDuration,
             percent: sessionPercent,
+            torrent_episode_count:
+                torrentMeta.count ||
+                n(old.torrent_episode_count),
+            has_next_episode:
+                torrentMeta.count
+                    ? torrentMeta.hasNext
+                    : old.has_next_episode === true,
+            next_season:
+                torrentMeta.count
+                    ? torrentMeta.nextSeason
+                    : n(old.next_season),
+            next_episode:
+                torrentMeta.count
+                    ? torrentMeta.nextEpisode
+                    : n(old.next_episode),
+            is_last_torrent_episode:
+                torrentMeta.count
+                    ? torrentMeta.isLast
+                    : old.is_last_torrent_episode === true,
+            last_released_season:
+                releasedMeta.season ||
+                n(old.last_released_season),
+            last_released_episode:
+                releasedMeta.episode ||
+                n(old.last_released_episode),
             time_untrusted:
                 old.time_untrusted === true,
             native_state_pending:
@@ -3068,8 +3478,48 @@
 
         if (series) {
             if (done) {
+                var lastInTorrent =
+                    record.is_last_torrent_episode === true;
+
+                if (lastInTorrent) {
+                    if (recordIsLastReleasedEpisode(
+                        card,
+                        record
+                    )) {
+                        return {
+                            text: 'Сезон просмотрен',
+                            time: '',
+                            progress: 0,
+                            hasTime: false,
+                            series: true
+                        };
+                    }
+
+                    if (n(record.torrent_episode_count) > 0) {
+                        return {
+                            text:
+                                'Просмотрено ' +
+                                n(record.torrent_episode_count) +
+                                ' серий',
+                            time: '',
+                            progress: 0,
+                            hasTime: false,
+                            series: true
+                        };
+                    }
+                }
+
+                var nextEpisode =
+                    n(record.next_episode);
+
                 return {
-                    text: 'Продолжить · Следующая серия',
+                    text:
+                        'Продолжить · Следующая серия' +
+                        (
+                            nextEpisode
+                                ? ' ' + nextEpisode
+                                : ''
+                        ),
                     time: '',
                     progress: 0,
                     hasTime: false,
@@ -3171,6 +3621,8 @@
                     'border-radius:99em;' +
                     'background:rgba(127,127,127,0.38);' +
                     'vertical-align:middle;' +
+                    'margin-left:0.85em;' +
+                    'margin-right:0.85em;' +
                 '">' +
                 '<span class="ctv-progress__fill" ' +
                     'style="' +
@@ -3224,7 +3676,7 @@
                 'style="' +
                     'display:inline-flex;' +
                     'align-items:center;' +
-                    'gap:0.82em;' +
+                    'gap:0;' +
                     'white-space:nowrap;' +
                 '">' +
                 parts.join('') +
@@ -3735,7 +4187,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.8] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.10] Lampa + TorrServer + Vimu ready'
         );
     }
 
