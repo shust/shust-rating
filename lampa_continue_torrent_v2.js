@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.1.0
+ * Version: 2.3.0
  */
 (function () {
     'use strict';
@@ -30,7 +30,11 @@
         lastSave: 0,
         lastServerSave: 0,
         resumeJob: null,
-        pendingTorrent: null
+        pendingTorrent: null,
+        timelinePoller: null,
+        buttonObserver: null,
+        buttonGuardStart: null,
+        buttonGuardModule: null
     };
 
     function t(v) {
@@ -74,8 +78,12 @@
     }
 
     function episodeText(s, e) {
-        if (!n(s) || !n(e)) return '';
-        return 'S' + String(n(s)).padStart(2,'0') + 'E' + String(n(e)).padStart(2,'0');
+        s = n(s);
+        e = n(e);
+
+        if (!s || !e) return '';
+
+        return 'Сезон ' + s + ' • Серия ' + e;
     }
 
     function load() {
@@ -115,6 +123,7 @@
             torrent_title: t(take('torrent_title', '')),
             file_index: take('file_index', ''),
             file_path: t(take('file_path', '')),
+            timeline_hash: t(take('timeline_hash', '')),
             season: n(take('season', 0)),
             episode: n(take('episode', 0)),
             time: n(take('time', 0)),
@@ -124,6 +133,225 @@
         };
 
         save();
+    }
+
+    function applyTimelineRoad(hash, road) {
+        hash = t(hash);
+        if (!hash || !road) return false;
+
+        var time = n(road.time);
+        var duration = n(road.duration);
+        var percent = road.percent !== undefined
+            ? n(road.percent)
+            : (duration ? time / duration * 100 : 0);
+
+        var changed = false;
+
+        // Update the active playback session.
+        if (runtime.session &&
+            t(runtime.session.timeline_hash) === hash) {
+
+            runtime.session.time = time;
+            runtime.session.duration = duration;
+            runtime.session.percent = percent;
+
+            put(runtime.session.card, runtime.session);
+            refreshCurrentButton(runtime.session.card);
+            changed = true;
+        }
+
+        // Also update persistent history by timeline hash.
+        // This continues to work after Player.destroy or a card rebuild.
+        Object.keys(runtime.history).forEach(function(key) {
+            var record = runtime.history[key];
+
+            if (!record || t(record.timeline_hash) !== hash) return;
+
+            if (runtime.session &&
+                cardIdentity(runtime.session.card) === key) {
+                return;
+            }
+
+            record.time = time;
+            record.duration = duration;
+            record.percent = percent;
+            record.updated_at = Date.now();
+
+            changed = true;
+
+            var currentCard =
+                runtime.currentFull &&
+                runtime.currentFull.data &&
+                runtime.currentFull.data.movie;
+
+            if (currentCard && cardIdentity(currentCard) === key) {
+                refreshCurrentButton(currentCard);
+            }
+        });
+
+        if (changed) save();
+
+        return changed;
+    }
+
+    function syncTimelineForCard(card) {
+        if (!card || !Lampa.Timeline || !Lampa.Timeline.view) return false;
+
+        var record = get(card);
+        if (!record || !record.timeline_hash) return false;
+
+        try {
+            var timeline = Lampa.Timeline.view(record.timeline_hash);
+
+            // Do not overwrite a useful stored value with an empty timeline
+            // merely because this Lampa build has not loaded it yet.
+            // Explicit zero/reset updates are still handled by timelineUpdate().
+            if (timeline &&
+                (n(timeline.time) > 0 ||
+                 n(timeline.duration) > 0 ||
+                 n(timeline.percent) > 0)) {
+
+                return applyTimelineRoad(record.timeline_hash, timeline);
+            }
+        } catch (e) {}
+
+        return false;
+    }
+
+    function syncActiveTimeline() {
+        if (runtime.session && runtime.session.timeline_hash &&
+            Lampa.Timeline && Lampa.Timeline.view) {
+
+            try {
+                var timeline =
+                    Lampa.Timeline.view(runtime.session.timeline_hash);
+
+                if (timeline &&
+                    (n(timeline.time) > 0 ||
+                     n(timeline.duration) > 0 ||
+                     n(timeline.percent) > 0)) {
+
+                    applyTimelineRoad(
+                        runtime.session.timeline_hash,
+                        timeline
+                    );
+                }
+            } catch (e) {}
+        }
+
+        var currentCard =
+            runtime.currentFull &&
+            runtime.currentFull.data &&
+            runtime.currentFull.data.movie;
+
+        if (currentCard) {
+            syncTimelineForCard(currentCard);
+        }
+    }
+
+    function scheduleTimelineSync() {
+        [0, 300, 1000, 2500].forEach(function(wait) {
+            setTimeout(syncActiveTimeline, wait);
+        });
+    }
+
+    function startTimelinePoller() {
+        if (runtime.timelinePoller) return;
+
+        runtime.timelinePoller = setInterval(function() {
+            if (runtime.session) syncActiveTimeline();
+        }, 2000);
+    }
+
+    function timelineStateChanged(event) {
+        if (!event ||
+            event.target !== 'timeline' ||
+            event.reason !== 'update' ||
+            !event.data) {
+            return;
+        }
+
+        timelineUpdate({data: event.data});
+    }
+
+    function installTimelineUpdateHook() {
+        if (!Lampa.Timeline ||
+            typeof Lampa.Timeline.update !== 'function' ||
+            window.__lampa_continue_torrent_v2_timeline_hook) {
+            return;
+        }
+
+        window.__lampa_continue_torrent_v2_timeline_hook = true;
+
+        var originalUpdate = Lampa.Timeline.update;
+
+        Lampa.Timeline.update = function(params) {
+            var result = originalUpdate.apply(this, arguments);
+
+            try {
+                if (params && params.hash) {
+                    var current = Lampa.Timeline.view(params.hash);
+                    applyTimelineRoad(params.hash, current || params);
+                }
+            } catch (e) {}
+
+            return result;
+        };
+    }
+
+    function toPlayUrl(url) {
+        url = t(url);
+        if (!url) return '';
+
+        try {
+            if (Lampa.Torserver &&
+                typeof Lampa.Torserver.toPlayUrl === 'function') {
+                return Lampa.Torserver.toPlayUrl(url);
+            }
+        } catch (e) {}
+
+        return url.replace('&preload', '&play');
+    }
+
+    function normalizeTorrentPlayerData(data) {
+        if (!data || !data.torrent_hash) return data;
+
+        // Important for external Android/Vimu resume:
+        // current item and its playlist entry MUST use the same URL.
+        if (data.url) {
+            data.url = toPlayUrl(data.url);
+        }
+
+        if (Array.isArray(data.playlist)) {
+            data.playlist.forEach(function(item) {
+                if (item && item.url) {
+                    item.url = toPlayUrl(item.url);
+                }
+            });
+
+            var current = data.playlist.find(function(item) {
+                if (!item) return false;
+
+                if (data.id !== undefined &&
+                    item.id !== undefined &&
+                    String(item.id) === String(data.id)) {
+                    return true;
+                }
+
+                if (data.path && item.path &&
+                    t(item.path) === t(data.path)) {
+                    return true;
+                }
+
+                return false;
+            });
+
+            if (current && current.url) {
+                data.url = current.url;
+            }
+        }
+
+        return data;
     }
 
     function magnetFor(record) {
@@ -568,9 +796,14 @@
         });
 
         try {
+            normalizeTorrentPlayerData(data);
+
             Lampa.Player.play(data);
+
             if (Lampa.Player.playlist) {
-                Lampa.Player.playlist(normalized);
+                Lampa.Player.playlist(
+                    data.playlist || normalized
+                );
             }
         } catch (e) {
             throw e;
@@ -697,6 +930,7 @@
                     torrent_title: t(record.torrent_title),
                     file_index: item.id,
                     file_path: item.path,
+                    timeline_hash: t(item.timeline && item.timeline.hash),
                     season: n(item.season),
                     episode: n(item.episode),
                     time: time,
@@ -781,6 +1015,7 @@
             torrent_title: t(item.torrent_title || item.title || item.path_human) || t(old.torrent_title),
             file_index: item.id,
             file_path: t(item.path),
+            timeline_hash: t(timeline.hash) || parsed.timelineHash,
             season: n(item.season) || parsed.season,
             episode: n(item.episode) || parsed.episode,
             time: n(timeline.time),
@@ -791,45 +1026,45 @@
         runtime.session = session;
         put(card, session);
         refreshCurrentButton(card);
+        startTimelinePoller();
     }
 
     function timelineUpdate(event) {
-        if (!runtime.session || !event) return;
+        if (!event) return;
 
         var data = event.data || event;
         var timeline = data.road || data.timeline || data;
         if (!timeline) return;
 
         var eventHash = t(data.hash || timeline.hash);
-        var sessionHash = t(runtime.session.timeline_hash);
+        if (!eventHash) return;
 
-        // Ignore timeline updates from another file/player session.
-        if (eventHash && sessionHash && eventHash !== sessionHash) {
-            return;
+        var sessionHash =
+            runtime.session
+                ? t(runtime.session.timeline_hash)
+                : '';
+
+        // If an active session exists for another file, still allow the
+        // persistent-history lookup below to process this hash.
+        if (sessionHash && eventHash === sessionHash) {
+            runtime.session.time = n(timeline.time);
+            runtime.session.duration = n(timeline.duration);
+            runtime.session.percent =
+                timeline.percent !== undefined
+                    ? n(timeline.percent)
+                    : (runtime.session.duration
+                        ? runtime.session.time /
+                          runtime.session.duration * 100
+                        : 0);
+
+            runtime.lastSave = Date.now();
         }
 
-        var time = n(timeline.time);
-        var duration = n(timeline.duration);
-        var percent = n(timeline.percent);
+        applyTimelineRoad(eventHash, timeline);
 
-        // Completed playback from the Android app is intentionally returned as
-        // time=0, duration=0, percent=100. Do not discard that update.
-        if (!duration && !time && !percent) return;
-
-        runtime.session.time = time;
-        runtime.session.duration = duration;
-        runtime.session.percent = percent ||
-            (duration ? time / duration * 100 : 0);
-
-        if (eventHash) runtime.session.timeline_hash = eventHash;
-
-        // A Vimu return may produce only one update, so persist every matched
-        // Timeline update rather than waiting for the old 10-second throttle.
-        runtime.lastSave = Date.now();
-        put(runtime.session.card, runtime.session);
-        refreshCurrentButton(runtime.session.card);
-
-        if (Lampa.Storage.field('torrserver_tracktimecode') === true &&
+        if (runtime.session &&
+            eventHash === t(runtime.session.timeline_hash) &&
+            Lampa.Storage.field('torrserver_tracktimecode') === true &&
             Date.now() - runtime.lastServerSave >= SERVER_SAVE_EVERY) {
 
             runtime.lastServerSave = Date.now();
@@ -846,6 +1081,12 @@
         if (!event || !event.data) return;
 
         var data = event.data;
+
+        // Player.listener "create" is synchronous and runs before
+        // Lampa launches the external Android player. Mutating this object
+        // here fixes preload/play URL divergence in the actual launch data.
+        normalizeTorrentPlayerData(data);
+
         var card = data.card;
         if (!card) return;
 
@@ -858,11 +1099,17 @@
 
         runtime.session = {
             card: card,
-            timeline_hash: t(timeline.hash) || parsed.timelineHash,
+            timeline_hash: t(timeline.hash) ||
+                           t(old.timeline_hash) ||
+                           parsed.timelineHash,
             infohash: hash.toUpperCase(),
             magnet: t(data.magnet) || t(old.magnet),
-            torrent_title: t(data.torrent_title || data.title) || t(old.torrent_title),
-            file_index: data.id !== undefined ? data.id : data.file_index,
+            torrent_title: t(data.torrent_title || data.title) ||
+                           t(old.torrent_title),
+            file_index:
+                data.id !== undefined
+                    ? data.id
+                    : data.file_index,
             file_path: t(data.path || data.file_path),
             season: n(data.season) || parsed.season,
             episode: n(data.episode) || parsed.episode,
@@ -873,6 +1120,7 @@
 
         put(card, runtime.session);
         refreshCurrentButton(card);
+        startTimelinePoller();
     }
 
     function playerDestroy() {
@@ -890,9 +1138,9 @@
         }
 
         // Do not clear runtime.session here.
-        // Some external-player flows can deliver the final Timeline.update
-        // after the player destroy notification. The next Player.create
-        // safely replaces this session.
+        // Some external-player flows deliver the final Timeline.update
+        // after the destroy notification.
+        scheduleTimelineSync();
     }
 
     function rootFor(event) {
@@ -956,6 +1204,96 @@
             '</div>';
     }
 
+    function cleanupButtonGuard() {
+        if (runtime.buttonObserver) {
+            try {
+                runtime.buttonObserver.disconnect();
+            } catch (e) {}
+
+            runtime.buttonObserver = null;
+        }
+
+        if (runtime.buttonGuardStart &&
+            runtime.buttonGuardModule &&
+            typeof runtime.buttonGuardStart.unuse === 'function') {
+
+            try {
+                runtime.buttonGuardStart.unuse(
+                    runtime.buttonGuardModule
+                );
+            } catch (e) {}
+        }
+
+        runtime.buttonGuardStart = null;
+        runtime.buttonGuardModule = null;
+    }
+
+    function ensureContinueFirst(container, button) {
+        if (!container || !container.length ||
+            !button || !button.length) {
+            return;
+        }
+
+        var first = container.children().first();
+
+        if (!first.length || first[0] !== button[0]) {
+            container.prepend(button);
+        }
+    }
+
+    function installButtonFirstGuard(event, container, button) {
+        cleanupButtonGuard();
+
+        var guard = function() {
+            ensureContinueFirst(container, button);
+        };
+
+        // Current Lampa runs groupButtons immediately after full:complite.
+        // The built-in Buttons module can prepend .button--priority there.
+        // Appending our module makes our handlers run after the built-in one,
+        // but still before Controller.collectionSet().
+        var fullComponent = event && event.link;
+        var startComponent =
+            fullComponent &&
+            fullComponent.items &&
+            fullComponent.items[0];
+
+        if (startComponent &&
+            typeof startComponent.use === 'function') {
+
+            var module = {
+                onPriorityButton: guard,
+                onGroupButtons: guard
+            };
+
+            try {
+                startComponent.use(module);
+                runtime.buttonGuardStart = startComponent;
+                runtime.buttonGuardModule = module;
+            } catch (e) {}
+        }
+
+        // Fallback for themes/plugins that reorder buttons directly in DOM.
+        if (typeof MutationObserver !== 'undefined' &&
+            container[0]) {
+
+            runtime.buttonObserver =
+                new MutationObserver(function() {
+                    guard();
+                });
+
+            runtime.buttonObserver.observe(
+                container[0],
+                {childList: true}
+            );
+        }
+
+        guard();
+        setTimeout(guard, 0);
+        setTimeout(guard, 100);
+        setTimeout(guard, 500);
+    }
+
     function onFull(event) {
         if (!event || event.type !== 'complite') return;
 
@@ -967,7 +1305,11 @@
         var root = rootFor(event);
         if (!root) return;
 
+        cleanupButtonGuard();
         root.find('.view--continue-torrent-v2').remove();
+
+        // Pull the newest value from Lampa's own timeline before drawing.
+        syncTimelineForCard(card);
 
         var record = get(card);
         if (!record) return;
@@ -983,27 +1325,44 @@
         ).last();
 
         if (container.length) {
-            // The Continue button must always be the first action.
             container.prepend(button);
+            installButtonFirstGuard(
+                event,
+                container,
+                button
+            );
             return;
         }
 
-        // Fallback for layouts where the standard buttons wrapper differs.
+        // Legacy / custom layout fallback.
         var firstKnown = root.find(
             '.view--torrent, .view--online, .full-start__button'
         ).first();
 
-        if (firstKnown.length && firstKnown.parent().length) {
-            firstKnown.parent().prepend(button);
+        if (firstKnown.length &&
+            firstKnown.parent().length) {
+
+            container = firstKnown.parent();
+            container.prepend(button);
+
+            installButtonFirstGuard(
+                event,
+                container,
+                button
+            );
         }
     }
 
     function init() {
         load();
 
+        installTimelineUpdateHook();
+        startTimelinePoller();
+
         if (Lampa.Listener) {
             Lampa.Listener.follow('full', onFull);
             Lampa.Listener.follow('torrent_file', captureTorrentFile);
+            Lampa.Listener.follow('state:changed', timelineStateChanged);
         }
 
         if (Lampa.Timeline && Lampa.Timeline.listener) {
@@ -1013,18 +1372,49 @@
         if (Lampa.Player && Lampa.Player.listener) {
             Lampa.Player.listener.follow('create', playerCreate);
             Lampa.Player.listener.follow('destroy', playerDestroy);
+
             Lampa.Player.listener.follow('external', function(event) {
-                // Current Player sends the play data itself for "external",
-                // while "create" uses {data: ...}.
-                var data = event && event.data ? event.data : event;
+                // Current Player sends raw play data for "external".
+                var data =
+                    event && event.data
+                        ? event.data
+                        : event;
 
                 if (data && data.card) {
                     playerCreate({data: data});
                 }
+
+                // On return from Vimu the native client updates Timeline.
+                // The delayed reads make the button resilient to event order.
+                scheduleTimelineSync();
             });
         }
 
-        console.log('[ContinueTorrent v2.1] Lampa + TorrServer + Vimu ready');
+        if (typeof window !== 'undefined' &&
+            window.addEventListener) {
+
+            window.addEventListener(
+                'focus',
+                scheduleTimelineSync
+            );
+        }
+
+        if (typeof document !== 'undefined' &&
+            document.addEventListener) {
+
+            document.addEventListener(
+                'visibilitychange',
+                function() {
+                    if (!document.hidden) {
+                        scheduleTimelineSync();
+                    }
+                }
+            );
+        }
+
+        console.log(
+            '[ContinueTorrent v2.3] Lampa + TorrServer + Vimu ready'
+        );
     }
 
     if (window.appready) {
