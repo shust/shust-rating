@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.10
+ * Version: 2.3.11
  */
 (function () {
     'use strict';
@@ -60,7 +60,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.10]');
+        args.unshift('[ContinueTorrent v2.3.11]');
 
         try {
             console.log.apply(console, args);
@@ -3601,6 +3601,33 @@
             .replace(/"/g, '&quot;');
     }
 
+    function installProgressFocusStyle() {
+        if (document.getElementById(
+            'ctv-progress-focus-style'
+        )) {
+            return;
+        }
+
+        var style =
+            document.createElement('style');
+
+        style.id =
+            'ctv-progress-focus-style';
+
+        style.textContent =
+            '.view--continue-torrent-v2 .ctv-progress{' +
+                'margin-left:0!important;' +
+                'margin-right:0!important;' +
+                'transition:margin .12s ease;' +
+            '}' +
+            '.view--continue-torrent-v2.focus .ctv-progress{' +
+                'margin-left:.85em!important;' +
+                'margin-right:.85em!important;' +
+            '}';
+
+        document.head.appendChild(style);
+    }
+
     function progressHtml(percent) {
         percent = Math.max(
             0,
@@ -3621,8 +3648,6 @@
                     'border-radius:99em;' +
                     'background:rgba(127,127,127,0.38);' +
                     'vertical-align:middle;' +
-                    'margin-left:0.85em;' +
-                    'margin-right:0.85em;' +
                 '">' +
                 '<span class="ctv-progress__fill" ' +
                     'style="' +
@@ -4085,6 +4110,7 @@
         installTimelineUpdateHook();
         installAndroidTimeCallHook();
         installAndroidOpenPlayerHook();
+        installProgressFocusStyle();
         startTimelinePoller();
         startButtonRestoreWatcher();
 
@@ -4187,7 +4213,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.10] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.11] Lampa + TorrServer + Vimu ready'
         );
     }
 
