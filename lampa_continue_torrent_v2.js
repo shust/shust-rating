@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.5-debug
+ * Version: 2.3.5-debug2
  */
 (function () {
     'use strict';
@@ -12,7 +12,7 @@
     var STORAGE = 'lampa_continue_torrent_v2';
     var DEBUG_STORAGE = 'lampa_continue_torrent_v2_debug_log';
     var DEBUG_MAX_LINES = 500;
-    var DEBUG_MODAL_LINES = 220;
+    var DEBUG_MODAL_LINES = 8;
     var SAVE_EVERY = 10000;
     var SERVER_SAVE_EVERY = 30000;
     var COMPLETE_PERCENT = 90;
@@ -167,7 +167,7 @@
         if (window.console && console.log) {
             try {
                 console.log(
-                    '[ContinueTorrent v2.3.5-debug]',
+                    '[ContinueTorrent v2.3.5-debug2]',
                     line
                 );
             }
@@ -195,66 +195,176 @@
             .replace(/"/g, '&quot;');
     }
 
-    function showDebugLog() {
+    function showDebugLog(page) {
         var lines = loadDebugLines();
-        var text = getDebugLogText(
-            DEBUG_MODAL_LINES
-        );
+        var perPage = DEBUG_MODAL_LINES;
 
-        if (!text) {
-            text = 'Debug-лог пока пуст.';
+        if (!lines.length) {
+            lines = ['Debug-лог пока пуст.'];
         }
 
-        if (Lampa.Modal &&
-            typeof Lampa.Modal.open === 'function') {
-
-            var html = $(
-                '<div style="' +
-                'padding:0.4em 0.2em;' +
-                'max-height:70vh;' +
-                'overflow:auto;' +
-                'font-family:monospace;' +
-                'font-size:0.72em;' +
-                'line-height:1.45;' +
-                'white-space:pre-wrap;' +
-                'word-break:break-all;' +
-                'user-select:text;' +
-                '-webkit-user-select:text;' +
-                '">' +
-                escapeHtml(text) +
-                '</div>'
+        var totalPages =
+            Math.max(
+                1,
+                Math.ceil(lines.length / perPage)
             );
 
-            Lampa.Modal.open({
-                title:
-                    'Continue Torrent Debug — ' +
-                    Math.min(
-                        DEBUG_MODAL_LINES,
-                        lines.length
-                    ) +
-                    ' строк',
-                html: html,
-                width: 900,
-                onBack: function() {
-                    Lampa.Modal.close();
+        page = Number(page);
 
-                    if (Lampa.Controller &&
-                        typeof Lampa.Controller.toggle === 'function') {
-                        Lampa.Controller.toggle('settings');
-                    }
+        if (!isFinite(page)) {
+            page = totalPages - 1;
+        }
 
-                    return true;
-                }
-            });
+        page = Math.max(
+            0,
+            Math.min(
+                totalPages - 1,
+                Math.floor(page)
+            )
+        );
+
+        var from = page * perPage;
+        var to = Math.min(
+            lines.length,
+            from + perPage
+        );
+
+        var pageText =
+            lines.slice(from, to).join('\n\n');
+
+        if (!Lampa.Modal ||
+            typeof Lampa.Modal.open !== 'function') {
+
+            if (Lampa.Noty &&
+                Lampa.Noty.show) {
+                Lampa.Noty.show(
+                    'Не удалось открыть окно лога'
+                );
+            }
 
             return;
         }
 
-        if (Lampa.Noty && Lampa.Noty.show) {
-            Lampa.Noty.show(
-                'Не удалось открыть окно лога'
-            );
+        var modal = $(
+            '<div class="ctv-debug-modal">' +
+                '<div class="ctv-debug-text" style="' +
+                    'font-family:monospace;' +
+                    'font-size:0.68em;' +
+                    'line-height:1.35;' +
+                    'white-space:pre-wrap;' +
+                    'word-break:break-all;' +
+                    'max-height:52vh;' +
+                    'overflow:hidden;' +
+                    'padding:0.2em 0.15em 0.8em;' +
+                '"></div>' +
+                '<div class="ctv-debug-actions" style="' +
+                    'display:flex;' +
+                    'gap:0.6em;' +
+                    'flex-wrap:wrap;' +
+                    'padding-top:0.4em;' +
+                '">' +
+                    '<div class="simple-button selector ctv-debug-prev">' +
+                        '← Назад' +
+                    '</div>' +
+                    '<div class="simple-button selector ctv-debug-next">' +
+                        'Вперёд →' +
+                    '</div>' +
+                    '<div class="simple-button selector ctv-debug-close">' +
+                        'Закрыть' +
+                    '</div>' +
+                '</div>' +
+            '</div>'
+        );
+
+        modal.find('.ctv-debug-text').text(
+            pageText
+        );
+
+        var prev =
+            modal.find('.ctv-debug-prev');
+
+        var next =
+            modal.find('.ctv-debug-next');
+
+        var close =
+            modal.find('.ctv-debug-close');
+
+        if (page <= 0) {
+            prev.css('opacity', '0.35');
         }
+
+        if (page >= totalPages - 1) {
+            next.css('opacity', '0.35');
+        }
+
+        prev.on('hover:enter click', function() {
+            if (page <= 0) return;
+
+            Lampa.Modal.close();
+
+            setTimeout(function() {
+                showDebugLog(page - 1);
+            }, 40);
+        });
+
+        next.on('hover:enter click', function() {
+            if (page >= totalPages - 1) return;
+
+            Lampa.Modal.close();
+
+            setTimeout(function() {
+                showDebugLog(page + 1);
+            }, 40);
+        });
+
+        close.on('hover:enter click', function() {
+            Lampa.Modal.close();
+
+            setTimeout(function() {
+                if (Lampa.Controller &&
+                    typeof Lampa.Controller.toggle === 'function') {
+                    Lampa.Controller.toggle(
+                        'settings_component'
+                    );
+                }
+            }, 40);
+        });
+
+        var firstSelectable =
+            page < totalPages - 1
+                ? next
+                : (page > 0 ? prev : close);
+
+        Lampa.Modal.open({
+            title:
+                'Continue Torrent Debug — ' +
+                'стр. ' +
+                (page + 1) +
+                '/' +
+                totalPages +
+                ' · строки ' +
+                (from + 1) +
+                '–' +
+                to +
+                ' из ' +
+                lines.length,
+            html: modal,
+            size: 'medium',
+            scroll_to_center: true,
+            select: firstSelectable,
+            onBack: function() {
+                Lampa.Modal.close();
+
+                if (Lampa.Controller &&
+                    typeof Lampa.Controller.toggle === 'function') {
+                    Lampa.Controller.toggle(
+                        'settings_component'
+                    );
+                }
+
+                return true;
+            }
+        });
     }
 
     function copyDebugLog() {
@@ -3048,7 +3158,7 @@
                 name:
                     'Показать debug-лог',
                 description:
-                    'Показывает последние строки прямо в Lampa'
+                    'Показывает лог по страницам по 8 записей; открывается последняя страница'
             },
             onChange: function() {
                 showDebugLog();
@@ -3114,7 +3224,7 @@
 
         debug(
             'PLUGIN INIT',
-            'build=v2.3.5-debug',
+            'build=v2.3.5-debug2',
             'tracktimecode=',
             Lampa.Storage.field(
                 'torrserver_tracktimecode'
@@ -3222,7 +3332,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.5-debug] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.5-debug2] Lampa + TorrServer + Vimu ready'
         );
     }
 
