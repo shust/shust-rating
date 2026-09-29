@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.6
+ * Version: 2.3.7
  */
 (function () {
     'use strict';
@@ -60,7 +60,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.6]');
+        args.unshift('[ContinueTorrent v2.3.7]');
 
         try {
             console.log.apply(console, args);
@@ -209,11 +209,19 @@
         return m + ':' + String(s).padStart(2,'0');
     }
 
-    function episodeText(s, e) {
+    function episodeText(s, e, card) {
         s = n(s);
         e = n(e);
 
         if (!s || !e) return '';
+
+        var oneSeason =
+            card &&
+            n(card.number_of_seasons) === 1;
+
+        if (oneSeason) {
+            return 'Серия ' + e;
+        }
 
         return 'Сезон ' + s + ' · Серия ' + e;
     }
@@ -3002,58 +3010,314 @@
         return typeof $ === 'function' ? $(rendered) : null;
     }
 
-    function labelFor(card, record) {
-        if (!record) return '';
+    function progressFor(record) {
+        if (!record) return 0;
 
-        var ep = episodeText(record.season, record.episode);
-        var done = n(record.percent) >= COMPLETE_PERCENT;
+        var percent = n(record.percent);
+        var time = n(record.time);
+        var duration = n(record.duration);
+
+        if ((!percent || percent < 0) &&
+            time > 0 &&
+            duration > 0) {
+            percent =
+                time / duration * 100;
+        }
+
+        return Math.max(
+            0,
+            Math.min(
+                100,
+                percent
+            )
+        );
+    }
+
+    function buttonView(card, record) {
+        if (!record) {
+            return {
+                text: 'Продолжить',
+                time: '',
+                progress: 0,
+                hasTime: false,
+                series: false
+            };
+        }
+
+        var series =
+            isSeries(card) ||
+            Boolean(
+                n(record.season) &&
+                n(record.episode)
+            );
+
+        var done =
+            n(record.percent) >=
+            COMPLETE_PERCENT;
+
         var hasTime =
             n(record.time) > 0 &&
             record.time_untrusted !== true;
 
-        if (isSeries(card) || (n(record.season) && n(record.episode))) {
-            if (done) return 'Следующая серия';
+        var ep =
+            episodeText(
+                record.season,
+                record.episode,
+                card
+            );
 
-            if (ep) {
-                return hasTime
-                    ? ep + ' · ' + formatTime(record.time)
-                    : ep;
+        if (series) {
+            if (done) {
+                return {
+                    text: 'Продолжить · Следующая серия',
+                    time: '',
+                    progress: 0,
+                    hasTime: false,
+                    series: true
+                };
             }
 
-            return hasTime ? formatTime(record.time) : '';
+            if (hasTime) {
+                return {
+                    // For series with a timecode remove "Продолжить".
+                    text: ep || '',
+                    time:
+                        formatTime(
+                            record.time
+                        ),
+                    progress:
+                        progressFor(record),
+                    hasTime: true,
+                    series: true
+                };
+            }
+
+            return {
+                text:
+                    ep
+                        ? 'Продолжить · ' + ep
+                        : 'Продолжить',
+                time: '',
+                progress: 0,
+                hasTime: false,
+                series: true
+            };
         }
 
-        if (done) return 'Продолжить просмотр';
-        return hasTime ? formatTime(record.time) : '';
+        if (done) {
+            return {
+                text: 'Продолжить просмотр',
+                time: '',
+                progress: 0,
+                hasTime: false,
+                series: false
+            };
+        }
+
+        if (hasTime) {
+            return {
+                // Films keep the word "Продолжить".
+                text: 'Продолжить',
+                time:
+                    formatTime(
+                        record.time
+                    ),
+                progress:
+                    progressFor(record),
+                hasTime: true,
+                series: false
+            };
+        }
+
+        return {
+            text: 'Продолжить',
+            time: '',
+            progress: 0,
+            hasTime: false,
+            series: false
+        };
+    }
+
+    function escapeButtonText(value) {
+        return String(
+            value === undefined ||
+            value === null
+                ? ''
+                : value
+        )
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function progressHtml(percent) {
+        percent = Math.max(
+            0,
+            Math.min(
+                100,
+                n(percent)
+            )
+        );
+
+        return '' +
+            '<span class="ctv-progress" ' +
+                'style="' +
+                    'display:inline-block;' +
+                    'width:3.45em;' +
+                    'height:0.24em;' +
+                    'flex:0 0 3.45em;' +
+                    'overflow:hidden;' +
+                    'border-radius:99em;' +
+                    'background:rgba(127,127,127,0.38);' +
+                    'vertical-align:middle;' +
+                '">' +
+                '<span class="ctv-progress__fill" ' +
+                    'style="' +
+                        'display:block;' +
+                        'width:' + percent.toFixed(2) + '%;' +
+                        'height:100%;' +
+                        'border-radius:inherit;' +
+                        'background:currentColor;' +
+                    '">' +
+                '</span>' +
+            '</span>';
+    }
+
+    function buttonContentHtml(card, record) {
+        var view =
+            buttonView(
+                card,
+                record
+            );
+
+        var parts = [];
+
+        if (view.text) {
+            parts.push(
+                '<span class="ctv-continue-text">' +
+                    escapeButtonText(
+                        view.text
+                    ) +
+                '</span>'
+            );
+        }
+
+        if (view.hasTime) {
+            parts.push(
+                progressHtml(
+                    view.progress
+                )
+            );
+
+            parts.push(
+                '<span class="ctv-continue-time">' +
+                    escapeButtonText(
+                        view.time
+                    ) +
+                '</span>'
+            );
+        }
+
+        return '' +
+            '<span class="ctv-continue-content" ' +
+                'style="' +
+                    'display:inline-flex;' +
+                    'align-items:center;' +
+                    'gap:0.55em;' +
+                    'white-space:nowrap;' +
+                '">' +
+                parts.join('') +
+            '</span>';
+    }
+
+    function updateButtonContent(button, card, record) {
+        if (!button || !button.length) return;
+
+        var directContent =
+            button.children(
+                '.ctv-continue-content'
+            );
+
+        if (!directContent.length) {
+            // Old v2.3.x button structure had one plain span.
+            // Reuse that node so hot reloads/themes do not duplicate content.
+            var oldSpan =
+                button.children('span').first();
+
+            if (oldSpan.length) {
+                oldSpan.replaceWith(
+                    buttonContentHtml(
+                        card,
+                        record
+                    )
+                );
+            }
+            else {
+                button.append(
+                    buttonContentHtml(
+                        card,
+                        record
+                    )
+                );
+            }
+
+            return;
+        }
+
+        directContent.replaceWith(
+            buttonContentHtml(
+                card,
+                record
+            )
+        );
     }
 
     function refreshCurrentButton(card) {
         var event = runtime.currentFull;
         if (!event || !card) return;
 
-        var currentCard = event.data && event.data.movie;
-        if (!currentCard || cardIdentity(currentCard) !== cardIdentity(card)) return;
+        var currentCard =
+            event.data &&
+            event.data.movie;
+
+        if (!currentCard ||
+            cardIdentity(currentCard) !==
+            cardIdentity(card)) {
+            return;
+        }
 
         var root = rootFor(event);
         if (!root) return;
 
         var record = get(currentCard);
-        var button = root.find('.view--continue-torrent-v2').first();
+        var button =
+            root.find(
+                '.view--continue-torrent-v2'
+            ).first();
 
-        if (!record || !button.length) return;
+        if (!record ||
+            !button.length) {
+            return;
+        }
 
-        var label = labelFor(currentCard, record);
-        button.find('span').text(
-            label ? 'Продолжить · ' + label : 'Продолжить'
+        updateButtonContent(
+            button,
+            currentCard,
+            record
         );
     }
 
-    function renderButton(label) {
-        return '<div class="full-start__button selector view--continue-torrent-v2">' +
-            '<svg viewBox="0 0 24 24" aria-hidden="true">' +
-            '<path fill="currentColor" d="M8 5.5v13L18.5 12 8 5.5z"></path>' +
-            '</svg>' +
-            '<span>' + (label ? 'Продолжить · ' + label : 'Продолжить') + '</span>' +
+    function renderButton(card, record) {
+        return '' +
+            '<div class="full-start__button selector view--continue-torrent-v2">' +
+                '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+                    '<path fill="currentColor" d="M8 5.5v13L18.5 12 8 5.5z"></path>' +
+                '</svg>' +
+                buttonContentHtml(
+                    card,
+                    record
+                ) +
             '</div>';
     }
 
@@ -3210,20 +3474,26 @@
             return;
         }
 
-        var label = labelFor(card, record);
-
         if (button.length) {
-            button.find('span').text(
-                label
-                    ? 'Продолжить · ' + label
-                    : 'Продолжить'
+            updateButtonContent(
+                button,
+                card,
+                record
             );
 
-            ensureContinueFirst(container, button);
+            ensureContinueFirst(
+                container,
+                button
+            );
             return;
         }
 
-        button = $(renderButton(label));
+        button = $(
+            renderButton(
+                card,
+                record
+            )
+        );
 
         button.on('hover:enter', function() {
             resume(card);
@@ -3465,7 +3735,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.6] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.7] Lampa + TorrServer + Vimu ready'
         );
     }
 
