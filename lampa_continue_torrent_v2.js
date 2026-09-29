@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.5-debug2
+ * Version: 2.3.6
  */
 (function () {
     'use strict';
@@ -10,9 +10,9 @@
     window.__lampa_continue_torrent_v2 = true;
 
     var STORAGE = 'lampa_continue_torrent_v2';
-    var DEBUG_STORAGE = 'lampa_continue_torrent_v2_debug_log';
-    var DEBUG_MAX_LINES = 500;
-    var DEBUG_MODAL_LINES = 8;
+    var NATIVE_PENDING_STORAGE = 'lampa_continue_torrent_v2_native_pending';
+    var NATIVE_PENDING_MAX_AGE = 6 * 60 * 60 * 1000;
+    var NATIVE_RECOVERY_DELAYS = [250, 1000, 2500, 5000, 9000];
     var SAVE_EVERY = 10000;
     var SERVER_SAVE_EVERY = 30000;
     var COMPLETE_PERCENT = 90;
@@ -42,403 +42,29 @@
         externalActive: false,
         buttonRestoreTimer: null,
         nativeLaunch: null,
-        lastTimelineEventAt: 0
+        lastTimelineEventAt: 0,
+        nativeRecoveryToken: 0,
+        nativeRecoveryNoticeShown: false
     };
 
     function debugEnabled() {
-        return true;
-    }
-
-    function debugValue(value) {
-        if (value === undefined) return 'undefined';
-        if (value === null) return 'null';
-
-        if (typeof value === 'string' ||
-            typeof value === 'number' ||
-            typeof value === 'boolean') {
-            return String(value);
-        }
-
-        if (value instanceof Error) {
-            return value.name + ': ' + value.message;
-        }
-
         try {
-            var seen = [];
-
-            return JSON.stringify(value, function(key, item) {
-                if (typeof item === 'function') {
-                    return '[Function]';
-                }
-
-                if (item && typeof item === 'object') {
-                    if (seen.indexOf(item) >= 0) {
-                        return '[Circular]';
-                    }
-
-                    seen.push(item);
-                }
-
-                return item;
-            });
+            return window.LAMPA_CONTINUE_TORRENT_DEBUG === true ||
+                localStorage.getItem('lampa_continue_torrent_debug') === 'true';
+        } catch (e) {
+            return false;
         }
-        catch (e) {
-            try {
-                return String(value);
-            }
-            catch (e2) {
-                return '[Unserializable]';
-            }
-        }
-    }
-
-    function loadDebugLines() {
-        try {
-            var value = Lampa.Storage.get(
-                DEBUG_STORAGE,
-                []
-            );
-
-            if (Array.isArray(value)) {
-                return value;
-            }
-
-            if (typeof value === 'string' &&
-                value.length) {
-                return value.split('\n');
-            }
-        }
-        catch (e) {}
-
-        return [];
-    }
-
-    function saveDebugLines(lines) {
-        try {
-            if (lines.length > DEBUG_MAX_LINES) {
-                lines = lines.slice(
-                    lines.length - DEBUG_MAX_LINES
-                );
-            }
-
-            Lampa.Storage.set(
-                DEBUG_STORAGE,
-                lines,
-                true
-            );
-        }
-        catch (e) {}
-    }
-
-    function clearDebugLog() {
-        try {
-            Lampa.Storage.set(
-                DEBUG_STORAGE,
-                [],
-                true
-            );
-        }
-        catch (e) {}
     }
 
     function debug() {
-        if (!debugEnabled()) return;
+        if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        var now = new Date();
+        args.unshift('[ContinueTorrent v2.3.6]');
 
-        var stamp =
-            String(now.getHours()).padStart(2, '0') +
-            ':' +
-            String(now.getMinutes()).padStart(2, '0') +
-            ':' +
-            String(now.getSeconds()).padStart(2, '0') +
-            '.' +
-            String(now.getMilliseconds()).padStart(3, '0');
-
-        var line =
-            stamp + ' ' +
-            args.map(debugValue).join(' ');
-
-        var lines = loadDebugLines();
-        lines.push(line);
-        saveDebugLines(lines);
-
-        if (window.console && console.log) {
-            try {
-                console.log(
-                    '[ContinueTorrent v2.3.5-debug2]',
-                    line
-                );
-            }
-            catch (e) {}
-        }
-    }
-
-    function getDebugLogText(limit) {
-        var lines = loadDebugLines();
-
-        if (limit && lines.length > limit) {
-            lines = lines.slice(
-                lines.length - limit
-            );
-        }
-
-        return lines.join('\n');
-    }
-
-    function escapeHtml(text) {
-        return String(text || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    function showDebugLog(page) {
-        var lines = loadDebugLines();
-        var perPage = DEBUG_MODAL_LINES;
-
-        if (!lines.length) {
-            lines = ['Debug-лог пока пуст.'];
-        }
-
-        var totalPages =
-            Math.max(
-                1,
-                Math.ceil(lines.length / perPage)
-            );
-
-        page = Number(page);
-
-        if (!isFinite(page)) {
-            page = totalPages - 1;
-        }
-
-        page = Math.max(
-            0,
-            Math.min(
-                totalPages - 1,
-                Math.floor(page)
-            )
-        );
-
-        var from = page * perPage;
-        var to = Math.min(
-            lines.length,
-            from + perPage
-        );
-
-        var pageText =
-            lines.slice(from, to).join('\n\n');
-
-        if (!Lampa.Modal ||
-            typeof Lampa.Modal.open !== 'function') {
-
-            if (Lampa.Noty &&
-                Lampa.Noty.show) {
-                Lampa.Noty.show(
-                    'Не удалось открыть окно лога'
-                );
-            }
-
-            return;
-        }
-
-        var modal = $(
-            '<div class="ctv-debug-modal">' +
-                '<div class="ctv-debug-text" style="' +
-                    'font-family:monospace;' +
-                    'font-size:0.68em;' +
-                    'line-height:1.35;' +
-                    'white-space:pre-wrap;' +
-                    'word-break:break-all;' +
-                    'max-height:52vh;' +
-                    'overflow:hidden;' +
-                    'padding:0.2em 0.15em 0.8em;' +
-                '"></div>' +
-                '<div class="ctv-debug-actions" style="' +
-                    'display:flex;' +
-                    'gap:0.6em;' +
-                    'flex-wrap:wrap;' +
-                    'padding-top:0.4em;' +
-                '">' +
-                    '<div class="simple-button selector ctv-debug-prev">' +
-                        '← Назад' +
-                    '</div>' +
-                    '<div class="simple-button selector ctv-debug-next">' +
-                        'Вперёд →' +
-                    '</div>' +
-                    '<div class="simple-button selector ctv-debug-close">' +
-                        'Закрыть' +
-                    '</div>' +
-                '</div>' +
-            '</div>'
-        );
-
-        modal.find('.ctv-debug-text').text(
-            pageText
-        );
-
-        var prev =
-            modal.find('.ctv-debug-prev');
-
-        var next =
-            modal.find('.ctv-debug-next');
-
-        var close =
-            modal.find('.ctv-debug-close');
-
-        if (page <= 0) {
-            prev.css('opacity', '0.35');
-        }
-
-        if (page >= totalPages - 1) {
-            next.css('opacity', '0.35');
-        }
-
-        prev.on('hover:enter click', function() {
-            if (page <= 0) return;
-
-            Lampa.Modal.close();
-
-            setTimeout(function() {
-                showDebugLog(page - 1);
-            }, 40);
-        });
-
-        next.on('hover:enter click', function() {
-            if (page >= totalPages - 1) return;
-
-            Lampa.Modal.close();
-
-            setTimeout(function() {
-                showDebugLog(page + 1);
-            }, 40);
-        });
-
-        close.on('hover:enter click', function() {
-            Lampa.Modal.close();
-
-            setTimeout(function() {
-                if (Lampa.Controller &&
-                    typeof Lampa.Controller.toggle === 'function') {
-                    Lampa.Controller.toggle(
-                        'settings_component'
-                    );
-                }
-            }, 40);
-        });
-
-        var firstSelectable =
-            page < totalPages - 1
-                ? next
-                : (page > 0 ? prev : close);
-
-        Lampa.Modal.open({
-            title:
-                'Continue Torrent Debug — ' +
-                'стр. ' +
-                (page + 1) +
-                '/' +
-                totalPages +
-                ' · строки ' +
-                (from + 1) +
-                '–' +
-                to +
-                ' из ' +
-                lines.length,
-            html: modal,
-            size: 'medium',
-            scroll_to_center: true,
-            select: firstSelectable,
-            onBack: function() {
-                Lampa.Modal.close();
-
-                if (Lampa.Controller &&
-                    typeof Lampa.Controller.toggle === 'function') {
-                    Lampa.Controller.toggle(
-                        'settings_component'
-                    );
-                }
-
-                return true;
-            }
-        });
-    }
-
-    function copyDebugLog() {
-        var text = getDebugLogText();
-
-        if (!text) {
-            if (Lampa.Noty && Lampa.Noty.show) {
-                Lampa.Noty.show(
-                    'Debug-лог пока пуст'
-                );
-            }
-
-            return;
-        }
-
-        function copied() {
-            if (Lampa.Noty && Lampa.Noty.show) {
-                Lampa.Noty.show(
-                    'Debug-лог скопирован'
-                );
-            }
-        }
-
-        function fallbackCopy() {
-            try {
-                var textarea =
-                    document.createElement('textarea');
-
-                textarea.value = text;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-
-                document.body.appendChild(
-                    textarea
-                );
-
-                textarea.focus();
-                textarea.select();
-
-                var ok =
-                    document.execCommand &&
-                    document.execCommand('copy');
-
-                document.body.removeChild(
-                    textarea
-                );
-
-                if (ok) {
-                    copied();
-                    return;
-                }
-            }
-            catch (e) {}
-
-            if (Lampa.Noty && Lampa.Noty.show) {
-                Lampa.Noty.show(
-                    'Копирование недоступно. ' +
-                    'Откройте «Показать debug-лог».'
-                );
-            }
-        }
-
-        if (navigator.clipboard &&
-            typeof navigator.clipboard.writeText === 'function') {
-
-            navigator.clipboard
-                .writeText(text)
-                .then(copied)
-                .catch(fallbackCopy);
-
-            return;
-        }
-
-        fallbackCopy();
+        try {
+            console.log.apply(console, args);
+        } catch (e) {}
     }
 
     function t(v) {
@@ -607,6 +233,495 @@
         } catch (e) {}
     }
 
+    function compactCard(card) {
+        card = card || {};
+
+        return {
+            id: card.id,
+            tmdb_id: card.tmdb_id,
+            imdb_id: card.imdb_id,
+            kinopoisk_id: card.kinopoisk_id,
+            source: card.source,
+            title: card.title,
+            name: card.name,
+            original_title: card.original_title,
+            original_name: card.original_name,
+            number_of_seasons: card.number_of_seasons,
+            media_type: card.media_type,
+            type: card.type,
+            release_date: card.release_date,
+            first_air_date: card.first_air_date
+        };
+    }
+
+    function androidClientVersion() {
+        try {
+            if (window.AndroidJS &&
+                typeof window.AndroidJS.appVersion === 'function') {
+                return t(window.AndroidJS.appVersion());
+            }
+        } catch (e) {}
+
+        return '';
+    }
+
+    function versionAtLeast(version, minimum) {
+        version = t(version).split('-')[0];
+        minimum = t(minimum).split('-')[0];
+
+        var a = version.split('.').map(n);
+        var b = minimum.split('.').map(n);
+        var len = Math.max(a.length, b.length);
+
+        for (var i = 0; i < len; i++) {
+            var av = a[i] || 0;
+            var bv = b[i] || 0;
+
+            if (av > bv) return true;
+            if (av < bv) return false;
+        }
+
+        return true;
+    }
+
+    function supportsNativeStateResume() {
+        var version = androidClientVersion();
+
+        // Current Android clients expose appVersion() and persist
+        // PlayerStateManager state. Use the native state only on the
+        // modern client where this behavior is known to exist.
+        return Boolean(
+            version &&
+            versionAtLeast(version, '1.12.8')
+        );
+    }
+
+    function loadNativePending() {
+        try {
+            var value =
+                Lampa.Storage.get(
+                    NATIVE_PENDING_STORAGE,
+                    null
+                );
+
+            return value &&
+                typeof value === 'object'
+                    ? value
+                    : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveNativePending(value) {
+        try {
+            Lampa.Storage.set(
+                NATIVE_PENDING_STORAGE,
+                value || null,
+                true
+            );
+        } catch (e) {}
+    }
+
+    function clearNativePending(reason) {
+        var pending = loadNativePending();
+
+        if (pending) {
+            debug(
+                'native pending cleared',
+                reason || '',
+                pending.timeline_hash,
+                pending.file_index
+            );
+        }
+
+        saveNativePending(null);
+    }
+
+    function nativePendingMatches(hash, pending) {
+        pending = pending || loadNativePending();
+
+        return Boolean(
+            pending &&
+            t(hash) &&
+            t(pending.timeline_hash) === t(hash)
+        );
+    }
+
+    function markNativeResultResolved(hash, source) {
+        var pending = loadNativePending();
+
+        if (!nativePendingMatches(hash, pending)) {
+            return;
+        }
+
+        var card = pending.card;
+        var record = card ? get(card) : null;
+
+        if (record) {
+            put(card, {
+                time_untrusted: false,
+                native_state_pending: false,
+                native_pending_since: 0
+            });
+        }
+
+        clearNativePending(
+            source || 'timeline result'
+        );
+    }
+
+    function showKeepConnectionHelp(pending) {
+        if (runtime.nativeRecoveryNoticeShown) return;
+
+        runtime.nativeRecoveryNoticeShown = true;
+
+        var version = androidClientVersion();
+        var oldClient =
+            version &&
+            !versionAtLeast(version, '1.12.8');
+
+        var message = oldClient
+            ? 'Lampa была перезапущена во время Vimu, поэтому новый тайм-код не дошёл до плагина. ' +
+              'Обновите Android-клиент Lampa минимум до 1.12.8.'
+            : 'Lampa была перезапущена во время Vimu, поэтому новый тайм-код не дошёл до плагина. ' +
+              'На Android TV удерживайте кнопку «Назад», откройте нативное меню Lampa и выберите ' +
+              '«Включить удержание сокета». После этого Vimu сможет вернуть позицию без перезапуска WebView.';
+
+        if (Lampa.Noty && Lampa.Noty.show) {
+            Lampa.Noty.show(message);
+        }
+
+        debug(
+            'native callback lost after WebView restart',
+            'android_client=', version || 'unknown',
+            'timeline=', pending && pending.timeline_hash,
+            'file=', pending && pending.file_index
+        );
+    }
+
+    function markPendingTimeUntrusted(pending) {
+        if (!pending || !pending.card) return;
+
+        var record = get(pending.card);
+        if (!record) return;
+
+        put(pending.card, {
+            time_untrusted: true,
+            native_state_pending: true,
+            native_pending_since: n(pending.started_at)
+        });
+
+        refreshCurrentButton(pending.card);
+    }
+
+    function nativeRecoveryChanged(timeline, pending) {
+        if (!timeline || !pending) return false;
+
+        var time = n(timeline.time);
+        var duration = n(timeline.duration);
+        var updated = n(timeline.updated);
+
+        if (Math.abs(time - n(pending.time_before)) >= 1) {
+            return true;
+        }
+
+        if (duration &&
+            n(pending.duration_before) &&
+            Math.abs(duration - n(pending.duration_before)) >= 1) {
+            return true;
+        }
+
+        if (updated &&
+            n(pending.timeline_updated_before) &&
+            updated > n(pending.timeline_updated_before)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    function tryRecoverFromTimeline(pending) {
+        if (!pending ||
+            !pending.timeline_hash ||
+            !Lampa.Timeline ||
+            typeof Lampa.Timeline.view !== 'function') {
+            return false;
+        }
+
+        try {
+            var timeline =
+                Lampa.Timeline.view(
+                    pending.timeline_hash
+                );
+
+            if (!nativeRecoveryChanged(
+                timeline,
+                pending
+            )) {
+                return false;
+            }
+
+            applyTimelineRoad(
+                pending.timeline_hash,
+                timeline,
+                {
+                    updated:
+                        n(timeline.updated) ||
+                        Date.now(),
+                    source:
+                        'native restart recovery'
+                }
+            );
+
+            if (pending.card) {
+                put(pending.card, {
+                    time_untrusted: false,
+                    native_state_pending: false,
+                    native_pending_since: 0
+                });
+
+                refreshCurrentButton(
+                    pending.card
+                );
+            }
+
+            clearNativePending(
+                'recovered from Timeline after restart'
+            );
+
+            return true;
+        }
+        catch (e) {
+            return false;
+        }
+    }
+
+    function tryRecoverFromTorrServer(pending, done) {
+        if (!pending ||
+            !pending.torrent_hash ||
+            pending.file_index === undefined ||
+            pending.file_index === '') {
+            done(false);
+            return;
+        }
+
+        var finished = false;
+
+        function finish(value) {
+            if (finished) return;
+            finished = true;
+            done(Boolean(value));
+        }
+
+        var timer = setTimeout(function() {
+            finish(false);
+        }, 2500);
+
+        try {
+            serverViewed.list(
+                pending.torrent_hash,
+                function(items) {
+                    clearTimeout(timer);
+
+                    items =
+                        Array.isArray(items)
+                            ? items
+                            : [];
+
+                    var item = items.find(function(row) {
+                        return String(row.file_index) ===
+                            String(pending.file_index);
+                    });
+
+                    var serverTime =
+                        n(item && item.timecode);
+
+                    if (!serverTime ||
+                        Math.abs(
+                            serverTime -
+                            n(pending.time_before)
+                        ) < 1) {
+                        finish(false);
+                        return;
+                    }
+
+                    var duration =
+                        n(pending.duration_before);
+
+                    var percent =
+                        duration
+                            ? Math.min(
+                                100,
+                                serverTime /
+                                duration * 100
+                            )
+                            : n(
+                                pending.percent_before
+                            );
+
+                    if (pending.card) {
+                        put(pending.card, {
+                            infohash:
+                                pending.torrent_hash,
+                            file_index:
+                                pending.file_index,
+                            file_path:
+                                pending.file_path,
+                            timeline_hash:
+                                pending.timeline_hash,
+                            timeline_updated:
+                                Date.now(),
+                            season:
+                                pending.season,
+                            episode:
+                                pending.episode,
+                            time:
+                                serverTime,
+                            duration:
+                                duration,
+                            percent:
+                                percent,
+                            time_untrusted:
+                                false,
+                            native_state_pending:
+                                false,
+                            native_pending_since:
+                                0
+                        });
+
+                        refreshCurrentButton(
+                            pending.card
+                        );
+                    }
+
+                    clearNativePending(
+                        'recovered from TorrServer viewed'
+                    );
+
+                    debug(
+                        'native restart recovered from TorrServer',
+                        'time=', serverTime,
+                        'file=', pending.file_index
+                    );
+
+                    finish(true);
+                },
+                function() {
+                    clearTimeout(timer);
+                    finish(false);
+                }
+            );
+        }
+        catch (e) {
+            clearTimeout(timer);
+            finish(false);
+        }
+    }
+
+    function recoverNativePending() {
+        var pending = loadNativePending();
+
+        if (!pending) return;
+
+        var age =
+            Date.now() -
+            n(pending.started_at);
+
+        if (age < 0 ||
+            age > NATIVE_PENDING_MAX_AGE) {
+            clearNativePending(
+                'expired'
+            );
+            return;
+        }
+
+        runtime.nativeLaunch =
+            Object.assign(
+                {},
+                pending
+            );
+
+        var token =
+            ++runtime.nativeRecoveryToken;
+
+        debug(
+            'recovering unfinished external playback',
+            'android_client=',
+            androidClientVersion() || 'unknown',
+            'timeline=',
+            pending.timeline_hash,
+            'file=',
+            pending.file_index,
+            'time_before=',
+            pending.time_before,
+            'age_ms=',
+            age
+        );
+
+        NATIVE_RECOVERY_DELAYS.forEach(
+            function(wait, index) {
+                setTimeout(function() {
+                    if (token !==
+                        runtime.nativeRecoveryToken) {
+                        return;
+                    }
+
+                    var current =
+                        loadNativePending();
+
+                    if (!current ||
+                        !nativePendingMatches(
+                            pending.timeline_hash,
+                            current
+                        )) {
+                        return;
+                    }
+
+                    if (tryRecoverFromTimeline(
+                        current
+                    )) {
+                        return;
+                    }
+
+                    if (index !==
+                        NATIVE_RECOVERY_DELAYS.length - 1) {
+                        return;
+                    }
+
+                    tryRecoverFromTorrServer(
+                        current,
+                        function(recovered) {
+                            if (recovered) return;
+
+                            var latest =
+                                loadNativePending();
+
+                            if (!latest ||
+                                !nativePendingMatches(
+                                    pending.timeline_hash,
+                                    latest
+                                )) {
+                                return;
+                            }
+
+                            // We know the old number is stale, but the JS
+                            // process never received Vimu's actual position.
+                            // Hide the stale time rather than lie to the user.
+                            markPendingTimeUntrusted(
+                                latest
+                            );
+
+                            showKeepConnectionHelp(
+                                latest
+                            );
+                        }
+                    );
+                }, wait);
+            }
+        );
+    }
+
     function get(card) {
         var found = historyEntry(card);
         if (!found) return null;
@@ -669,6 +784,12 @@
             time: n(take('time', 0)),
             duration: n(take('duration', 0)),
             percent: n(take('percent', 0)),
+            time_untrusted:
+                take('time_untrusted', false) === true,
+            native_state_pending:
+                take('native_state_pending', false) === true,
+            native_pending_since:
+                n(take('native_pending_since', 0)),
             updated_at: Date.now()
         };
 
@@ -693,6 +814,10 @@
             0;
 
         var changed = false;
+        var sourceName =
+            String(options.source || '');
+        var isPassiveView =
+            sourceName.indexOf('Timeline.view') === 0;
 
         function isStale(record) {
             if (!record) return false;
@@ -724,6 +849,12 @@
                 runtime.session.timeline_updated = incomingUpdated;
             }
 
+            if (!isPassiveView) {
+                runtime.session.time_untrusted = false;
+                runtime.session.native_state_pending = false;
+                runtime.session.native_pending_since = 0;
+            }
+
             put(runtime.session.card, runtime.session);
             refreshCurrentButton(runtime.session.card);
             changed = true;
@@ -752,6 +883,12 @@
                 record.timeline_updated = incomingUpdated;
             }
 
+            if (!isPassiveView) {
+                record.time_untrusted = false;
+                record.native_state_pending = false;
+                record.native_pending_since = 0;
+            }
+
             record.updated_at = Date.now();
             changed = true;
 
@@ -768,6 +905,14 @@
 
         if (changed) {
             save();
+
+            if (!isPassiveView &&
+                nativePendingMatches(hash)) {
+                markNativeResultResolved(
+                    hash,
+                    sourceName || 'timeline update'
+                );
+            }
 
             debug(
                 'timeline applied',
@@ -1398,7 +1543,10 @@
                 n(meta.episode) || n(stored.episode),
             time: safeTime,
             duration: safeDuration,
-            percent: safePercent
+            percent: safePercent,
+            time_untrusted: false,
+            native_state_pending: false,
+            native_pending_since: 0
         };
 
         put(meta.card, data);
@@ -1417,18 +1565,26 @@
 
         refreshCurrentButton(meta.card);
 
-        if (Lampa.Storage.field('torrserver_tracktimecode') === true &&
-            data.infohash &&
+        if (data.infohash &&
             data.file_index !== undefined &&
             data.file_index !== '') {
 
             try {
+                // Plugin-owned backup. This is intentionally independent
+                // of Lampa's global tracktimecode switch.
                 serverViewed.set(
                     data.infohash,
                     data.file_index,
                     data.time
                 );
             } catch (e) {}
+        }
+
+        if (data.timeline_hash) {
+            markNativeResultResolved(
+                data.timeline_hash,
+                source || 'native callback'
+            );
         }
 
         debug(
@@ -1569,14 +1725,6 @@
         Lampa.Android.timeCall = function(timeline) {
             try {
                 if (timeline && timeline.hash) {
-                    debug(
-                        'Android.timeCall RAW',
-                        'hash=', timeline.hash,
-                        'time=', timeline.time,
-                        'duration=', timeline.duration,
-                        'percent=', timeline.percent
-                    );
-
                     var meta =
                         runtime.nativeTimelineMap[
                             t(timeline.hash)
@@ -1707,6 +1855,9 @@
             meta.card = card;
         }
 
+        var existingRecord =
+            card ? get(card) : null;
+
         runtime.nativeLaunch = {
             started_at: Date.now(),
             card: meta.card || card,
@@ -1718,14 +1869,95 @@
                     data.timeline &&
                     data.timeline.hash
                 ),
+            timeline_updated_before:
+                n(
+                    data.timeline &&
+                    data.timeline.updated
+                ) ||
+                n(
+                    existingRecord &&
+                    existingRecord.timeline_updated
+                ),
+            time_before:
+                n(
+                    data.timeline &&
+                    data.timeline.time
+                ) ||
+                n(
+                    existingRecord &&
+                    existingRecord.time
+                ),
+            duration_before:
+                n(
+                    data.timeline &&
+                    data.timeline.duration
+                ) ||
+                n(
+                    existingRecord &&
+                    existingRecord.duration
+                ),
+            percent_before:
+                n(
+                    data.timeline &&
+                    data.timeline.percent
+                ) ||
+                n(
+                    existingRecord &&
+                    existingRecord.percent
+                ),
+            season:
+                n(meta.season) ||
+                n(existingRecord && existingRecord.season),
+            episode:
+                n(meta.episode) ||
+                n(existingRecord && existingRecord.episode),
             url: t(data.url),
             url_identity:
                 torrentUrlIdentity(data.url),
             playlist_index:
                 current && Array.isArray(data.playlist)
                     ? data.playlist.indexOf(current)
-                    : -1
+                    : -1,
+            android_client:
+                androidClientVersion()
         };
+
+        saveNativePending({
+            started_at:
+                runtime.nativeLaunch.started_at,
+            card:
+                compactCard(
+                    runtime.nativeLaunch.card
+                ),
+            torrent_hash:
+                runtime.nativeLaunch.torrent_hash,
+            file_index:
+                runtime.nativeLaunch.file_index,
+            file_path:
+                runtime.nativeLaunch.file_path,
+            timeline_hash:
+                runtime.nativeLaunch.timeline_hash,
+            timeline_updated_before:
+                runtime.nativeLaunch.timeline_updated_before,
+            time_before:
+                runtime.nativeLaunch.time_before,
+            duration_before:
+                runtime.nativeLaunch.duration_before,
+            percent_before:
+                runtime.nativeLaunch.percent_before,
+            season:
+                runtime.nativeLaunch.season,
+            episode:
+                runtime.nativeLaunch.episode,
+            url:
+                runtime.nativeLaunch.url,
+            url_identity:
+                runtime.nativeLaunch.url_identity,
+            playlist_index:
+                runtime.nativeLaunch.playlist_index,
+            android_client:
+                runtime.nativeLaunch.android_client
+        });
 
         debug(
             'FINAL Android payload',
@@ -2200,7 +2432,8 @@
         };
     }
 
-    function launchVimu(item, playlist, time) {
+    function launchVimu(item, playlist, time, options) {
+        options = options || {};
         var normalized = playlist.map(function(x) {
             var copy = Object.assign({}, x);
             copy.timeline = Object.assign({}, x.timeline || {});
@@ -2222,6 +2455,21 @@
             playlist: normalized,
             return_result: true
         });
+
+        if (options.nativeStateResume === true) {
+            // Current Android Lampa can reopen its persisted
+            // PlayerStateManager state for this card. This is the only
+            // exact resume source available after the JS/WebView process
+            // was recreated and therefore never received Vimu's callback.
+            data.from_state = true;
+
+            debug(
+                'using native PlayerStateManager resume',
+                androidClientVersion(),
+                data.timeline && data.timeline.hash,
+                data.id
+            );
+        }
 
         try {
             prepareExternalTracking(data);
@@ -2311,11 +2559,6 @@
                     return;
                 }
 
-                if (Lampa.Storage.field('torrserver_tracktimecode') !== true) {
-                    resolve([]);
-                    return;
-                }
-
                 var settled = false;
 
                 function done(items) {
@@ -2351,6 +2594,9 @@
 
                 var item = target.item;
                 var time = target.completed ? 0 : n(record.time);
+                var useNativeState =
+                    record.native_state_pending === true &&
+                    supportsNativeStateResume();
 
                 put(card, {
                     infohash: hash,
@@ -2368,7 +2614,17 @@
                         ? 0
                         : (n(item.timeline.duration)
                             ? time / n(item.timeline.duration) * 100
-                            : n(record.percent))
+                            : n(record.percent)),
+                    time_untrusted:
+                        useNativeState
+                            ? true
+                            : record.time_untrusted === true,
+                    native_state_pending:
+                        useNativeState,
+                    native_pending_since:
+                        useNativeState
+                            ? n(record.native_pending_since)
+                            : 0
                 });
 
                 if (isCancelled(job)) throw cancelledError();
@@ -2380,7 +2636,15 @@
                     runtime.resumeJob = null;
                 }
 
-                launchVimu(item, playlist, time);
+                launchVimu(
+                    item,
+                    playlist,
+                    time,
+                    {
+                        nativeStateResume:
+                            useNativeState
+                    }
+                );
             });
         }).catch(function(error) {
             if (error && error.cancelled) return;
@@ -2470,13 +2734,10 @@
         };
 
         debug(
-            'torrent_file:onenter',
-            'hash=', runtime.pendingTorrent.infohash,
-            'file_index=', runtime.pendingTorrent.file_index,
-            'path=', runtime.pendingTorrent.file_path,
-            'timeline=', runtime.pendingTorrent.timeline_hash,
-            'season=', runtime.pendingTorrent.season,
-            'episode=', runtime.pendingTorrent.episode
+            'torrent file staged',
+            runtime.pendingTorrent.infohash,
+            runtime.pendingTorrent.file_index,
+            runtime.pendingTorrent.file_path
         );
     }
 
@@ -2490,16 +2751,6 @@
         if (!timeline) return;
 
         var eventHash = t(data.hash || timeline.hash);
-
-        debug(
-            'Timeline.listener:update',
-            'hash=', eventHash,
-            'time=', timeline.time,
-            'duration=', timeline.duration,
-            'percent=', timeline.percent,
-            'updated=', timeline.updated
-        );
-
         if (!eventHash) return;
 
         var sessionHash =
@@ -2534,7 +2785,6 @@
 
         if (runtime.session &&
             eventHash === t(runtime.session.timeline_hash) &&
-            Lampa.Storage.field('torrserver_tracktimecode') === true &&
             Date.now() - runtime.lastServerSave >= SERVER_SAVE_EVERY) {
 
             runtime.lastServerSave = Date.now();
@@ -2695,7 +2945,13 @@
                 parsed.episode,
             time: sessionTime,
             duration: sessionDuration,
-            percent: sessionPercent
+            percent: sessionPercent,
+            time_untrusted:
+                old.time_untrusted === true,
+            native_state_pending:
+                old.native_state_pending === true,
+            native_pending_since:
+                n(old.native_pending_since)
         };
 
         put(card, runtime.session);
@@ -2704,36 +2960,14 @@
         startTimelinePoller();
 
         debug(
-            'Player.create',
-            'timeline=', runtime.session.timeline_hash,
-            'file_index=', runtime.session.file_index,
-            'path=', runtime.session.file_path,
-            'time=', runtime.session.time,
-            'duration=', runtime.session.duration,
-            'percent=', runtime.session.percent,
-            'url=', data.url
+            'player create',
+            runtime.session.timeline_hash,
+            runtime.session.file_index,
+            runtime.session.time
         );
     }
 
     function playerDestroy() {
-        debug(
-            'Player.destroy',
-            runtime.session
-                ? {
-                    timeline_hash:
-                        runtime.session.timeline_hash,
-                    file_index:
-                        runtime.session.file_index,
-                    time:
-                        runtime.session.time,
-                    duration:
-                        runtime.session.duration,
-                    percent:
-                        runtime.session.percent
-                }
-                : null
-        );
-
         if (!runtime.session) return;
 
         put(runtime.session.card, runtime.session);
@@ -2773,7 +3007,9 @@
 
         var ep = episodeText(record.season, record.episode);
         var done = n(record.percent) >= COMPLETE_PERCENT;
-        var hasTime = n(record.time) > 0;
+        var hasTime =
+            n(record.time) > 0 &&
+            record.time_untrusted !== true;
 
         if (isSeries(card) || (n(record.season) && n(record.episode))) {
             if (done) return 'Следующая серия';
@@ -3121,123 +3357,20 @@
         }
     }
 
-    function installDebugSettings() {
-        if (!Lampa.SettingsApi ||
-            typeof Lampa.SettingsApi.addComponent !== 'function' ||
-            typeof Lampa.SettingsApi.addParam !== 'function' ||
-            window.__continue_torrent_debug_settings) {
-            return;
-        }
-
-        window.__continue_torrent_debug_settings = true;
-
-        var playIcon =
-            '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
-            '<path fill="currentColor" d="M8 5.5v13L18.5 12 8 5.5z"/>' +
-            '</svg>';
-
-        Lampa.SettingsApi.addComponent({
-            component:
-                'continue_torrent_debug',
-            name:
-                'Continue Torrent Debug',
-            icon:
-                playIcon
-        });
-
-        Lampa.SettingsApi.addParam({
-            component:
-                'continue_torrent_debug',
-            param: {
-                name:
-                    'continue_torrent_debug_show',
-                type:
-                    'button'
-            },
-            field: {
-                name:
-                    'Показать debug-лог',
-                description:
-                    'Показывает лог по страницам по 8 записей; открывается последняя страница'
-            },
-            onChange: function() {
-                showDebugLog();
-            }
-        });
-
-        Lampa.SettingsApi.addParam({
-            component:
-                'continue_torrent_debug',
-            param: {
-                name:
-                    'continue_torrent_debug_copy',
-                type:
-                    'button'
-            },
-            field: {
-                name:
-                    'Скопировать debug-лог',
-                description:
-                    'Пытается скопировать полный лог в буфер Android'
-            },
-            onChange: function() {
-                copyDebugLog();
-            }
-        });
-
-        Lampa.SettingsApi.addParam({
-            component:
-                'continue_torrent_debug',
-            param: {
-                name:
-                    'continue_torrent_debug_clear',
-                type:
-                    'button'
-            },
-            field: {
-                name:
-                    'Очистить debug-лог',
-                description:
-                    'Очистите лог перед новым тестом'
-            },
-            onChange: function() {
-                clearDebugLog();
-
-                debug(
-                    'DEBUG LOG CLEARED / NEW TEST START'
-                );
-
-                if (Lampa.Noty &&
-                    Lampa.Noty.show) {
-                    Lampa.Noty.show(
-                        'Debug-лог очищен'
-                    );
-                }
-            }
-        });
-    }
-
     function init() {
         load();
-
-        installDebugSettings();
-
-        debug(
-            'PLUGIN INIT',
-            'build=v2.3.5-debug2',
-            'tracktimecode=',
-            Lampa.Storage.field(
-                'torrserver_tracktimecode'
-            ),
-            'userAgent=',
-            navigator.userAgent || ''
-        );
 
         installTimelineUpdateHook();
         installAndroidTimeCallHook();
         installAndroidOpenPlayerHook();
         startTimelinePoller();
         startButtonRestoreWatcher();
+
+        // If Vimu caused Android to recreate the WebView, a persistent
+        // marker from the previous JS process will still be here.
+        // First wait for a delayed native Timeline.update; then try
+        // TorrServer viewed; finally mark the old displayed time untrusted.
+        recoverNativePending();
 
         if (Lampa.Listener) {
             Lampa.Listener.follow('full', onFull);
@@ -3332,7 +3465,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.5-debug2] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.6] Lampa + TorrServer + Vimu ready'
         );
     }
 
