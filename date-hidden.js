@@ -1,0 +1,108 @@
+/**
+ * Плагин: Hide Date in Header
+ * Версия: 1.0.0
+ * Описание: Убирает дату, день недели, месяц и год из шапки Lampa TV,
+ *           оставляя только время.
+ * Автор: -
+ * Совместимость: Lampa для Android TV
+ */
+
+(function () {
+    'use strict';
+
+    var PLUGIN_VERSION = '1.0.0';
+
+    // Защита от повторной загрузки
+    if (window.hide_date_ready) {
+        console.log('[Hide Date] Плагин уже загружен, версия:', PLUGIN_VERSION);
+        return;
+    }
+
+    function startPlugin() {
+        window.hide_date_ready = true;
+        window.hide_date_version = PLUGIN_VERSION;
+
+        console.log('[Hide Date] Запуск плагина версии ' + PLUGIN_VERSION);
+
+        // Функция для скрытия даты в шапке
+        function hideDateInHeader() {
+            var css = `
+                /* Скрываем дату и день недели в шапке */
+                .header__date,
+                .header__weekday,
+                .header__date-time .header__date,
+                .header__time .header__date,
+                .header__clock .header__date {
+                    display: none !important;
+                }
+
+                /* Альтернативный вариант — если дата в отдельном span */
+                .header__time span:first-child:not(:only-child) {
+                    display: none !important;
+                }
+
+                /* Скрываем всё, что содержит год, месяц или день недели в шапке */
+                .header [class*="date"],
+                .header [class*="weekday"],
+                .header [class*="day"] {
+                    display: none !important;
+                }
+            `;
+
+            // Вставляем стили только один раз
+            if (!document.getElementById('hide-date-style')) {
+                var style = document.createElement('style');
+                style.id = 'hide-date-style';
+                style.type = 'text/css';
+                style.appendChild(document.createTextNode(css));
+                document.head.appendChild(style);
+            }
+
+            // Дополнительная проверка через DOM
+            setTimeout(function () {
+                var header = document.querySelector('.header');
+                if (!header) return;
+
+                var elements = header.querySelectorAll('*');
+                elements.forEach(function (el) {
+                    var text = el.textContent.trim();
+                    // Если текст содержит день недели, год или месяц — скрываем
+                    if (text.match(/(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i) ||
+                        text.match(/20\d{2}/) ||
+                        text.match(/\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i)) {
+                        el.style.display = 'none';
+                    }
+                });
+            }, 1000);
+        }
+
+        // Ждём готовности приложения
+        if (window.appready) {
+            hideDateInHeader();
+        } else {
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type === 'ready') {
+                    hideDateInHeader();
+                }
+            });
+        }
+
+        // Применяем при смене активности (навигация)
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type === 'start' || e.type === 'render') {
+                hideDateInHeader();
+            }
+        });
+    }
+
+    // Запуск
+    if (window.appready) {
+        startPlugin();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') {
+                startPlugin();
+            }
+        });
+    }
+})();
