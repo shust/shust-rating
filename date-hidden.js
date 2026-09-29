@@ -1,20 +1,23 @@
 /**
  * Плагин: Hide Date in Header
- * Версия: 1.0.0
+ * Версия: 1.1.0
  * Описание: Убирает дату, день недели, месяц и год из шапки Lampa TV,
- *           оставляя только время.
- * Автор: -
+ *           оставляя только время (часы и минуты).
  * Совместимость: Lampa для Android TV
+ * Структура шапки (целевые селекторы):
+ *   .head__time
+ *     .head__time-now.time--clock   → оставляем
+ *     .head__time-date.time--full   → скрываем
+ *     .head__time-week.time--week   → скрываем
  */
 
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.0.0';
+    var PLUGIN_VERSION = '1.1.0';
 
-    // Защита от повторной загрузки
     if (window.hide_date_ready) {
-        console.log('[Hide Date] Плагин уже загружен, версия:', PLUGIN_VERSION);
+        console.log('[Hide Date] Плагин уже загружен, версия:', window.hide_date_version || PLUGIN_VERSION);
         return;
     }
 
@@ -24,85 +27,78 @@
 
         console.log('[Hide Date] Запуск плагина версии ' + PLUGIN_VERSION);
 
-        // Функция для скрытия даты в шапке
-        function hideDateInHeader() {
+        // 1) Вставляем CSS один раз — прячем дату и день недели
+        function injectStyles() {
+            if (document.getElementById('hide-date-style')) return;
+
             var css = `
-                /* Скрываем дату и день недели в шапке */
-                .header__date,
-                .header__weekday,
-                .header__date-time .header__date,
-                .header__time .header__date,
-                .header__clock .header__date {
-                    display: none !important;
-                }
-
-                /* Альтернативный вариант — если дата в отдельном span */
-                .header__time span:first-child:not(:only-child) {
-                    display: none !important;
-                }
-
-                /* Скрываем всё, что содержит год, месяц или день недели в шапке */
-                .header [class*="date"],
-                .header [class*="weekday"],
-                .header [class*="day"] {
+                .head__time-date,
+                .head__time-week,
+                .head__time .time--full,
+                .head__time .time--week {
                     display: none !important;
                 }
             `;
 
-            // Вставляем стили только один раз
-            if (!document.getElementById('hide-date-style')) {
-                var style = document.createElement('style');
-                style.id = 'hide-date-style';
-                style.type = 'text/css';
-                style.appendChild(document.createTextNode(css));
-                document.head.appendChild(style);
-            }
-
-            // Дополнительная проверка через DOM
-            setTimeout(function () {
-                var header = document.querySelector('.header');
-                if (!header) return;
-
-                var elements = header.querySelectorAll('*');
-                elements.forEach(function (el) {
-                    var text = el.textContent.trim();
-                    // Если текст содержит день недели, год или месяц — скрываем
-                    if (text.match(/(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i) ||
-                        text.match(/20\d{2}/) ||
-                        text.match(/\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i)) {
-                        el.style.display = 'none';
-                    }
-                });
-            }, 1000);
+            var style = document.createElement('style');
+            style.id = 'hide-date-style';
+            style.type = 'text/css';
+            style.appendChild(document.createTextNode(css));
+            document.head.appendChild(style);
         }
 
-        // Ждём готовности приложения
-        if (window.appready) {
-            hideDateInHeader();
-        } else {
-            Lampa.Listener.follow('app', function (e) {
-                if (e.type === 'ready') {
-                    hideDateInHeader();
-                }
+        // 2) JS-страховка: прячем элементы по классам и по содержимому
+        function hideDate() {
+            // По точным классам
+            document.querySelectorAll('.head__time-date, .head__time-week, .time--full, .time--week')
+                .forEach(function (el) {
+                    el.style.setProperty('display', 'none', 'important');
+                });
+
+            // Оставляем в .head__time только блок с временем
+            document.querySelectorAll('.head__time').forEach(function (container) {
+                Array.prototype.forEach.call(container.children, function (child) {
+                    // Оставляем только тот блок, у которого есть класс time--clock
+                    if (!child.classList.contains('time--clock')) {
+                        child.style.setProperty('display', 'none', 'important');
+                    }
+                });
             });
         }
 
-        // Применяем при смене активности (навигация)
+        // Периодическая проверка — на случай перерисовок интерфейса
+        function run() {
+            injectStyles();
+            hideDate();
+        }
+
+        // Запуск после готовности приложения
+        function boot() {
+            run();
+            // Часы и дата обновляются каждую секунду — держим состояние
+            setInterval(run, 1000);
+        }
+
+        if (window.appready) {
+            boot();
+        } else {
+            Lampa.Listener.follow('app', function (e) {
+                if (e.type === 'ready') boot();
+            });
+        }
+
+        // Переприменяем при смене активности
         Lampa.Listener.follow('activity', function (e) {
             if (e.type === 'start' || e.type === 'render') {
-                hideDateInHeader();
+                setTimeout(run, 100);
             }
         });
     }
 
-    // Запуск
-    if (window.appready) {
-        startPlugin();
-    } else {
+    if (window.appready) startPlugin();
+    else {
         Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') {
-                startPlugin();
-            }
+            if (e.type === 'ready') startPlugin();
         });
     }
-})(); 
+})();
