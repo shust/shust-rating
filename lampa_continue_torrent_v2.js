@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.7
+ * Version: 2.3.8
  */
 (function () {
     'use strict';
@@ -60,7 +60,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.7]');
+        args.unshift('[ContinueTorrent v2.3.8]');
 
         try {
             console.log.apply(console, args);
@@ -3224,7 +3224,7 @@
                 'style="' +
                     'display:inline-flex;' +
                     'align-items:center;' +
-                    'gap:0.55em;' +
+                    'gap:0.82em;' +
                     'white-space:nowrap;' +
                 '">' +
                 parts.join('') +
@@ -3735,7 +3735,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.7] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.8] Lampa + TorrServer + Vimu ready'
         );
     }
 
