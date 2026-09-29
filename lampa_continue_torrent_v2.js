@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.2
+ * Version: 2.3.4
  */
 (function () {
     'use strict';
@@ -34,8 +34,31 @@
         timelinePoller: null,
         buttonObserver: null,
         buttonGuardStart: null,
-        buttonGuardModule: null
+        buttonGuardModule: null,
+        nativeTimelineMap: {},
+        externalActive: false,
+        buttonRestoreTimer: null
     };
+
+    function debugEnabled() {
+        try {
+            return window.LAMPA_CONTINUE_TORRENT_DEBUG === true ||
+                localStorage.getItem('lampa_continue_torrent_debug') === 'true';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function debug() {
+        if (!debugEnabled() || !window.console || !console.log) return;
+
+        var args = Array.prototype.slice.call(arguments);
+        args.unshift('[ContinueTorrent v2.3.4]');
+
+        try {
+            console.log.apply(console, args);
+        } catch (e) {}
+    }
 
     function t(v) {
         return v === undefined || v === null ? '' : String(v).trim();
@@ -60,12 +83,114 @@
         return !!(card && n(card.number_of_seasons) > 0);
     }
 
-    function cardIdentity(card) {
-        if (!card) return '';
+    function cardKeys(card) {
+        if (!card) return [];
+
+        var keys = [];
         var source = t(card.source) || 'tmdb';
-        var id = card.tmdb_id || (source === 'tmdb' ? card.id : '') ||
-                 card.imdb_id || card.kinopoisk_id || card.id;
-        return id ? source + ':' + id : '';
+
+        function add(key) {
+            key = t(key);
+
+            if (key && keys.indexOf(key) < 0) {
+                keys.push(key);
+            }
+        }
+
+        // Canonical provider IDs do not depend on the transient activity source.
+        if (card.tmdb_id) {
+            add('tmdb:' + card.tmdb_id);
+        }
+
+        if (source === 'tmdb' && card.id) {
+            add('tmdb:' + card.id);
+        }
+
+        if (card.imdb_id) {
+            add('imdb:' + card.imdb_id);
+        }
+
+        if (card.kinopoisk_id) {
+            add('kinopoisk:' + card.kinopoisk_id);
+            add('kp:' + card.kinopoisk_id);
+        }
+
+        if (card.id) {
+            add(source + ':' + card.id);
+
+            // Full-card objects commonly keep the TMDB id in `id`
+            // even when another activity temporarily changes `source`.
+            add('tmdb:' + card.id);
+        }
+
+        // Legacy v2.3.x key, kept for automatic migration.
+        var legacyId =
+            card.tmdb_id ||
+            (source === 'tmdb' ? card.id : '') ||
+            card.imdb_id ||
+            card.kinopoisk_id ||
+            card.id;
+
+        if (legacyId) {
+            add(source + ':' + legacyId);
+        }
+
+        return keys;
+    }
+
+    function cardIdentity(card) {
+        var keys = cardKeys(card);
+        return keys.length ? keys[0] : '';
+    }
+
+    function historyEntry(card) {
+        var keys = cardKeys(card);
+
+        for (var i = 0; i < keys.length; i++) {
+            if (runtime.history[keys[i]]) {
+                return {
+                    key: keys[i],
+                    record: runtime.history[keys[i]]
+                };
+            }
+        }
+
+        // Last-resort migration for an old source-prefixed key:
+        // only use a suffix match when it is unambiguous.
+        var ids = [];
+
+        [
+            card && card.tmdb_id,
+            card && card.imdb_id,
+            card && card.kinopoisk_id,
+            card && card.id
+        ].forEach(function(id) {
+            id = t(id);
+
+            if (id && ids.indexOf(id) < 0) {
+                ids.push(id);
+            }
+        });
+
+        var matches = [];
+
+        Object.keys(runtime.history).forEach(function(key) {
+            for (var j = 0; j < ids.length; j++) {
+                if (key.slice(-(ids[j].length + 1)) === ':' + ids[j]) {
+                    matches.push(key);
+                    break;
+                }
+            }
+        });
+
+        if (matches.length === 1) {
+            return {
+                key: matches[0],
+                record: runtime.history[matches[0]]
+            };
+        }
+
+        return null;
     }
 
     function formatTime(seconds) {
@@ -102,15 +227,48 @@
     }
 
     function get(card) {
-        var key = cardIdentity(card);
-        return key ? runtime.history[key] || null : null;
+        var found = historyEntry(card);
+        if (!found) return null;
+
+        var canonical = cardIdentity(card);
+
+        if (canonical &&
+            found.key !== canonical &&
+            !runtime.history[canonical]) {
+
+            runtime.history[canonical] = found.record;
+            delete runtime.history[found.key];
+            save();
+
+            debug(
+                'history key migrated',
+                found.key,
+                '->',
+                canonical
+            );
+
+            return runtime.history[canonical];
+        }
+
+        return found.record;
     }
 
     function put(card, data) {
-        var key = cardIdentity(card);
-        if (!key) return;
+        var canonical = cardIdentity(card);
+        if (!canonical) return;
 
-        var old = runtime.history[key] || {};
+        var found = historyEntry(card);
+        var key = canonical;
+        var old = found ? found.record : {};
+
+        if (found &&
+            found.key !== canonical &&
+            !runtime.history[canonical]) {
+
+            runtime.history[canonical] = found.record;
+            delete runtime.history[found.key];
+        }
+
         data = data || {};
 
         function take(name, fallback) {
@@ -124,6 +282,7 @@
             file_index: take('file_index', ''),
             file_path: t(take('file_path', '')),
             timeline_hash: t(take('timeline_hash', '')),
+            timeline_updated: n(take('timeline_updated', 0)),
             season: n(take('season', 0)),
             episode: n(take('episode', 0)),
             time: n(take('time', 0)),
@@ -135,8 +294,10 @@
         save();
     }
 
-    function applyTimelineRoad(hash, road) {
+    function applyTimelineRoad(hash, road, options) {
         hash = t(hash);
+        options = options || {};
+
         if (!hash || !road) return false;
 
         var time = n(road.time);
@@ -145,38 +306,72 @@
             ? n(road.percent)
             : (duration ? time / duration * 100 : 0);
 
+        var incomingUpdated =
+            n(road.updated) ||
+            n(options.updated) ||
+            0;
+
         var changed = false;
 
-        // Update the active playback session.
+        function isStale(record) {
+            if (!record) return false;
+
+            var storedUpdated = n(record.timeline_updated);
+
+            if (storedUpdated &&
+                !incomingUpdated &&
+                String(options.source || '').indexOf('Timeline.view') === 0) {
+                return true;
+            }
+
+            return Boolean(
+                incomingUpdated &&
+                storedUpdated &&
+                incomingUpdated < storedUpdated
+            );
+        }
+
         if (runtime.session &&
-            t(runtime.session.timeline_hash) === hash) {
+            t(runtime.session.timeline_hash) === hash &&
+            !isStale(runtime.session)) {
 
             runtime.session.time = time;
             runtime.session.duration = duration;
             runtime.session.percent = percent;
+
+            if (incomingUpdated) {
+                runtime.session.timeline_updated = incomingUpdated;
+            }
 
             put(runtime.session.card, runtime.session);
             refreshCurrentButton(runtime.session.card);
             changed = true;
         }
 
-        // Also update persistent history by timeline hash.
-        // This continues to work after Player.destroy or a card rebuild.
         Object.keys(runtime.history).forEach(function(key) {
             var record = runtime.history[key];
 
-            if (!record || t(record.timeline_hash) !== hash) return;
+            if (!record ||
+                t(record.timeline_hash) !== hash ||
+                isStale(record)) {
+                return;
+            }
 
             if (runtime.session &&
-                cardIdentity(runtime.session.card) === key) {
+                cardIdentity(runtime.session.card) === key &&
+                t(runtime.session.timeline_hash) === hash) {
                 return;
             }
 
             record.time = time;
             record.duration = duration;
             record.percent = percent;
-            record.updated_at = Date.now();
 
+            if (incomingUpdated) {
+                record.timeline_updated = incomingUpdated;
+            }
+
+            record.updated_at = Date.now();
             changed = true;
 
             var currentCard =
@@ -184,12 +379,25 @@
                 runtime.currentFull.data &&
                 runtime.currentFull.data.movie;
 
-            if (currentCard && cardIdentity(currentCard) === key) {
+            if (currentCard &&
+                cardIdentity(currentCard) === key) {
                 refreshCurrentButton(currentCard);
             }
         });
 
-        if (changed) save();
+        if (changed) {
+            save();
+
+            debug(
+                'timeline applied',
+                hash,
+                'time=', time,
+                'duration=', duration,
+                'percent=', percent,
+                'updated=', incomingUpdated,
+                options.source || ''
+            );
+        }
 
         return changed;
     }
@@ -211,7 +419,14 @@
                  n(timeline.duration) > 0 ||
                  n(timeline.percent) > 0)) {
 
-                return applyTimelineRoad(record.timeline_hash, timeline);
+                return applyTimelineRoad(
+                    record.timeline_hash,
+                    timeline,
+                    {
+                        updated: n(timeline.updated),
+                        source: 'Timeline.view(card)'
+                    }
+                );
             }
         } catch (e) {}
 
@@ -233,7 +448,11 @@
 
                     applyTimelineRoad(
                         runtime.session.timeline_hash,
-                        timeline
+                        timeline,
+                        {
+                            updated: n(timeline.updated),
+                            source: 'Timeline.view(session)'
+                        }
                     );
                 }
             } catch (e) {}
@@ -259,7 +478,9 @@
         if (runtime.timelinePoller) return;
 
         runtime.timelinePoller = setInterval(function() {
-            if (runtime.session) syncActiveTimeline();
+            if (runtime.session && !runtime.externalActive) {
+                syncActiveTimeline();
+            }
         }, 2000);
     }
 
@@ -291,7 +512,19 @@
             try {
                 if (params && params.hash) {
                     var current = Lampa.Timeline.view(params.hash);
-                    applyTimelineRoad(params.hash, current || params);
+
+                    applyTimelineRoad(
+                        params.hash,
+                        current || params,
+                        {
+                            updated: n(
+                                current && current.updated
+                                    ? current.updated
+                                    : params.updated
+                            ),
+                            source: 'Timeline.update hook'
+                        }
+                    );
                 }
             } catch (e) {}
 
@@ -352,6 +585,456 @@
         }
 
         return data;
+    }
+
+    function localHash(input) {
+        var str = String(input || '');
+        var hash = 0;
+
+        if (!str.length) return '0';
+
+        for (var i = 0; i < str.length; i++) {
+            var chr = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + chr;
+            hash = hash & hash;
+        }
+
+        return String(Math.abs(hash));
+    }
+
+    function fileIdentity(item) {
+        if (!item) return '';
+
+        return [
+            item.id !== undefined
+                ? item.id
+                : (item.file_index !== undefined ? item.file_index : ''),
+            t(item.path || item.file_path || item.title || item.url)
+        ].join('|');
+    }
+
+    function stableTimelineHash(card, torrentHash, item) {
+        var raw = [
+            'continue-torrent-v233',
+            cardIdentity(card),
+            t(torrentHash).toUpperCase(),
+            fileIdentity(item)
+        ].join('|');
+
+        try {
+            if (Lampa.Utils &&
+                typeof Lampa.Utils.hash === 'function') {
+                return String(Lampa.Utils.hash(raw));
+            }
+        } catch (e) {}
+
+        return localHash(raw);
+    }
+
+    function isValidTimelineHash(hash) {
+        hash = t(hash);
+
+        return Boolean(
+            hash &&
+            hash !== '0' &&
+            hash !== 'undefined' &&
+            hash !== 'null'
+        );
+    }
+
+    function normalizeTimelineHashes(data) {
+        if (!data) return;
+
+        var card = data.card;
+        var torrentHash = t(data.torrent_hash || data.infohash);
+        var entries = [data];
+
+        if (Array.isArray(data.playlist)) {
+            data.playlist.forEach(function(item) {
+                if (item) entries.push(item);
+            });
+        }
+
+        var groups = {};
+
+        entries.forEach(function(item) {
+            var timeline = item && item.timeline;
+            var hash = timeline ? t(timeline.hash) : '';
+            var fid = fileIdentity(item);
+
+            if (!hash) return;
+
+            if (!groups[hash]) groups[hash] = {};
+            groups[hash][fid] = true;
+        });
+
+        entries.forEach(function(item) {
+            if (!item) return;
+
+            if (!item.timeline ||
+                typeof item.timeline !== 'object') {
+                item.timeline = {};
+            }
+
+            var timeline = item.timeline;
+            var oldHash = t(timeline.hash);
+            var identities =
+                oldHash && groups[oldHash]
+                    ? Object.keys(groups[oldHash])
+                    : [];
+
+            var collision =
+                oldHash &&
+                identities.length > 1;
+
+            var invalid =
+                !isValidTimelineHash(oldHash);
+
+            if (!invalid && !collision) return;
+
+            var oldTime = n(timeline.time);
+            var oldDuration = n(timeline.duration);
+            var oldPercent = n(timeline.percent);
+
+            var newHash = stableTimelineHash(
+                card,
+                torrentHash,
+                item
+            );
+
+            var fresh = null;
+
+            try {
+                if (Lampa.Timeline &&
+                    typeof Lampa.Timeline.view === 'function') {
+                    fresh = Lampa.Timeline.view(newHash);
+                }
+            } catch (e) {}
+
+            if (fresh && typeof fresh === 'object') {
+                item.timeline = fresh;
+                timeline = fresh;
+            }
+
+            timeline.hash = newHash;
+
+            if (!n(timeline.time) && oldTime > 0) {
+                timeline.time = oldTime;
+            }
+
+            if (!n(timeline.duration) && oldDuration > 0) {
+                timeline.duration = oldDuration;
+            }
+
+            if (!n(timeline.percent) && oldPercent > 0) {
+                timeline.percent = oldPercent;
+            }
+
+            debug(
+                'timeline hash repaired',
+                oldHash,
+                '->',
+                newHash,
+                fileIdentity(item),
+                collision ? 'collision' : 'invalid'
+            );
+        });
+
+        if (Array.isArray(data.playlist)) {
+            var current = data.playlist.find(function(item) {
+                return fileIdentity(item) === fileIdentity(data);
+            });
+
+            if (current && current.timeline) {
+                data.timeline = current.timeline;
+            }
+        }
+    }
+
+    function timelineMetaFromItem(data, item) {
+        item = item || data;
+
+        return {
+            card: data.card || item.card,
+            torrent_hash:
+                t(item.torrent_hash ||
+                  data.torrent_hash ||
+                  item.infohash ||
+                  data.infohash),
+            magnet:
+                t(item.magnet ||
+                  data.magnet ||
+                  item.torrent_magnet ||
+                  data.torrent_magnet),
+            torrent_title:
+                t(item.torrent_title ||
+                  data.torrent_title ||
+                  item.title ||
+                  data.title),
+            file_index:
+                item.id !== undefined
+                    ? item.id
+                    : (item.file_index !== undefined
+                        ? item.file_index
+                        : data.file_index),
+            file_path:
+                t(item.path ||
+                  item.file_path ||
+                  data.path ||
+                  data.file_path),
+            timeline_hash:
+                t(item.timeline && item.timeline.hash),
+            season:
+                n(item.season) || n(data.season),
+            episode:
+                n(item.episode) || n(data.episode)
+        };
+    }
+
+    function updateRecordFromNative(meta, percent, time, duration, source) {
+        if (!meta || !meta.card) return;
+
+        var now = Date.now();
+        var stored = get(meta.card) || {};
+
+        var safeTime = n(time);
+        var safeDuration = n(duration);
+        var safePercent =
+            percent !== undefined && percent !== null
+                ? n(percent)
+                : (safeDuration
+                    ? safeTime / safeDuration * 100
+                    : n(stored.percent));
+
+        var data = {
+            infohash:
+                t(meta.torrent_hash || stored.infohash).toUpperCase(),
+            magnet:
+                t(meta.magnet || stored.magnet),
+            torrent_title:
+                t(meta.torrent_title || stored.torrent_title),
+            file_index:
+                meta.file_index !== undefined
+                    ? meta.file_index
+                    : stored.file_index,
+            file_path:
+                t(meta.file_path || stored.file_path),
+            timeline_hash:
+                t(meta.timeline_hash || stored.timeline_hash),
+            timeline_updated: now,
+            season:
+                n(meta.season) || n(stored.season),
+            episode:
+                n(meta.episode) || n(stored.episode),
+            time: safeTime,
+            duration: safeDuration,
+            percent: safePercent
+        };
+
+        put(meta.card, data);
+
+        if (runtime.session &&
+            cardIdentity(runtime.session.card) ===
+                cardIdentity(meta.card)) {
+
+            runtime.session = Object.assign(
+                {},
+                runtime.session,
+                data,
+                {card: meta.card}
+            );
+        }
+
+        refreshCurrentButton(meta.card);
+
+        if (Lampa.Storage.field('torrserver_tracktimecode') === true &&
+            data.infohash &&
+            data.file_index !== undefined &&
+            data.file_index !== '') {
+
+            try {
+                serverViewed.set(
+                    data.infohash,
+                    data.file_index,
+                    data.time
+                );
+            } catch (e) {}
+        }
+
+        debug(
+            'native time saved',
+            source || '',
+            data.timeline_hash,
+            data.file_index,
+            data.time,
+            data.duration,
+            data.percent
+        );
+    }
+
+    function wrapTimelineHandler(data, item) {
+        if (!item ||
+            !item.timeline ||
+            !item.timeline.hash) {
+            return;
+        }
+
+        var timeline = item.timeline;
+        var hash = t(timeline.hash);
+        var meta = timelineMetaFromItem(data, item);
+
+        runtime.nativeTimelineMap[hash] = meta;
+
+        var currentHandler = timeline.handler;
+
+        if (currentHandler &&
+            currentHandler.__continueTorrentV233 === true) {
+            return;
+        }
+
+        var originalHandler =
+            typeof currentHandler === 'function'
+                ? currentHandler
+                : null;
+
+        var wrapped = function(percent, time, duration) {
+            var now = Date.now();
+
+            try {
+                if (originalHandler) {
+                    originalHandler(
+                        percent,
+                        time,
+                        duration
+                    );
+                }
+                else if (Lampa.Timeline &&
+                    typeof Lampa.Timeline.update === 'function') {
+
+                    Lampa.Timeline.update({
+                        hash: hash,
+                        percent: n(percent),
+                        time: n(time),
+                        duration: n(duration)
+                    });
+                }
+            }
+            catch (e) {
+                debug(
+                    'original timeline handler failed',
+                    e
+                );
+            }
+            finally {
+                updateRecordFromNative(
+                    meta,
+                    percent,
+                    time,
+                    duration,
+                    'timeline.handler'
+                );
+
+                applyTimelineRoad(
+                    hash,
+                    {
+                        hash: hash,
+                        percent: n(percent),
+                        time: n(time),
+                        duration: n(duration),
+                        updated: now
+                    },
+                    {
+                        updated: now,
+                        source: 'timeline.handler'
+                    }
+                );
+            }
+        };
+
+        wrapped.__continueTorrentV233 = true;
+        wrapped.__continueTorrentOriginal =
+            originalHandler;
+
+        timeline.handler = wrapped;
+    }
+
+    function prepareExternalTracking(data) {
+        if (!data || !data.torrent_hash) return;
+
+        // Vimu/MX-compatible contract: request playback result on exit.
+        data.return_result = true;
+
+        normalizeTorrentPlayerData(data);
+        normalizeTimelineHashes(data);
+
+        wrapTimelineHandler(data, data);
+
+        if (Array.isArray(data.playlist)) {
+            data.playlist.forEach(function(item) {
+                wrapTimelineHandler(data, item);
+            });
+        }
+
+        debug(
+            'external tracking prepared',
+            data.timeline && data.timeline.hash,
+            Array.isArray(data.playlist)
+                ? data.playlist.length
+                : 0
+        );
+    }
+
+    function installAndroidTimeCallHook() {
+        if (!Lampa.Android ||
+            typeof Lampa.Android.timeCall !== 'function' ||
+            window.__lampa_continue_torrent_v233_android_hook) {
+            return;
+        }
+
+        window.__lampa_continue_torrent_v233_android_hook = true;
+
+        var originalTimeCall =
+            Lampa.Android.timeCall;
+
+        Lampa.Android.timeCall = function(timeline) {
+            try {
+                if (timeline && timeline.hash) {
+                    var meta =
+                        runtime.nativeTimelineMap[
+                            t(timeline.hash)
+                        ];
+
+                    if (meta) {
+                        updateRecordFromNative(
+                            meta,
+                            timeline.percent,
+                            timeline.time,
+                            timeline.duration,
+                            'Android.timeCall'
+                        );
+                    }
+
+                    debug(
+                        'Android.timeCall',
+                        timeline.hash,
+                        timeline.time,
+                        timeline.duration,
+                        timeline.percent
+                    );
+                }
+            }
+            catch (e) {
+                debug(
+                    'Android.timeCall hook failed',
+                    e
+                );
+            }
+
+            return originalTimeCall.apply(
+                this,
+                arguments
+            );
+        };
     }
 
     function magnetFor(record) {
@@ -796,7 +1479,7 @@
         });
 
         try {
-            normalizeTorrentPlayerData(data);
+            prepareExternalTracking(data);
 
             Lampa.Player.play(data);
 
@@ -931,6 +1614,7 @@
                     file_index: item.id,
                     file_path: item.path,
                     timeline_hash: t(item.timeline && item.timeline.hash),
+                    timeline_updated: n(item.timeline && item.timeline.updated),
                     season: n(item.season),
                     episode: n(item.episode),
                     time: time,
@@ -991,12 +1675,14 @@
 
         if (!card) return;
 
-        var hash = t(item.torrent_hash || item.infohash ||
-                     (item.torrent && item.torrent.hash));
+        var hash = t(
+            item.torrent_hash ||
+            item.infohash ||
+            (item.torrent && item.torrent.hash)
+        );
 
         if (!hash || !item.path) return;
 
-        // Current Lampa sends the raw torrent file array in event.params.files.
         var allFiles =
             (event.params && event.params.files) ||
             event.items ||
@@ -1004,29 +1690,46 @@
             [];
 
         var parsed = parseFile(card, allFiles, item);
-        var timeline = item.timeline || getTimeline(parsed.timelineHash);
+        var timeline =
+            item.timeline ||
+            getTimeline(parsed.timelineHash);
+
         var old = get(card) || {};
 
-        var session = {
+        // Stage only. Do NOT touch history or the button here.
+        // Merely opening a torrent/file list must never replace or remove
+        // the last actually played torrent.
+        runtime.pendingTorrent = {
+            created_at: Date.now(),
             card: card,
-            timeline_hash: t(timeline.hash) || parsed.timelineHash,
             infohash: hash.toUpperCase(),
-            magnet: t(item.magnet || item.torrent_magnet) || t(old.magnet),
-            torrent_title: t(item.torrent_title || item.title || item.path_human) || t(old.torrent_title),
+            magnet:
+                t(item.magnet || item.torrent_magnet) ||
+                t(old.magnet),
+            torrent_title:
+                t(item.torrent_title || item.title || item.path_human) ||
+                t(old.torrent_title),
             file_index: item.id,
             file_path: t(item.path),
-            timeline_hash: t(timeline.hash) || parsed.timelineHash,
-            season: n(item.season) || parsed.season,
-            episode: n(item.episode) || parsed.episode,
-            time: n(timeline.time),
-            duration: n(timeline.duration),
-            percent: n(timeline.percent)
+            timeline_hash:
+                t(timeline.hash) ||
+                parsed.timelineHash,
+            timeline_updated:
+                n(timeline.updated),
+            season:
+                n(item.season) ||
+                parsed.season,
+            episode:
+                n(item.episode) ||
+                parsed.episode
         };
 
-        runtime.session = session;
-        put(card, session);
-        refreshCurrentButton(card);
-        startTimelinePoller();
+        debug(
+            'torrent file staged',
+            runtime.pendingTorrent.infohash,
+            runtime.pendingTorrent.file_index,
+            runtime.pendingTorrent.file_path
+        );
     }
 
     function timelineUpdate(event) {
@@ -1060,7 +1763,14 @@
             runtime.lastSave = Date.now();
         }
 
-        applyTimelineRoad(eventHash, timeline);
+        applyTimelineRoad(
+            eventHash,
+            timeline,
+            {
+                updated: n(timeline.updated),
+                source: 'Timeline.listener'
+            }
+        );
 
         if (runtime.session &&
             eventHash === t(runtime.session.timeline_hash) &&
@@ -1082,10 +1792,8 @@
 
         var data = event.data;
 
-        // Player.listener "create" is synchronous and runs before
-        // Lampa launches the external Android player. Mutating this object
-        // here fixes preload/play URL divergence in the actual launch data.
-        normalizeTorrentPlayerData(data);
+        // create fires synchronously BEFORE Android.openPlayer().
+        prepareExternalTracking(data);
 
         var card = data.card;
         if (!card) return;
@@ -1093,34 +1801,140 @@
         var hash = t(data.torrent_hash || data.infohash);
         if (!hash) return;
 
-        var parsed = parseFile(card, data.files || [], data);
+        var parsed = parseFile(
+            card,
+            data.files || [],
+            data
+        );
+
         var old = get(card) || {};
         var timeline = data.timeline || {};
 
+        var pending = runtime.pendingTorrent;
+        var pendingFresh =
+            pending &&
+            Date.now() - n(pending.created_at) < 60000 &&
+            (
+                !pending.card ||
+                cardIdentity(pending.card) === cardIdentity(card)
+            );
+
+        if (!pendingFresh) {
+            pending = null;
+        }
+
+        var timelineHash =
+            t(timeline.hash) ||
+            t(pending && pending.timeline_hash) ||
+            t(old.timeline_hash) ||
+            parsed.timelineHash;
+
+        var timelineUpdated =
+            n(timeline.updated);
+
+        var oldTimelineUpdated =
+            n(old.timeline_updated);
+
+        var sameFile =
+            (!old.file_index ||
+             data.id === undefined ||
+             String(old.file_index) === String(data.id)) &&
+            (!old.file_path ||
+             !data.path ||
+             t(old.file_path) === t(data.path));
+
+        var preferStored =
+            sameFile &&
+            n(old.time) > 0 &&
+            (
+                !timelineUpdated ||
+                oldTimelineUpdated > timelineUpdated
+            );
+
+        var sessionTime =
+            preferStored
+                ? n(old.time)
+                : n(timeline.time);
+
+        var sessionDuration =
+            preferStored && n(old.duration)
+                ? n(old.duration)
+                : n(timeline.duration);
+
+        var sessionPercent =
+            preferStored
+                ? n(old.percent)
+                : n(timeline.percent);
+
+        if (preferStored) {
+            timeline.time = sessionTime;
+
+            if (sessionDuration) {
+                timeline.duration = sessionDuration;
+            }
+
+            if (sessionPercent) {
+                timeline.percent = sessionPercent;
+            }
+
+            debug(
+                'kept newer stored progress',
+                sessionTime,
+                timelineUpdated,
+                oldTimelineUpdated
+            );
+        }
+
         runtime.session = {
             card: card,
-            timeline_hash: t(timeline.hash) ||
-                           t(old.timeline_hash) ||
-                           parsed.timelineHash,
+            timeline_hash: timelineHash,
+            timeline_updated:
+                Math.max(
+                    timelineUpdated,
+                    oldTimelineUpdated
+                ),
             infohash: hash.toUpperCase(),
-            magnet: t(data.magnet) || t(old.magnet),
-            torrent_title: t(data.torrent_title || data.title) ||
-                           t(old.torrent_title),
+            magnet:
+                t(data.magnet) ||
+                t(pending && pending.magnet) ||
+                t(old.magnet),
+            torrent_title:
+                t(data.torrent_title || data.title) ||
+                t(pending && pending.torrent_title) ||
+                t(old.torrent_title),
             file_index:
                 data.id !== undefined
                     ? data.id
-                    : data.file_index,
-            file_path: t(data.path || data.file_path),
-            season: n(data.season) || parsed.season,
-            episode: n(data.episode) || parsed.episode,
-            time: n(timeline.time),
-            duration: n(timeline.duration),
-            percent: n(timeline.percent)
+                    : (data.file_index !== undefined
+                        ? data.file_index
+                        : (pending ? pending.file_index : '')),
+            file_path:
+                t(data.path || data.file_path) ||
+                t(pending && pending.file_path),
+            season:
+                n(data.season) ||
+                n(pending && pending.season) ||
+                parsed.season,
+            episode:
+                n(data.episode) ||
+                n(pending && pending.episode) ||
+                parsed.episode,
+            time: sessionTime,
+            duration: sessionDuration,
+            percent: sessionPercent
         };
 
         put(card, runtime.session);
+        runtime.pendingTorrent = null;
         refreshCurrentButton(card);
         startTimelinePoller();
+
+        debug(
+            'player create',
+            runtime.session.timeline_hash,
+            runtime.session.file_index,
+            runtime.session.time
+        );
     }
 
     function playerDestroy() {
@@ -1140,6 +1954,7 @@
         // Do not clear runtime.session here.
         // Some external-player flows deliver the final Timeline.update
         // after the destroy notification.
+        runtime.externalActive = false;
         scheduleTimelineSync();
     }
 
@@ -1164,7 +1979,7 @@
         var done = n(record.percent) >= COMPLETE_PERCENT;
         var hasTime = n(record.time) > 0;
 
-        if (isSeries(card)) {
+        if (isSeries(card) || (n(record.season) && n(record.episode))) {
             if (done) return 'Следующая серия';
 
             if (ep) {
@@ -1300,6 +2115,139 @@
         setTimeout(guard, 500);
     }
 
+    function activeFullContext() {
+        if (!Lampa.Activity ||
+            typeof Lampa.Activity.active !== 'function') {
+            return null;
+        }
+
+        var active = Lampa.Activity.active();
+        if (!active) return null;
+
+        var activity = active.activity;
+        if (!activity ||
+            typeof activity.render !== 'function') {
+            return null;
+        }
+
+        var rendered = activity.render();
+        var root =
+            rendered && typeof rendered.find === 'function'
+                ? rendered
+                : (typeof $ === 'function' ? $(rendered) : null);
+
+        if (!root || !root.length) return null;
+
+        var container = root.find(
+            '.full-start-new__buttons, .full-start__buttons'
+        ).last();
+
+        // Do not trust only component name: custom builds/themes may differ.
+        if (!container.length) return null;
+
+        var card =
+            active.card ||
+            active.movie ||
+            (
+                runtime.currentFull &&
+                runtime.currentFull.data &&
+                runtime.currentFull.data.movie
+            );
+
+        if (!card) return null;
+
+        return {
+            active: active,
+            root: root,
+            container: container,
+            card: card
+        };
+    }
+
+    function ensureButtonOnFull(card, root, container, event) {
+        if (!card || !root || !container || !container.length) return;
+
+        var record = get(card);
+        var button =
+            root.find('.view--continue-torrent-v2').first();
+
+        if (!record) {
+            // Never delete an existing button merely because a transient
+            // activity object is incomplete. Leave it until a stable Full
+            // context can resolve the card again.
+            return;
+        }
+
+        var label = labelFor(card, record);
+
+        if (button.length) {
+            button.find('span').text(
+                label
+                    ? 'Продолжить · ' + label
+                    : 'Продолжить'
+            );
+
+            ensureContinueFirst(container, button);
+            return;
+        }
+
+        button = $(renderButton(label));
+
+        button.on('hover:enter', function() {
+            resume(card);
+        });
+
+        container.prepend(button);
+
+        installButtonFirstGuard(
+            event || runtime.currentFull || {},
+            container,
+            button
+        );
+
+        debug(
+            'continue button restored',
+            cardIdentity(card)
+        );
+    }
+
+    function restoreActiveFullButton() {
+        var ctx = activeFullContext();
+        if (!ctx) return;
+
+        // We are back on a real Full card, so any staged file which never
+        // reached Player.create is irrelevant and must not affect history.
+        if (runtime.pendingTorrent) {
+            runtime.pendingTorrent = null;
+        }
+
+        ensureButtonOnFull(
+            ctx.card,
+            ctx.root,
+            ctx.container,
+            runtime.currentFull
+        );
+    }
+
+    function scheduleButtonRestore() {
+        [0, 100, 350, 800].forEach(function(wait) {
+            setTimeout(
+                restoreActiveFullButton,
+                wait
+            );
+        });
+    }
+
+    function startButtonRestoreWatcher() {
+        if (runtime.buttonRestoreTimer) return;
+
+        runtime.buttonRestoreTimer =
+            setInterval(
+                restoreActiveFullButton,
+                1000
+            );
+    }
+
     function onFull(event) {
         if (!event || event.type !== 'complite') return;
 
@@ -1311,36 +2259,23 @@
         var root = rootFor(event);
         if (!root) return;
 
-        cleanupButtonGuard();
-        root.find('.view--continue-torrent-v2').remove();
-
         // Pull the newest value from Lampa's own timeline before drawing.
         syncTimelineForCard(card);
-
-        var record = get(card);
-        if (!record) return;
-
-        var button = $(renderButton(labelFor(card, record)));
-
-        button.on('hover:enter', function() {
-            resume(card);
-        });
 
         var container = root.find(
             '.full-start-new__buttons, .full-start__buttons'
         ).last();
 
         if (container.length) {
-            container.prepend(button);
-            installButtonFirstGuard(
-                event,
+            ensureButtonOnFull(
+                card,
+                root,
                 container,
-                button
+                event
             );
             return;
         }
 
-        // Legacy / custom layout fallback.
         var firstKnown = root.find(
             '.view--torrent, .view--online, .full-start__button'
         ).first();
@@ -1348,13 +2283,11 @@
         if (firstKnown.length &&
             firstKnown.parent().length) {
 
-            container = firstKnown.parent();
-            container.prepend(button);
-
-            installButtonFirstGuard(
-                event,
-                container,
-                button
+            ensureButtonOnFull(
+                card,
+                root,
+                firstKnown.parent(),
+                event
             );
         }
     }
@@ -1363,12 +2296,18 @@
         load();
 
         installTimelineUpdateHook();
+        installAndroidTimeCallHook();
         startTimelinePoller();
+        startButtonRestoreWatcher();
 
         if (Lampa.Listener) {
             Lampa.Listener.follow('full', onFull);
             Lampa.Listener.follow('torrent_file', captureTorrentFile);
             Lampa.Listener.follow('state:changed', timelineStateChanged);
+
+            Lampa.Listener.follow('activity', function() {
+                scheduleButtonRestore();
+            });
         }
 
         if (Lampa.Timeline && Lampa.Timeline.listener) {
@@ -1380,19 +2319,26 @@
             Lampa.Player.listener.follow('destroy', playerDestroy);
 
             Lampa.Player.listener.follow('external', function(event) {
-                // Current Player sends raw play data for "external".
                 var data =
                     event && event.data
                         ? event.data
                         : event;
 
-                if (data && data.card) {
-                    playerCreate({data: data});
+                runtime.externalActive = true;
+
+                if (data && data.torrent_hash) {
+                    // create() already ran before Android.openPlayer().
+                    // Re-attach idempotently, but do NOT rebuild the session
+                    // from the old pre-play timeline.
+                    prepareExternalTracking(data);
                 }
 
-                // On return from Vimu the native client updates Timeline.
-                // The delayed reads make the button resilient to event order.
-                scheduleTimelineSync();
+                debug(
+                    'external player opened',
+                    data && data.timeline
+                        ? data.timeline.hash
+                        : ''
+                );
             });
         }
 
@@ -1401,7 +2347,11 @@
 
             window.addEventListener(
                 'focus',
-                scheduleTimelineSync
+                function() {
+                    runtime.externalActive = false;
+                    scheduleTimelineSync();
+                    scheduleButtonRestore();
+                }
             );
         }
 
@@ -1412,14 +2362,16 @@
                 'visibilitychange',
                 function() {
                     if (!document.hidden) {
+                        runtime.externalActive = false;
                         scheduleTimelineSync();
+                        scheduleButtonRestore();
                     }
                 }
             );
         }
 
         console.log(
-            '[ContinueTorrent v2.3.2] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.4] Lampa + TorrServer + Vimu ready'
         );
     }
 
