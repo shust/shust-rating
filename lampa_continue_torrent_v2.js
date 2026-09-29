@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.5
+ * Version: 2.3.5-debug
  */
 (function () {
     'use strict';
@@ -10,6 +10,9 @@
     window.__lampa_continue_torrent_v2 = true;
 
     var STORAGE = 'lampa_continue_torrent_v2';
+    var DEBUG_STORAGE = 'lampa_continue_torrent_v2_debug_log';
+    var DEBUG_MAX_LINES = 500;
+    var DEBUG_MODAL_LINES = 220;
     var SAVE_EVERY = 10000;
     var SERVER_SAVE_EVERY = 30000;
     var COMPLETE_PERCENT = 90;
@@ -43,23 +46,289 @@
     };
 
     function debugEnabled() {
+        return true;
+    }
+
+    function debugValue(value) {
+        if (value === undefined) return 'undefined';
+        if (value === null) return 'null';
+
+        if (typeof value === 'string' ||
+            typeof value === 'number' ||
+            typeof value === 'boolean') {
+            return String(value);
+        }
+
+        if (value instanceof Error) {
+            return value.name + ': ' + value.message;
+        }
+
         try {
-            return window.LAMPA_CONTINUE_TORRENT_DEBUG === true ||
-                localStorage.getItem('lampa_continue_torrent_debug') === 'true';
-        } catch (e) {
-            return false;
+            var seen = [];
+
+            return JSON.stringify(value, function(key, item) {
+                if (typeof item === 'function') {
+                    return '[Function]';
+                }
+
+                if (item && typeof item === 'object') {
+                    if (seen.indexOf(item) >= 0) {
+                        return '[Circular]';
+                    }
+
+                    seen.push(item);
+                }
+
+                return item;
+            });
+        }
+        catch (e) {
+            try {
+                return String(value);
+            }
+            catch (e2) {
+                return '[Unserializable]';
+            }
         }
     }
 
+    function loadDebugLines() {
+        try {
+            var value = Lampa.Storage.get(
+                DEBUG_STORAGE,
+                []
+            );
+
+            if (Array.isArray(value)) {
+                return value;
+            }
+
+            if (typeof value === 'string' &&
+                value.length) {
+                return value.split('\n');
+            }
+        }
+        catch (e) {}
+
+        return [];
+    }
+
+    function saveDebugLines(lines) {
+        try {
+            if (lines.length > DEBUG_MAX_LINES) {
+                lines = lines.slice(
+                    lines.length - DEBUG_MAX_LINES
+                );
+            }
+
+            Lampa.Storage.set(
+                DEBUG_STORAGE,
+                lines,
+                true
+            );
+        }
+        catch (e) {}
+    }
+
+    function clearDebugLog() {
+        try {
+            Lampa.Storage.set(
+                DEBUG_STORAGE,
+                [],
+                true
+            );
+        }
+        catch (e) {}
+    }
+
     function debug() {
-        if (!debugEnabled() || !window.console || !console.log) return;
+        if (!debugEnabled()) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.5]');
+        var now = new Date();
 
-        try {
-            console.log.apply(console, args);
-        } catch (e) {}
+        var stamp =
+            String(now.getHours()).padStart(2, '0') +
+            ':' +
+            String(now.getMinutes()).padStart(2, '0') +
+            ':' +
+            String(now.getSeconds()).padStart(2, '0') +
+            '.' +
+            String(now.getMilliseconds()).padStart(3, '0');
+
+        var line =
+            stamp + ' ' +
+            args.map(debugValue).join(' ');
+
+        var lines = loadDebugLines();
+        lines.push(line);
+        saveDebugLines(lines);
+
+        if (window.console && console.log) {
+            try {
+                console.log(
+                    '[ContinueTorrent v2.3.5-debug]',
+                    line
+                );
+            }
+            catch (e) {}
+        }
+    }
+
+    function getDebugLogText(limit) {
+        var lines = loadDebugLines();
+
+        if (limit && lines.length > limit) {
+            lines = lines.slice(
+                lines.length - limit
+            );
+        }
+
+        return lines.join('\n');
+    }
+
+    function escapeHtml(text) {
+        return String(text || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function showDebugLog() {
+        var lines = loadDebugLines();
+        var text = getDebugLogText(
+            DEBUG_MODAL_LINES
+        );
+
+        if (!text) {
+            text = 'Debug-лог пока пуст.';
+        }
+
+        if (Lampa.Modal &&
+            typeof Lampa.Modal.open === 'function') {
+
+            var html = $(
+                '<div style="' +
+                'padding:0.4em 0.2em;' +
+                'max-height:70vh;' +
+                'overflow:auto;' +
+                'font-family:monospace;' +
+                'font-size:0.72em;' +
+                'line-height:1.45;' +
+                'white-space:pre-wrap;' +
+                'word-break:break-all;' +
+                'user-select:text;' +
+                '-webkit-user-select:text;' +
+                '">' +
+                escapeHtml(text) +
+                '</div>'
+            );
+
+            Lampa.Modal.open({
+                title:
+                    'Continue Torrent Debug — ' +
+                    Math.min(
+                        DEBUG_MODAL_LINES,
+                        lines.length
+                    ) +
+                    ' строк',
+                html: html,
+                width: 900,
+                onBack: function() {
+                    Lampa.Modal.close();
+
+                    if (Lampa.Controller &&
+                        typeof Lampa.Controller.toggle === 'function') {
+                        Lampa.Controller.toggle('settings');
+                    }
+
+                    return true;
+                }
+            });
+
+            return;
+        }
+
+        if (Lampa.Noty && Lampa.Noty.show) {
+            Lampa.Noty.show(
+                'Не удалось открыть окно лога'
+            );
+        }
+    }
+
+    function copyDebugLog() {
+        var text = getDebugLogText();
+
+        if (!text) {
+            if (Lampa.Noty && Lampa.Noty.show) {
+                Lampa.Noty.show(
+                    'Debug-лог пока пуст'
+                );
+            }
+
+            return;
+        }
+
+        function copied() {
+            if (Lampa.Noty && Lampa.Noty.show) {
+                Lampa.Noty.show(
+                    'Debug-лог скопирован'
+                );
+            }
+        }
+
+        function fallbackCopy() {
+            try {
+                var textarea =
+                    document.createElement('textarea');
+
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+
+                document.body.appendChild(
+                    textarea
+                );
+
+                textarea.focus();
+                textarea.select();
+
+                var ok =
+                    document.execCommand &&
+                    document.execCommand('copy');
+
+                document.body.removeChild(
+                    textarea
+                );
+
+                if (ok) {
+                    copied();
+                    return;
+                }
+            }
+            catch (e) {}
+
+            if (Lampa.Noty && Lampa.Noty.show) {
+                Lampa.Noty.show(
+                    'Копирование недоступно. ' +
+                    'Откройте «Показать debug-лог».'
+                );
+            }
+        }
+
+        if (navigator.clipboard &&
+            typeof navigator.clipboard.writeText === 'function') {
+
+            navigator.clipboard
+                .writeText(text)
+                .then(copied)
+                .catch(fallbackCopy);
+
+            return;
+        }
+
+        fallbackCopy();
     }
 
     function t(v) {
@@ -1190,6 +1459,14 @@
         Lampa.Android.timeCall = function(timeline) {
             try {
                 if (timeline && timeline.hash) {
+                    debug(
+                        'Android.timeCall RAW',
+                        'hash=', timeline.hash,
+                        'time=', timeline.time,
+                        'duration=', timeline.duration,
+                        'percent=', timeline.percent
+                    );
+
                     var meta =
                         runtime.nativeTimelineMap[
                             t(timeline.hash)
@@ -2083,10 +2360,13 @@
         };
 
         debug(
-            'torrent file staged',
-            runtime.pendingTorrent.infohash,
-            runtime.pendingTorrent.file_index,
-            runtime.pendingTorrent.file_path
+            'torrent_file:onenter',
+            'hash=', runtime.pendingTorrent.infohash,
+            'file_index=', runtime.pendingTorrent.file_index,
+            'path=', runtime.pendingTorrent.file_path,
+            'timeline=', runtime.pendingTorrent.timeline_hash,
+            'season=', runtime.pendingTorrent.season,
+            'episode=', runtime.pendingTorrent.episode
         );
     }
 
@@ -2100,6 +2380,16 @@
         if (!timeline) return;
 
         var eventHash = t(data.hash || timeline.hash);
+
+        debug(
+            'Timeline.listener:update',
+            'hash=', eventHash,
+            'time=', timeline.time,
+            'duration=', timeline.duration,
+            'percent=', timeline.percent,
+            'updated=', timeline.updated
+        );
+
         if (!eventHash) return;
 
         var sessionHash =
@@ -2304,14 +2594,36 @@
         startTimelinePoller();
 
         debug(
-            'player create',
-            runtime.session.timeline_hash,
-            runtime.session.file_index,
-            runtime.session.time
+            'Player.create',
+            'timeline=', runtime.session.timeline_hash,
+            'file_index=', runtime.session.file_index,
+            'path=', runtime.session.file_path,
+            'time=', runtime.session.time,
+            'duration=', runtime.session.duration,
+            'percent=', runtime.session.percent,
+            'url=', data.url
         );
     }
 
     function playerDestroy() {
+        debug(
+            'Player.destroy',
+            runtime.session
+                ? {
+                    timeline_hash:
+                        runtime.session.timeline_hash,
+                    file_index:
+                        runtime.session.file_index,
+                    time:
+                        runtime.session.time,
+                    duration:
+                        runtime.session.duration,
+                    percent:
+                        runtime.session.percent
+                }
+                : null
+        );
+
         if (!runtime.session) return;
 
         put(runtime.session.card, runtime.session);
@@ -2699,8 +3011,117 @@
         }
     }
 
+    function installDebugSettings() {
+        if (!Lampa.SettingsApi ||
+            typeof Lampa.SettingsApi.addComponent !== 'function' ||
+            typeof Lampa.SettingsApi.addParam !== 'function' ||
+            window.__continue_torrent_debug_settings) {
+            return;
+        }
+
+        window.__continue_torrent_debug_settings = true;
+
+        var playIcon =
+            '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+            '<path fill="currentColor" d="M8 5.5v13L18.5 12 8 5.5z"/>' +
+            '</svg>';
+
+        Lampa.SettingsApi.addComponent({
+            component:
+                'continue_torrent_debug',
+            name:
+                'Continue Torrent Debug',
+            icon:
+                playIcon
+        });
+
+        Lampa.SettingsApi.addParam({
+            component:
+                'continue_torrent_debug',
+            param: {
+                name:
+                    'continue_torrent_debug_show',
+                type:
+                    'button'
+            },
+            field: {
+                name:
+                    'Показать debug-лог',
+                description:
+                    'Показывает последние строки прямо в Lampa'
+            },
+            onChange: function() {
+                showDebugLog();
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component:
+                'continue_torrent_debug',
+            param: {
+                name:
+                    'continue_torrent_debug_copy',
+                type:
+                    'button'
+            },
+            field: {
+                name:
+                    'Скопировать debug-лог',
+                description:
+                    'Пытается скопировать полный лог в буфер Android'
+            },
+            onChange: function() {
+                copyDebugLog();
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component:
+                'continue_torrent_debug',
+            param: {
+                name:
+                    'continue_torrent_debug_clear',
+                type:
+                    'button'
+            },
+            field: {
+                name:
+                    'Очистить debug-лог',
+                description:
+                    'Очистите лог перед новым тестом'
+            },
+            onChange: function() {
+                clearDebugLog();
+
+                debug(
+                    'DEBUG LOG CLEARED / NEW TEST START'
+                );
+
+                if (Lampa.Noty &&
+                    Lampa.Noty.show) {
+                    Lampa.Noty.show(
+                        'Debug-лог очищен'
+                    );
+                }
+            }
+        });
+    }
+
     function init() {
         load();
+
+        installDebugSettings();
+
+        debug(
+            'PLUGIN INIT',
+            'build=v2.3.5-debug',
+            'tracktimecode=',
+            Lampa.Storage.field(
+                'torrserver_tracktimecode'
+            ),
+            'userAgent=',
+            navigator.userAgent || ''
+        );
 
         installTimelineUpdateHook();
         installAndroidTimeCallHook();
@@ -2801,7 +3222,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.5] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.5-debug] Lampa + TorrServer + Vimu ready'
         );
     }
 
