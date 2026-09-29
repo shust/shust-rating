@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.4
+ * Version: 2.3.5
  */
 (function () {
     'use strict';
@@ -37,7 +37,9 @@
         buttonGuardModule: null,
         nativeTimelineMap: {},
         externalActive: false,
-        buttonRestoreTimer: null
+        buttonRestoreTimer: null,
+        nativeLaunch: null,
+        lastTimelineEventAt: 0
     };
 
     function debugEnabled() {
@@ -53,7 +55,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.4]');
+        args.unshift('[ContinueTorrent v2.3.5]');
 
         try {
             console.log.apply(console, args);
@@ -509,6 +511,8 @@
         Lampa.Timeline.update = function(params) {
             var result = originalUpdate.apply(this, arguments);
 
+            runtime.lastTimelineEventAt = Date.now();
+
             try {
                 if (params && params.hash) {
                     var current = Lampa.Timeline.view(params.hash);
@@ -546,43 +550,230 @@
         return url.replace('&preload', '&play');
     }
 
+    function torrentUrlIdentity(url) {
+        url = t(url);
+
+        if (!url) return '';
+
+        var playUrl = toPlayUrl(url);
+
+        try {
+            var parsed = new URL(
+                playUrl,
+                window.location && window.location.href
+                    ? window.location.href
+                    : undefined
+            );
+
+            var link = parsed.searchParams.get('link') || '';
+            var index = parsed.searchParams.get('index') || '';
+
+            if (link || index) {
+                return [
+                    t(link).toUpperCase(),
+                    t(index),
+                    parsed.pathname
+                        .replace(/\/stream\/[^/]+$/i, '/stream')
+                        .replace(/\/gst\/[^/]+\/master\.m3u8$/i, '/gst')
+                ].join('|');
+            }
+
+            return parsed.origin +
+                parsed.pathname +
+                parsed.search
+                    .replace(/([?&])preload(?=&|$)/, '$1play');
+        }
+        catch (e) {
+            return playUrl
+                .replace('&preload', '&play')
+                .replace('?preload', '?play');
+        }
+    }
+
+    function samePlaybackItem(a, b) {
+        if (!a || !b) return false;
+
+        if (a.id !== undefined &&
+            b.id !== undefined &&
+            String(a.id) === String(b.id)) {
+            return true;
+        }
+
+        if (a.file_index !== undefined &&
+            b.file_index !== undefined &&
+            String(a.file_index) === String(b.file_index)) {
+            return true;
+        }
+
+        if (a.path && b.path &&
+            t(a.path) === t(b.path)) {
+            return true;
+        }
+
+        if (a.file_path && b.file_path &&
+            t(a.file_path) === t(b.file_path)) {
+            return true;
+        }
+
+        var aKey = torrentUrlIdentity(a.url);
+        var bKey = torrentUrlIdentity(b.url);
+
+        return Boolean(
+            aKey &&
+            bKey &&
+            aKey === bKey
+        );
+    }
+
+    function addNativeUrlAliases(item, originalUrl) {
+        if (!item || !item.url) return;
+
+        var playUrl = toPlayUrl(item.url);
+        var preloadUrl =
+            playUrl.indexOf('&play') >= 0
+                ? playUrl.replace('&play', '&preload')
+                : playUrl;
+
+        item.url = playUrl;
+
+        // PlayerStateManager.isCurrentPlaybackItem() in the current Android
+        // app also accepts any URL from `quality`.  Preserve real qualities
+        // and add our aliases only under private keys.
+        var quality =
+            item.quality &&
+            typeof item.quality === 'object' &&
+            !Array.isArray(item.quality)
+                ? item.quality
+                : {};
+
+        quality.__ctv_play = playUrl;
+
+        if (preloadUrl !== playUrl) {
+            quality.__ctv_preload = preloadUrl;
+        }
+
+        if (originalUrl &&
+            t(originalUrl) !== playUrl &&
+            t(originalUrl) !== preloadUrl) {
+            quality.__ctv_original = t(originalUrl);
+        }
+
+        item.quality = quality;
+    }
+
+    function makeCurrentPlaylistItem(data) {
+        var copy = {};
+
+        [
+            'id',
+            'file_index',
+            'path',
+            'file_path',
+            'title',
+            'thumbnail',
+            'season',
+            'episode',
+            'imdb_id',
+            'subtitles',
+            'segments',
+            'torrent_hash'
+        ].forEach(function(key) {
+            if (data[key] !== undefined) {
+                copy[key] = data[key];
+            }
+        });
+
+        copy.url = toPlayUrl(data.url);
+        copy.timeline = Object.assign(
+            {},
+            data.timeline || {}
+        );
+
+        if (data.quality &&
+            typeof data.quality === 'object') {
+            copy.quality = Object.assign(
+                {},
+                data.quality
+            );
+        }
+
+        return copy;
+    }
+
     function normalizeTorrentPlayerData(data) {
         if (!data || !data.torrent_hash) return data;
 
-        // Important for external Android/Vimu resume:
-        // current item and its playlist entry MUST use the same URL.
+        var originalCurrentUrl = t(data.url);
+
         if (data.url) {
             data.url = toPlayUrl(data.url);
         }
 
-        if (Array.isArray(data.playlist)) {
-            data.playlist.forEach(function(item) {
-                if (item && item.url) {
-                    item.url = toPlayUrl(item.url);
-                }
-            });
-
-            var current = data.playlist.find(function(item) {
-                if (!item) return false;
-
-                if (data.id !== undefined &&
-                    item.id !== undefined &&
-                    String(item.id) === String(data.id)) {
-                    return true;
-                }
-
-                if (data.path && item.path &&
-                    t(item.path) === t(data.path)) {
-                    return true;
-                }
-
-                return false;
-            });
-
-            if (current && current.url) {
-                data.url = current.url;
-            }
+        if (!Array.isArray(data.playlist)) {
+            return data;
         }
+
+        data.playlist.forEach(function(item) {
+            if (!item || !item.url) return;
+
+            var original = t(item.url);
+
+            item.url = toPlayUrl(item.url);
+            addNativeUrlAliases(
+                item,
+                original
+            );
+        });
+
+        var current = data.playlist.find(function(item) {
+            return samePlaybackItem(
+                item,
+                data
+            );
+        });
+
+        // Some parser/plugins build an incomplete playlist.  If the current
+        // file is absent, explicitly add it so Android can always resolve
+        // currentIndex and later match Vimu's ActivityResult.
+        if (!current && data.url) {
+            current = makeCurrentPlaylistItem(data);
+            addNativeUrlAliases(
+                current,
+                originalCurrentUrl
+            );
+
+            data.playlist.unshift(current);
+
+            debug(
+                'current item injected into playlist',
+                fileIdentity(data),
+                torrentUrlIdentity(data.url)
+            );
+        }
+
+        if (current && current.url) {
+            // Critical invariant: these two strings must be IDENTICAL.
+            current.url = toPlayUrl(current.url);
+            data.url = current.url;
+
+            // Share the same timeline object as well. This prevents different
+            // timeline hashes for the launch object and its playlist twin.
+            if (current.timeline) {
+                data.timeline = current.timeline;
+            }
+
+            addNativeUrlAliases(
+                current,
+                originalCurrentUrl
+            );
+        }
+
+        // Also give the launch object the same URL aliases. Older Android
+        // builds may serialize the current object instead of playlist item.
+        addNativeUrlAliases(
+            data,
+            originalCurrentUrl
+        );
 
         return data;
     }
@@ -1033,6 +1224,173 @@
             return originalTimeCall.apply(
                 this,
                 arguments
+            );
+        };
+    }
+
+    function activeCardForPlayback(data) {
+        if (data && (data.card || data.movie)) {
+            return data.card || data.movie;
+        }
+
+        try {
+            var active =
+                Lampa.Activity &&
+                Lampa.Activity.active
+                    ? Lampa.Activity.active()
+                    : null;
+
+            if (active &&
+                (active.card || active.movie)) {
+                return active.card || active.movie;
+            }
+        }
+        catch (e) {}
+
+        return runtime.currentFull &&
+            runtime.currentFull.data
+                ? runtime.currentFull.data.movie
+                : null;
+    }
+
+    function finalNativePayload(data, link) {
+        if (!data || !data.torrent_hash) {
+            return {
+                link: link,
+                data: data
+            };
+        }
+
+        if (!data.card) {
+            data.card = activeCardForPlayback(data);
+        }
+
+        if (!data.url && link) {
+            data.url = link;
+        }
+
+        normalizeTorrentPlayerData(data);
+        normalizeTimelineHashes(data);
+
+        // Re-run after hash normalization so current data and playlist twin
+        // share exactly the same final timeline object/hash.
+        normalizeTorrentPlayerData(data);
+
+        wrapTimelineHandler(data, data);
+
+        if (Array.isArray(data.playlist)) {
+            data.playlist.forEach(function(item) {
+                wrapTimelineHandler(
+                    data,
+                    item
+                );
+            });
+        }
+
+        var current = null;
+
+        if (Array.isArray(data.playlist)) {
+            current = data.playlist.find(function(item) {
+                return samePlaybackItem(
+                    item,
+                    data
+                );
+            });
+        }
+
+        if (current) {
+            data.url = current.url;
+
+            if (current.timeline) {
+                data.timeline = current.timeline;
+            }
+        }
+
+        var card =
+            data.card ||
+            activeCardForPlayback(data);
+
+        var meta =
+            timelineMetaFromItem(
+                data,
+                current || data
+            );
+
+        if (!meta.card) {
+            meta.card = card;
+        }
+
+        runtime.nativeLaunch = {
+            started_at: Date.now(),
+            card: meta.card || card,
+            torrent_hash: t(data.torrent_hash).toUpperCase(),
+            file_index: meta.file_index,
+            file_path: meta.file_path,
+            timeline_hash:
+                t(
+                    data.timeline &&
+                    data.timeline.hash
+                ),
+            url: t(data.url),
+            url_identity:
+                torrentUrlIdentity(data.url),
+            playlist_index:
+                current && Array.isArray(data.playlist)
+                    ? data.playlist.indexOf(current)
+                    : -1
+        };
+
+        debug(
+            'FINAL Android payload',
+            'file=', runtime.nativeLaunch.file_index,
+            'timeline=', runtime.nativeLaunch.timeline_hash,
+            'playlist_index=', runtime.nativeLaunch.playlist_index,
+            'url=', runtime.nativeLaunch.url,
+            'identity=', runtime.nativeLaunch.url_identity
+        );
+
+        return {
+            link:
+                data.url ||
+                toPlayUrl(link),
+            data: data
+        };
+    }
+
+    function installAndroidOpenPlayerHook() {
+        if (!Lampa.Android ||
+            typeof Lampa.Android.openPlayer !== 'function' ||
+            window.__lampa_continue_torrent_v235_openplayer_hook) {
+            return;
+        }
+
+        window.__lampa_continue_torrent_v235_openplayer_hook = true;
+
+        var originalOpenPlayer =
+            Lampa.Android.openPlayer;
+
+        Lampa.Android.openPlayer = function(link, data) {
+            try {
+                var finalPayload =
+                    finalNativePayload(
+                        data,
+                        link
+                    );
+
+                link = finalPayload.link;
+                data = finalPayload.data;
+            }
+            catch (e) {
+                debug(
+                    'Android.openPlayer finalization failed',
+                    e
+                );
+            }
+
+            return originalOpenPlayer.call(
+                this,
+                link,
+                data
             );
         };
     }
@@ -1735,6 +2093,8 @@
     function timelineUpdate(event) {
         if (!event) return;
 
+        runtime.lastTimelineEventAt = Date.now();
+
         var data = event.data || event;
         var timeline = data.road || data.timeline || data;
         if (!timeline) return;
@@ -1795,8 +2155,22 @@
         // create fires synchronously BEFORE Android.openPlayer().
         prepareExternalTracking(data);
 
-        var card = data.card;
-        if (!card) return;
+        var card =
+            data.card ||
+            data.movie ||
+            activeCardForPlayback(data);
+
+        if (!card) {
+            debug(
+                'player create skipped: card is missing',
+                data.id,
+                data.path,
+                data.url
+            );
+            return;
+        }
+
+        data.card = card;
 
         var hash = t(data.torrent_hash || data.infohash);
         if (!hash) return;
@@ -2238,6 +2612,39 @@
         });
     }
 
+    function verifyTimelineAfterExternalReturn() {
+        var launch = runtime.nativeLaunch;
+
+        if (!launch) return;
+
+        var returnedAt = Date.now();
+
+        [400, 1200, 3000].forEach(function(wait, index) {
+            setTimeout(function() {
+                syncActiveTimeline();
+                scheduleButtonRestore();
+
+                if (index === 2 &&
+                    runtime.lastTimelineEventAt <
+                        n(launch.started_at)) {
+
+                    debug(
+                        'WARNING: no Timeline.update after external player return',
+                        'file=', launch.file_index,
+                        'timeline=', launch.timeline_hash,
+                        'url=', launch.url
+                    );
+                }
+            }, wait);
+        });
+
+        debug(
+            'external player returned',
+            'after_ms=',
+            returnedAt - n(launch.started_at)
+        );
+    }
+
     function startButtonRestoreWatcher() {
         if (runtime.buttonRestoreTimer) return;
 
@@ -2297,6 +2704,7 @@
 
         installTimelineUpdateHook();
         installAndroidTimeCallHook();
+        installAndroidOpenPlayerHook();
         startTimelinePoller();
         startButtonRestoreWatcher();
 
@@ -2337,7 +2745,15 @@
                     'external player opened',
                     data && data.timeline
                         ? data.timeline.hash
-                        : ''
+                        : '',
+                    'final_url=',
+                    runtime.nativeLaunch
+                        ? runtime.nativeLaunch.url
+                        : '',
+                    'playlist_index=',
+                    runtime.nativeLaunch
+                        ? runtime.nativeLaunch.playlist_index
+                        : -1
                 );
             });
         }
@@ -2348,9 +2764,16 @@
             window.addEventListener(
                 'focus',
                 function() {
+                    var wasExternal =
+                        runtime.externalActive;
+
                     runtime.externalActive = false;
                     scheduleTimelineSync();
                     scheduleButtonRestore();
+
+                    if (wasExternal) {
+                        verifyTimelineAfterExternalReturn();
+                    }
                 }
             );
         }
@@ -2362,16 +2785,23 @@
                 'visibilitychange',
                 function() {
                     if (!document.hidden) {
+                        var wasExternal =
+                            runtime.externalActive;
+
                         runtime.externalActive = false;
                         scheduleTimelineSync();
                         scheduleButtonRestore();
+
+                        if (wasExternal) {
+                            verifyTimelineAfterExternalReturn();
+                        }
                     }
                 }
             );
         }
 
         console.log(
-            '[ContinueTorrent v2.3.4] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.5] Lampa + TorrServer + Vimu ready'
         );
     }
 
