@@ -1,10 +1,11 @@
 /**
- * Плагин: Hide Date in Header + Button Font Weight
- * Версия: 1.2.0
+ * Плагин: Hide Date in Header + Button Style
+ * Версия: 1.3.0
  * Описание:
  *   1) Убирает дату, день недели, месяц и год из шапки Lampa TV,
  *      оставляя только время (часы и минуты).
  *   2) Заменяет толщину шрифта на кнопках (.full-start__button) на 600.
+ *   3) Добавляет межбуквенный интервал (letter-spacing) -2% на кнопках.
  * Совместимость: Lampa для Android TV
  *
  * Целевые селекторы:
@@ -14,17 +15,18 @@
  *       .head__time-date.time--full   → скрываем
  *       .head__time-week.time--week   → скрываем
  *   Кнопки:
- *     .full-start__button → font-weight: 600
+ *     .full-start__button → font-weight: 600; letter-spacing: -2%
  */
 
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.2.0';
+    var PLUGIN_VERSION = '1.3.0';
 
     // ⚙️ Настройки плагина
-    var BUTTON_FONT_WEIGHT = '600';   // толщина шрифта на кнопках
-    var BUTTON_SELECTOR = '.full-start__button';
+    var BUTTON_SELECTOR      = '.full-start__button';
+    var BUTTON_FONT_WEIGHT   = '600';
+    var BUTTON_LETTER_SPACING = '-0.02em'; // -2% от размера шрифта
 
     if (window.hide_date_ready) {
         console.log('[Hide Date] Плагин уже загружен, версия:', window.hide_date_version || PLUGIN_VERSION);
@@ -37,7 +39,7 @@
 
         console.log('[Hide Date] Запуск плагина версии ' + PLUGIN_VERSION);
 
-        // 1) Вставляем CSS один раз — прячем дату/день недели и меняем шрифт кнопок
+        // 1) Вставляем CSS один раз — прячем дату/день недели и стилизуем кнопки
         function injectStyles() {
             if (document.getElementById('hide-date-style')) return;
 
@@ -50,9 +52,10 @@
                     display: none !important;
                 }
 
-                /* === Толщина шрифта на кнопках === */
+                /* === Стиль кнопок === */
                 ${BUTTON_SELECTOR} {
                     font-weight: ${BUTTON_FONT_WEIGHT} !important;
+                    letter-spacing: ${BUTTON_LETTER_SPACING} !important;
                 }
             `;
 
@@ -65,13 +68,11 @@
 
         // 2) JS-страховка: прячем дату по классам и оставляем только время
         function hideDate() {
-            // По точным классам
             document.querySelectorAll('.head__time-date, .head__time-week, .time--full, .time--week')
                 .forEach(function (el) {
                     el.style.setProperty('display', 'none', 'important');
                 });
 
-            // Оставляем в .head__time только блок с временем
             document.querySelectorAll('.head__time').forEach(function (container) {
                 Array.prototype.forEach.call(container.children, function (child) {
                     if (!child.classList.contains('time--clock')) {
@@ -81,10 +82,11 @@
             });
         }
 
-        // 3) JS-страховка: применяем толщину шрифта кнопок (на случай перерисовки)
-        function applyButtonWeight() {
+        // 3) JS-страховка: применяем стили кнопок (на случай перерисовки)
+        function applyButtonStyle() {
             document.querySelectorAll(BUTTON_SELECTOR).forEach(function (el) {
                 el.style.setProperty('font-weight', BUTTON_FONT_WEIGHT, 'important');
+                el.style.setProperty('letter-spacing', BUTTON_LETTER_SPACING, 'important');
             });
         }
 
@@ -92,7 +94,7 @@
         function run() {
             injectStyles();
             hideDate();
-            applyButtonWeight();
+            applyButtonStyle();
         }
 
         // Запуск после готовности приложения
