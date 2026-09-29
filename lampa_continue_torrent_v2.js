@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.12
+ * Version: 2.3.13
  */
 (function () {
     'use strict';
@@ -44,7 +44,8 @@
         nativeLaunch: null,
         lastTimelineEventAt: 0,
         nativeRecoveryToken: 0,
-        nativeRecoveryNoticeShown: false
+        nativeRecoveryNoticeShown: false,
+        longPressUntil: 0
     };
 
     function debugEnabled() {
@@ -60,7 +61,7 @@
         if (!debugEnabled() || !window.console || !console.log) return;
 
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.3.12]');
+        args.unshift('[ContinueTorrent v2.3.13]');
 
         try {
             console.log.apply(console, args);
@@ -1061,18 +1062,49 @@
 
             try {
                 if (params && params.hash) {
-                    var current = Lampa.Timeline.view(params.hash);
+                    var explicitCompletion =
+                        params.percent !== undefined &&
+                        n(params.percent) >=
+                            COMPLETE_PERCENT;
+
+                    var current =
+                        explicitCompletion
+                            ? null
+                            : Lampa.Timeline.view(
+                                params.hash
+                            );
+
+                    // Vimu reports natural EOF through Android as an
+                    // explicit completed timeline. In that path time and
+                    // duration can both be zero, while percent is 100.
+                    // Never replace that explicit completion with a stale
+                    // Timeline.view value from before the player closed.
+                    var road =
+                        explicitCompletion
+                            ? params
+                            : (current || params);
+
+                    var updated =
+                        n(params.updated) ||
+                        n(
+                            road &&
+                            road.updated
+                        ) ||
+                        (
+                            explicitCompletion
+                                ? Date.now()
+                                : 0
+                        );
 
                     applyTimelineRoad(
                         params.hash,
-                        current || params,
+                        road,
                         {
-                            updated: n(
-                                current && current.updated
-                                    ? current.updated
-                                    : params.updated
-                            ),
-                            source: 'Timeline.update hook'
+                            updated: updated,
+                            source:
+                                explicitCompletion
+                                    ? 'Timeline.update hook completion'
+                                    : 'Timeline.update hook'
                         }
                     );
                 }
@@ -2743,7 +2775,9 @@
         return false;
     }
 
-    function chooseStart(playlist, record) {
+    function chooseStart(playlist, record, options) {
+        options = options || {};
+
         if (!playlist.length) return null;
 
         var index = playlist.findIndex(function(item) {
@@ -2755,7 +2789,9 @@
         var current = playlist[index];
         var completed = n(record.percent) >= COMPLETE_PERCENT;
 
-        if (completed && isSeries(record.card)) {
+        if (completed &&
+            isSeries(record.card) &&
+            options.forceCurrent !== true) {
             for (var i=index+1; i<playlist.length; i++) {
                 if (n(playlist[i].season) > n(current.season) ||
                     (n(playlist[i].season) === n(current.season) &&
@@ -2862,7 +2898,9 @@
         }
     }
 
-    function resume(card) {
+    function resume(card, options) {
+        options = options || {};
+
         var stored = get(card);
         if (!stored) return;
 
@@ -2931,11 +2969,32 @@
                     throw new Error('No video files');
                 }
 
-                var target = chooseStart(playlist, record);
-                if (!target) throw new Error('Cannot select file');
+                var target =
+                    chooseStart(
+                        playlist,
+                        record,
+                        options
+                    );
+
+                if (!target) {
+                    throw new Error(
+                        'Cannot select file'
+                    );
+                }
 
                 var item = target.item;
-                var time = target.completed ? 0 : n(record.time);
+
+                var startFromBeginning =
+                    options.startFromBeginning === true;
+
+                var time =
+                    startFromBeginning
+                        ? 0
+                        : (
+                            target.completed
+                                ? 0
+                                : n(record.time)
+                        );
 
                 var targetTorrentMeta =
                     torrentEpisodeMeta(
@@ -2948,8 +3007,42 @@
                     releasedEpisodeMeta(card);
 
                 var useNativeState =
+                    !startFromBeginning &&
                     record.native_state_pending === true &&
                     supportsNativeStateResume();
+
+                if (startFromBeginning) {
+                    try {
+                        if (item.timeline &&
+                            item.timeline.hash &&
+                            Lampa.Timeline &&
+                            typeof Lampa.Timeline.update ===
+                                'function') {
+
+                            Lampa.Timeline.update({
+                                hash:
+                                    item.timeline.hash,
+                                percent: 0,
+                                time: 0,
+                                duration:
+                                    n(
+                                        item.timeline
+                                            .duration
+                                    )
+                            });
+                        }
+                    }
+                    catch (e) {}
+
+                    try {
+                        serverViewed.set(
+                            hash,
+                            item.id,
+                            0
+                        );
+                    }
+                    catch (e) {}
+                }
 
                 put(card, {
                     infohash: hash,
@@ -2963,11 +3056,24 @@
                     episode: n(item.episode),
                     time: time,
                     duration: n(item.timeline.duration),
-                    percent: target.completed
-                        ? 0
-                        : (n(item.timeline.duration)
-                            ? time / n(item.timeline.duration) * 100
-                            : n(record.percent)),
+                    percent:
+                        startFromBeginning ||
+                        target.completed
+                            ? 0
+                            : (
+                                n(
+                                    item.timeline
+                                        .duration
+                                )
+                                    ? time /
+                                      n(
+                                          item.timeline
+                                              .duration
+                                      ) * 100
+                                    : n(
+                                        record.percent
+                                    )
+                            ),
                     torrent_episode_count:
                         targetTorrentMeta.count,
                     has_next_episode:
@@ -3509,6 +3615,28 @@
                     }
                 }
 
+                var nextSeason =
+                    n(record.next_season);
+
+                var currentSeason =
+                    n(record.season);
+
+                if (nextSeason &&
+                    currentSeason &&
+                    nextSeason >
+                        currentSeason) {
+
+                    return {
+                        text:
+                            'Продолжить · Следующий сезон ' +
+                            nextSeason,
+                        time: '',
+                        progress: 0,
+                        hasTime: false,
+                        series: true
+                    };
+                }
+
                 var nextEpisode =
                     n(record.next_episode);
 
@@ -3936,6 +4064,367 @@
         };
     }
 
+    function notify(message) {
+        if (Lampa.Noty &&
+            typeof Lampa.Noty.show ===
+                'function') {
+            Lampa.Noty.show(message);
+        }
+    }
+
+    function resetProgress(card) {
+        var record = get(card);
+
+        if (!record) {
+            notify(
+                'Нет сохранённого прогресса'
+            );
+            return;
+        }
+
+        var now = Date.now();
+        var hash =
+            t(record.timeline_hash);
+
+        if (runtime.session &&
+            cardIdentity(
+                runtime.session.card
+            ) === cardIdentity(card)) {
+
+            runtime.session.time = 0;
+            runtime.session.duration = 0;
+            runtime.session.percent = 0;
+            runtime.session.timeline_updated =
+                now;
+            runtime.session.time_untrusted =
+                false;
+            runtime.session.native_state_pending =
+                false;
+            runtime.session.native_pending_since =
+                0;
+        }
+
+        if (hash &&
+            Lampa.Timeline &&
+            typeof Lampa.Timeline.update ===
+                'function') {
+
+            try {
+                var resetRoad = {
+                    hash: hash,
+                    percent: 0,
+                    time: 0,
+                    duration: 0,
+                    updated: now
+                };
+
+                Lampa.Timeline.update(
+                    resetRoad
+                );
+
+                now =
+                    n(resetRoad.updated) ||
+                    now;
+            }
+            catch (e) {}
+        }
+
+        put(card, {
+            time: 0,
+            duration: 0,
+            percent: 0,
+            timeline_updated: now,
+            time_untrusted: false,
+            native_state_pending: false,
+            native_pending_since: 0
+        });
+
+        try {
+            if (record.infohash &&
+                record.file_index !==
+                    undefined &&
+                record.file_index !== '') {
+
+                serverViewed.set(
+                    record.infohash,
+                    record.file_index,
+                    0
+                );
+            }
+        }
+        catch (e) {}
+
+        if (hash &&
+            nativePendingMatches(hash)) {
+            clearNativePending(
+                'progress reset'
+            );
+        }
+
+        refreshCurrentButton(card);
+
+        notify('Прогресс сброшен');
+    }
+
+    function openSavedTorrent(card) {
+        var stored = get(card);
+
+        if (!stored) {
+            notify(
+                'Нет сохранённой раздачи'
+            );
+            return;
+        }
+
+        if (!Lampa.Torrent ||
+            typeof Lampa.Torrent.open !==
+                'function') {
+            notify(
+                'Не удалось открыть раздачу'
+            );
+            return;
+        }
+
+        var record =
+            Object.assign(
+                {},
+                stored,
+                {card: card}
+            );
+
+        if (runtime.resumeJob) {
+            cancelResume(
+                runtime.resumeJob
+            );
+        }
+
+        var job = {
+            cancelled: false,
+            loading: false,
+            timers: []
+        };
+
+        runtime.resumeJob = job;
+
+        if (Lampa.Loading &&
+            Lampa.Loading.start) {
+
+            job.loading = true;
+
+            Lampa.Loading.start(
+                function() {
+                    cancelResume(job);
+                },
+                'Загрузка раздачи'
+            );
+        }
+
+        loadTorrent(
+            record,
+            job
+        ).then(function(result) {
+            if (isCancelled(job)) {
+                throw cancelledError();
+            }
+
+            var hash =
+                t(result && result.hash)
+                    .toUpperCase();
+
+            if (!hash) {
+                throw new Error(
+                    'No torrent hash'
+                );
+            }
+
+            stopResumeLoading(job);
+
+            if (runtime.resumeJob === job) {
+                runtime.resumeJob = null;
+            }
+
+            Lampa.Torrent.open(
+                hash,
+                card
+            );
+        }).catch(function(error) {
+            if (error &&
+                error.cancelled) {
+                return;
+            }
+
+            debug(
+                'open saved torrent failed',
+                error
+            );
+
+            notify(
+                'Не удалось открыть сохранённую раздачу'
+            );
+        }).then(function() {
+            stopResumeLoading(job);
+
+            if (runtime.resumeJob === job) {
+                runtime.resumeJob = null;
+            }
+        });
+    }
+
+    function chooseAnotherTorrent(card) {
+        var ctx =
+            activeFullContext();
+
+        if (!ctx ||
+            cardIdentity(ctx.card) !==
+                cardIdentity(card)) {
+            notify(
+                'Не удалось открыть список раздач'
+            );
+            return;
+        }
+
+        var torrentButton =
+            ctx.root.find(
+                '.view--torrent'
+            ).first();
+
+        if (!torrentButton.length) {
+            notify(
+                'Кнопка «Торренты» не найдена'
+            );
+            return;
+        }
+
+        torrentButton.trigger(
+            'hover:enter'
+        );
+    }
+
+    function showContinueMenu(card) {
+        if (!card ||
+            !Lampa.Select ||
+            typeof Lampa.Select.show !==
+                'function') {
+            return;
+        }
+
+        var enabled = '';
+
+        try {
+            var controller =
+                Lampa.Controller &&
+                Lampa.Controller.enabled
+                    ? Lampa.Controller.enabled()
+                    : null;
+
+            enabled =
+                controller &&
+                controller.name
+                    ? controller.name
+                    : '';
+        }
+        catch (e) {}
+
+        var series =
+            isSeries(card) ||
+            Boolean(
+                get(card) &&
+                n(get(card).season) &&
+                n(get(card).episode)
+            );
+
+        var menu = [
+            {
+                title: 'Продолжить',
+                action: 'continue'
+            },
+            {
+                title:
+                    series
+                        ? 'Начать серию сначала'
+                        : 'Начать фильм сначала',
+                action: 'restart'
+            },
+            {
+                title: 'Открыть раздачу',
+                action: 'open_torrent'
+            },
+            {
+                title: 'Выбрать другую раздачу',
+                action: 'choose_torrent'
+            },
+            {
+                title: 'Сбросить прогресс',
+                action: 'reset'
+            }
+        ];
+
+        function restoreController() {
+            if (!enabled ||
+                !Lampa.Controller ||
+                typeof Lampa.Controller.toggle !==
+                    'function') {
+                return;
+            }
+
+            try {
+                Lampa.Controller.toggle(
+                    enabled
+                );
+            }
+            catch (e) {}
+        }
+
+        Lampa.Select.show({
+            title: 'Продолжить просмотр',
+            items: menu,
+
+            onBack: function() {
+                restoreController();
+            },
+
+            onSelect: function(item) {
+                restoreController();
+
+                // Give Select one event loop turn to release
+                // its own controller before opening another screen/player.
+                setTimeout(function() {
+                    if (!item) return;
+
+                    if (item.action ===
+                        'continue') {
+                        resume(card);
+                    }
+                    else if (item.action ===
+                        'restart') {
+                        resume(
+                            card,
+                            {
+                                forceCurrent: true,
+                                startFromBeginning:
+                                    true
+                            }
+                        );
+                    }
+                    else if (item.action ===
+                        'open_torrent') {
+                        openSavedTorrent(card);
+                    }
+                    else if (item.action ===
+                        'choose_torrent') {
+                        chooseAnotherTorrent(
+                            card
+                        );
+                    }
+                    else if (item.action ===
+                        'reset') {
+                        resetProgress(card);
+                    }
+                }, 30);
+            }
+        });
+    }
+
     function ensureButtonOnFull(card, root, container, event) {
         if (!card || !root || !container || !container.length) return;
 
@@ -3972,7 +4461,19 @@
         );
 
         button.on('hover:enter', function() {
+            if (Date.now() <
+                n(runtime.longPressUntil)) {
+                return;
+            }
+
             resume(card);
+        });
+
+        button.on('hover:long', function() {
+            runtime.longPressUntil =
+                Date.now() + 700;
+
+            showContinueMenu(card);
         });
 
         container.prepend(button);
@@ -4212,7 +4713,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.12] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.13] Lampa + TorrServer + Vimu ready'
         );
     }
 
