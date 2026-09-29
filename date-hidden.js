@@ -1,11 +1,12 @@
 /**
  * Плагин: Hide Date in Header + Button Style
- * Версия: 1.3.0
+ * Версия: 1.4.0
  * Описание:
  *   1) Убирает дату, день недели, месяц и год из шапки Lampa TV,
  *      оставляя только время (часы и минуты).
  *   2) Заменяет толщину шрифта на кнопках (.full-start__button) на 600.
  *   3) Добавляет межбуквенный интервал (letter-spacing) -2% на кнопках.
+ *   4) Добавляет margin-bottom: -0.2em и шрифт Onest на кнопках.
  * Совместимость: Lampa для Android TV
  *
  * Целевые селекторы:
@@ -15,18 +16,23 @@
  *       .head__time-date.time--full   → скрываем
  *       .head__time-week.time--week   → скрываем
  *   Кнопки:
- *     .full-start__button → font-weight: 600; letter-spacing: -2%
+ *     .full-start__button → font-weight: 600;
+ *                           letter-spacing: -0.02em;
+ *                           margin-bottom: -0.2em;
+ *                           font-family: Onest;
  */
 
 (function () {
     'use strict';
 
-    var PLUGIN_VERSION = '1.3.0';
+    var PLUGIN_VERSION = '1.4.0';
 
     // ⚙️ Настройки плагина
-    var BUTTON_SELECTOR      = '.full-start__button';
-    var BUTTON_FONT_WEIGHT   = '600';
+    var BUTTON_SELECTOR       = '.full-start__button';
+    var BUTTON_FONT_WEIGHT    = '600';
     var BUTTON_LETTER_SPACING = '-0.02em'; // -2% от размера шрифта
+    var BUTTON_MARGIN_BOTTOM  = '-0.2em';
+    var BUTTON_FONT_FAMILY    = 'Onest';
 
     if (window.hide_date_ready) {
         console.log('[Hide Date] Плагин уже загружен, версия:', window.hide_date_version || PLUGIN_VERSION);
@@ -56,6 +62,8 @@
                 ${BUTTON_SELECTOR} {
                     font-weight: ${BUTTON_FONT_WEIGHT} !important;
                     letter-spacing: ${BUTTON_LETTER_SPACING} !important;
+                    margin-bottom: ${BUTTON_MARGIN_BOTTOM} !important;
+                    font-family: ${BUTTON_FONT_FAMILY}, sans-serif !important;
                 }
             `;
 
@@ -87,6 +95,8 @@
             document.querySelectorAll(BUTTON_SELECTOR).forEach(function (el) {
                 el.style.setProperty('font-weight', BUTTON_FONT_WEIGHT, 'important');
                 el.style.setProperty('letter-spacing', BUTTON_LETTER_SPACING, 'important');
+                el.style.setProperty('margin-bottom', BUTTON_MARGIN_BOTTOM, 'important');
+                el.style.setProperty('font-family', BUTTON_FONT_FAMILY + ', sans-serif', 'important');
             });
         }
 
