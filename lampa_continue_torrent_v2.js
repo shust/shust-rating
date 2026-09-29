@@ -1,7 +1,7 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.3.1
+ * Version: 2.3.2
  */
 (function () {
     'use strict';
@@ -1162,16 +1162,22 @@
 
         var ep = episodeText(record.season, record.episode);
         var done = n(record.percent) >= COMPLETE_PERCENT;
+        var hasTime = n(record.time) > 0;
 
         if (isSeries(card)) {
             if (done) return 'Следующая серия';
-            return ep
-                ? ep + ' · ' + formatTime(record.time)
-                : formatTime(record.time);
+
+            if (ep) {
+                return hasTime
+                    ? ep + ' · ' + formatTime(record.time)
+                    : ep;
+            }
+
+            return hasTime ? formatTime(record.time) : '';
         }
 
         if (done) return 'Продолжить просмотр';
-        return formatTime(record.time);
+        return hasTime ? formatTime(record.time) : '';
     }
 
     function refreshCurrentButton(card) {
@@ -1413,7 +1419,7 @@
         }
 
         console.log(
-            '[ContinueTorrent v2.3.1] Lampa + TorrServer + Vimu ready'
+            '[ContinueTorrent v2.3.2] Lampa + TorrServer + Vimu ready'
         );
     }
 
