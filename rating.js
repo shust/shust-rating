@@ -358,7 +358,7 @@
     var style = "<style id=\"maxsm_ratings\">" +
             // Ваши существующие стили
             ".full-start-new__rate-line {" +
-                "visibility: hidden;" +
+                "visibility: visible;" +
                 "flex-wrap: wrap;" +
                 "gap: 0.4em 0;" +
                 "padding-left: 0 !important;" +
@@ -622,52 +622,79 @@
     
     // Получение данных через прокси
     function fetchWithProxy(url, localCurrentCard, callback) {
-        var currentProxy = 0;
         var callbackCalled = false;
-        
-        function tryNextProxy() {
-            if (currentProxy >= PROXY_LIST.length) {
-                if (!callbackCalled) {
-                    callbackCalled = true;
-                    callback(new Error('All proxies failed'));
-                }
-                return;
+        var pending = PROXY_LIST.length;
+
+        if (!pending) {
+            callback(
+                new Error('No proxies configured')
+            );
+            return;
+        }
+
+        function finish(error, data) {
+            if (callbackCalled) return;
+
+            callbackCalled = true;
+            clearTimeout(globalTimeout);
+
+            callback(error, data);
+        }
+
+        function failed() {
+            pending--;
+
+            if (pending <= 0) {
+                finish(
+                    new Error('All proxies failed')
+                );
             }
-            
-            var proxyUrl = PROXY_LIST[currentProxy] + encodeURIComponent(url);
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Fetch with proxy: " + proxyUrl);
-            
-            var timeoutId = setTimeout(function() {
-                if (!callbackCalled) {
-                    currentProxy++;
-                    tryNextProxy();
-                }
-            }, PROXY_TIMEOUT);
-            
+        }
+
+        var globalTimeout = setTimeout(function() {
+            finish(
+                new Error('Proxy timeout')
+            );
+        }, PROXY_TIMEOUT);
+
+        PROXY_LIST.forEach(function(proxy) {
+            var proxyUrl =
+                proxy + encodeURIComponent(url);
+
+            if (C_LOGGING) {
+                console.log(
+                    "MAXSM-RATINGS",
+                    "card: " +
+                        localCurrentCard +
+                        ", Fetch with proxy in parallel: " +
+                        proxyUrl
+                );
+            }
+
             fetch(proxyUrl)
                 .then(function(response) {
-                    clearTimeout(timeoutId);
-                    if (!response.ok) throw new Error('Proxy error: ' + response.status);
+                    if (!response.ok) {
+                        throw new Error(
+                            'Proxy error: ' +
+                            response.status
+                        );
+                    }
+
                     return response.text();
                 })
                 .then(function(data) {
                     if (!callbackCalled) {
-                        callbackCalled = true;
-                        clearTimeout(timeoutId);
-                        callback(null, data);
+                        finish(null, data);
                     }
                 })
                 .catch(function() {
-                    clearTimeout(timeoutId);
                     if (!callbackCalled) {
-                        currentProxy++;
-                        tryNextProxy();
+                        failed();
                     }
                 });
-        }
-        
-        tryNextProxy();
+        });
     }
+
 //-----------------------------------------------------get---kinopoisk-------------------------------------
     function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
         // Если есть kinopoisk_id - сразу переходим к запросу рейтингов
@@ -916,155 +943,453 @@
     // Основная функция
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
-        var localCurrentCard = card.id; 
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Start - card data: ", card);
-        
+
+        var localCurrentCard = card.id;
+
+        if (C_LOGGING) {
+            console.log(
+                "MAXSM-RATINGS",
+                "card: " +
+                    localCurrentCard +
+                    ", Start - card data: ",
+                card
+            );
+        }
+
         var normalizedCard = {
             id: card.id,
-            tmdb: card.vote_average || null,
-            kinopoisk_id: card.kinopoisk_id,
-            imdb_id: card.imdb_id || card.imdb || null,
-            title: card.title || card.name || '',
-            original_title: card.original_title || card.original_name || '',
-            type: getCardType(card),
-            release_date: card.release_date || card.first_air_date || ''
+            tmdb:
+                card.vote_average ||
+                null,
+            kinopoisk_id:
+                card.kinopoisk_id,
+            imdb_id:
+                card.imdb_id ||
+                card.imdb ||
+                null,
+            title:
+                card.title ||
+                card.name ||
+                '',
+            original_title:
+                card.original_title ||
+                card.original_name ||
+                '',
+            type:
+                getCardType(card),
+            release_date:
+                card.release_date ||
+                card.first_air_date ||
+                ''
         };
-        
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", imdb id: " + normalizedCard.imdb_id + " title: " + normalizedCard.title + " orig: " + normalizedCard.original_title + " type: " + normalizedCard.type + " date: " + normalizedCard.release_date);
-        
-        var rateLine = $('.full-start-new__rate-line', render);
+
+        if (C_LOGGING) {
+            console.log(
+                "MAXSM-RATINGS",
+                "card: " +
+                    localCurrentCard +
+                    ", imdb id: " +
+                    normalizedCard.imdb_id +
+                    " title: " +
+                    normalizedCard.title +
+                    " orig: " +
+                    normalizedCard.original_title +
+                    " type: " +
+                    normalizedCard.type +
+                    " date: " +
+                    normalizedCard.release_date
+            );
+        }
+
+        var rateLine =
+            $('.full-start-new__rate-line', render);
+
         if (rateLine.length) {
-            rateLine.css('visibility', 'hidden');
-            rateLine.addClass('done'); 
+            /*
+             * IMPORTANT:
+             * This row also contains the age restriction/status blocks.
+             * Never hide the parent while remote ratings are loading.
+             */
+            rateLine.css(
+                'visibility',
+                'visible'
+            );
+            rateLine.addClass('done');
         }
-        
-        var cacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.id);
-        var cachedData = getOmdbCache(cacheKey);
-        var cachedKpData = getKpCache(cacheKey);
+
+        var initialCacheKey =
+            normalizedCard.type +
+            '_' +
+            (
+                normalizedCard.imdb_id ||
+                normalizedCard.id
+            );
+
         var ratingsData = {};
-        
-        // Оптимищируем ли запросы 1 - экономия, 0 - точность (не избегаем запросов ксли на карточке есть IMDb и KP)
-        // var optimize = parseInt(localStorage.getItem('maxsm_ratings_optimize'));
 
-        // Статусы рейтингов
-        var kpElement = $('.rate--kp:not(.hide)', render);
-        var imdbElement = $('.rate--imdb:not(.hide)', render);
-        
-        // Проверяем, что оба рейтинга уже есть и содержат числовые значения
-        var kpExists = kpElement.length > 0 && !!kpElement.find('> div').eq(0).text().trim();
-        var imdbExists = imdbElement.length > 0 && !!imdbElement.find('> div').eq(0).text().trim();
-                
-        // 1. Обрабатываем кеш Кинопоиска
-        if (cachedKpData) {
-            ratingsData.kp = cachedKpData.kp;
-            ratingsData.imdb_kp = cachedKpData.imdb; 
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Get KP ratings from cache");
-            processNextStep();
-        } else {
-            getKPRatings(normalizedCard, getRandomToken(KP_API_KEYS), localCurrentCard, function(kpRatings) {
-                if (kpRatings) {
-                    if (kpRatings.kinopoisk) {
-                        ratingsData.kp = kpRatings.kinopoisk;
-                    }
-                    if (kpRatings.imdb) {
-                        ratingsData.imdb_kp = kpRatings.imdb; // если хочешь сохранить отдельно, или сравнить
-                    }
-                    saveKpCache(cacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
-                }
-                processNextStep();
-            });
-            return; // Выходим, продолжим в колбэке
+        var kpElement =
+            $('.rate--kp:not(.hide)', render);
+
+        var imdbElement =
+            $('.rate--imdb:not(.hide)', render);
+
+        var kpText =
+            kpElement.length
+                ? kpElement
+                    .find('> div')
+                    .eq(0)
+                    .text()
+                    .trim()
+                : '';
+
+        var imdbText =
+            imdbElement.length
+                ? imdbElement
+                    .find('> div')
+                    .eq(0)
+                    .text()
+                    .trim()
+                : '';
+
+        var kpExists =
+            kpText &&
+            !isNaN(
+                parseFloat(kpText)
+            );
+
+        var imdbExists =
+            imdbText &&
+            !isNaN(
+                parseFloat(imdbText)
+            );
+
+        /*
+         * Use already-rendered native values immediately.
+         * This lets the average appear without waiting for any API.
+         */
+        if (kpExists) {
+            ratingsData.kp =
+                parseFloat(kpText);
         }
-        
-        function processNextStep() {
 
-            updateHiddenElements(ratingsData, localCurrentCard, render);
-            // 2. Обрабатываем кеш OMDB
-            if (cachedData) {
-                ratingsData.rt = cachedData.rt;
-                ratingsData.mc = cachedData.mc;
-                ratingsData.imdb = cachedData.imdb;
-                ratingsData.ageRating = cachedData.ageRating;
-                ratingsData.oscars = cachedData.oscars;
-                ratingsData.emmy = cachedData.emmy;
-                ratingsData.awards = cachedData.awards;
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Get OMDB ratings from cache");
-                updateUI();
-            } else if (normalizedCard.imdb_id) {
-                fetchOmdbRatings(normalizedCard, cacheKey, localCurrentCard, render, function(omdbData) {
-                    if (omdbData) {
-                        ratingsData.rt = omdbData.rt;
-                        ratingsData.mc = omdbData.mc;
-                        ratingsData.imdb = omdbData.imdb;
-                        ratingsData.ageRating = omdbData.ageRating;
-                        ratingsData.oscars = omdbData.oscars;
-                        ratingsData.emmy = omdbData.emmy;
-                        ratingsData.awards = omdbData.awards;
-                        saveOmdbCache(cacheKey, omdbData, localCurrentCard);
+        if (imdbExists) {
+            ratingsData.imdb =
+                parseFloat(imdbText);
+        }
+
+        var uiTimer = null;
+
+        function updateUI() {
+            if (!render) return;
+
+            insertRatings(
+                ratingsData.rt,
+                ratingsData.mc,
+                ratingsData.oscars,
+                ratingsData.awards,
+                ratingsData.emmy,
+                localCurrentCard,
+                render
+            );
+
+            updateHiddenElements(
+                ratingsData,
+                localCurrentCard,
+                render
+            );
+
+            var mode =
+                parseInt(
+                    localStorage.getItem(
+                        'maxsm_ratings_mode'
+                    ),
+                    10
+                );
+
+            if (mode !== 2) {
+                calculateAverageRating(
+                    localCurrentCard,
+                    render
+                );
+            }
+
+            insertIcons(
+                localCurrentCard,
+                render
+            );
+
+            applyRatingSourceVisibility(
+                render
+            );
+
+            updateAverageSeparator(
+                render
+            );
+
+            /*
+             * Keep the whole metadata row visible regardless of request state.
+             */
+            rateLine.css(
+                'visibility',
+                'visible'
+            );
+
+            var rateElement =
+                $('.full-start__rate', render);
+
+            rateElement
+                .off('click.ratings-modal')
+                .on(
+                    'click.ratings-modal',
+                    function(e) {
+                        e.stopPropagation();
+
+                        showRatingsModal(
+                            localCurrentCard,
+                            render
+                        );
                     }
-                    updateUI();
-                });
-            } else {
-                getImdbIdFromTmdb(normalizedCard.id, normalizedCard.type, localCurrentCard, function(newImdbId) {
-                    if (newImdbId) {
-                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", imdb id is: " + newImdbId);
-                        normalizedCard.imdb_id = newImdbId;
-                        cacheKey = normalizedCard.type + '_' + newImdbId;
-                        fetchOmdbRatings(normalizedCard, cacheKey, localCurrentCard, render, function(omdbData) {
-                            if (omdbData) {
-                                ratingsData.rt = omdbData.rt;
-                                ratingsData.mc = omdbData.mc;
-                                ratingsData.imdb = omdbData.imdb;
-                                ratingsData.ageRating = omdbData.ageRating;
-                                ratingsData.oscars = omdbData.oscars;
-                                ratingsData.emmy = omdbData.emmy;
-                                ratingsData.awards = omdbData.awards;
-                                saveOmdbCache(cacheKey, omdbData, localCurrentCard);
-                            }
-                            updateUI();
-                        });
-                    } else {
-                        updateUI();
-                    }
-                });
+                );
+
+            if (C_LOGGING) {
+                console.log(
+                    "MAXSM-RATINGS",
+                    "card: " +
+                        localCurrentCard +
+                        ", RATE UI UPDATED"
+                );
             }
         }
 
-        function updateUI() {
-            // Вставляем рейтинги RT и MC
-            insertRatings(ratingsData.rt, ratingsData.mc, ratingsData.oscars, ratingsData.awards, ratingsData.emmy, localCurrentCard, render);
-            
-            // Обновляем скрытые элементы
-            updateHiddenElements(ratingsData, localCurrentCard, render);
-            
-            var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
-        //    var isPortrait = window.innerHeight > window.innerWidth;
-       //     if (isPortrait) mode = 1;
-            
-            // Считаем и отображаем средний рейтинг
-            if (mode !== 2)
-                calculateAverageRating(localCurrentCard, render);            // Применяем иконки с учетом текущих настроек
-            insertIcons(localCurrentCard, render);
+        /*
+         * Several async sources may finish nearly together.
+         * Coalesce rapid DOM redraws into one frame-ish update.
+         */
+        function scheduleUI() {
+            if (uiTimer) {
+                clearTimeout(uiTimer);
+            }
 
-            // Применяем индивидуальные настройки видимости источников
-            applyRatingSourceVisibility(render);
-            updateAverageSeparator(render);
-            // Показываем строку рейтингов после загрузки данных
-            rateLine.css('visibility', 'visible');
-            
-            // Добавляем обработчик для портретного режима
-           // if (isPortrait) {
-                var rateElement = $('.full-start__rate', render);
-                rateElement.off('click.ratings-modal').on('click.ratings-modal', function(e) {
-                    e.stopPropagation();
-                    showRatingsModal(localCurrentCard, render);
-                });
-          //  }
-            
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", RATE DONE");
-       }
+            uiTimer = setTimeout(
+                updateUI,
+                16
+            );
+        }
+
+        function mergeKpData(kpRatings) {
+            if (!kpRatings) return;
+
+            if (
+                kpRatings.kinopoisk !==
+                undefined &&
+                kpRatings.kinopoisk !==
+                null
+            ) {
+                ratingsData.kp =
+                    kpRatings.kinopoisk;
+            }
+
+            if (
+                kpRatings.imdb !==
+                undefined &&
+                kpRatings.imdb !==
+                null
+            ) {
+                ratingsData.imdb_kp =
+                    kpRatings.imdb;
+
+                /*
+                 * OMDb is preferred when available, but KP can fill IMDb
+                 * immediately while OMDb is still loading.
+                 */
+                if (!ratingsData.imdb) {
+                    ratingsData.imdb =
+                        kpRatings.imdb;
+                }
+            }
+        }
+
+        function mergeOmdbData(omdbData) {
+            if (!omdbData) return;
+
+            ratingsData.rt =
+                omdbData.rt;
+            ratingsData.mc =
+                omdbData.mc;
+            ratingsData.imdb =
+                omdbData.imdb ||
+                ratingsData.imdb;
+            ratingsData.ageRating =
+                omdbData.ageRating;
+            ratingsData.oscars =
+                omdbData.oscars;
+            ratingsData.emmy =
+                omdbData.emmy;
+            ratingsData.awards =
+                omdbData.awards;
+        }
+
+        /*
+         * First paint is immediate using Lampa's own TMDB/KP/IMDb values.
+         * Age/status blocks therefore never wait for network ratings.
+         */
+        updateUI();
+
+        // ----------------------------------------------------------
+        // Kinopoisk branch — completely independent of OMDb.
+        // ----------------------------------------------------------
+        var cachedKpData =
+            getKpCache(
+                initialCacheKey
+            );
+
+        if (cachedKpData) {
+            mergeKpData({
+                kinopoisk:
+                    cachedKpData.kp,
+                imdb:
+                    cachedKpData.imdb
+            });
+
+            scheduleUI();
+        }
+        else if (!kpExists) {
+            /*
+             * If Lampa already rendered KP, there is no reason to make the
+             * slow KP XML/proxy request just to obtain the same number.
+             */
+            getKPRatings(
+                normalizedCard,
+                getRandomToken(
+                    KP_API_KEYS
+                ),
+                localCurrentCard,
+                function(kpRatings) {
+                    if (kpRatings) {
+                        mergeKpData(
+                            kpRatings
+                        );
+
+                        saveKpCache(
+                            initialCacheKey,
+                            {
+                                kp:
+                                    kpRatings
+                                        .kinopoisk,
+                                imdb:
+                                    kpRatings
+                                        .imdb
+                            },
+                            localCurrentCard
+                        );
+                    }
+
+                    scheduleUI();
+                }
+            );
+        }
+
+        // ----------------------------------------------------------
+        // OMDb branch — starts immediately, in parallel with KP.
+        // ----------------------------------------------------------
+        function consumeOmdb(
+            cacheKey,
+            omdbData
+        ) {
+            if (omdbData) {
+                mergeOmdbData(
+                    omdbData
+                );
+
+                saveOmdbCache(
+                    cacheKey,
+                    omdbData,
+                    localCurrentCard
+                );
+            }
+
+            scheduleUI();
+        }
+
+        function requestOmdbByImdbId(
+            imdbId
+        ) {
+            if (!imdbId) {
+                scheduleUI();
+                return;
+            }
+
+            normalizedCard.imdb_id =
+                imdbId;
+
+            var omdbCacheKey =
+                normalizedCard.type +
+                '_' +
+                imdbId;
+
+            /*
+             * Check again after resolving IMDb ID. Older code skipped this
+             * second cache lookup and unnecessarily hit OMDb.
+             */
+            var imdbCached =
+                getOmdbCache(
+                    omdbCacheKey
+                );
+
+            if (imdbCached) {
+                mergeOmdbData(
+                    imdbCached
+                );
+                scheduleUI();
+                return;
+            }
+
+            fetchOmdbRatings(
+                normalizedCard,
+                omdbCacheKey,
+                localCurrentCard,
+                render,
+                function(omdbData) {
+                    consumeOmdb(
+                        omdbCacheKey,
+                        omdbData
+                    );
+                }
+            );
+        }
+
+        var cachedOmdb =
+            getOmdbCache(
+                initialCacheKey
+            );
+
+        if (cachedOmdb) {
+            mergeOmdbData(
+                cachedOmdb
+            );
+            scheduleUI();
+        }
+        else if (
+            normalizedCard.imdb_id
+        ) {
+            requestOmdbByImdbId(
+                normalizedCard.imdb_id
+            );
+        }
+        else {
+            getImdbIdFromTmdb(
+                normalizedCard.id,
+                normalizedCard.type,
+                localCurrentCard,
+                function(newImdbId) {
+                    requestOmdbByImdbId(
+                        newImdbId
+                    );
+                }
+            );
+        }
     }
-    
+
 //-------------------------------------------MODALKA---------------------------------------------------------
     function showRatingsModal(cardId, render) {
         // Проверяем настройку цветов
