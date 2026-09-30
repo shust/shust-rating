@@ -1,10 +1,5 @@
 /*
-    Lampa ratings plugin — merged build.
-
-    Includes:
-    - Ratings functionality
-    - Toggle for provider icons on movie/series cards
-    - Toggle for the date in the Lampa header
+    Lampa ratings plugin — rating-only build.
 
     Rating sources:
     - Kinopoisk: kinopoiskapiunofficial.tech
@@ -14,9 +9,7 @@
       window.RATINGS_PLUGIN_TOKENS.OMDB_API_KEYS
       window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS
 
-    The two interface utilities are integrated from:
-    - lampa_rating_icons_toggle.js
-    - date-hidden.js
+    This build contains only rating-related functionality.
 */
 
 (function() {
@@ -1731,534 +1724,10 @@
 
     }
 
-
-    // ---------------------------------------------------------------------
-    // Дополнительные настройки интерфейса
-    // Интегрировано из lampa_rating_icons_toggle.js и date-hidden.js
-    // ---------------------------------------------------------------------
-    var RATING_CARD_ICONS_SETTING = 'rating_icons_show';
-    var RATING_CARD_ICONS_STYLE_ID = 'lampa-rating-icons-toggle-style';
-    var RATING_CARD_ICONS_HIDE_CLASS = 'lampa-rating-provider-icon-hidden';
-    var ratingCardIconsObserver = null;
-    var ratingCardIconsRescanTimer = null;
-
-    var HEADER_DATE_SETTING = 'header_date_show';
-    var HEADER_DATE_STYLE_ID = 'hide-date-style';
-    var HEADER_DATE_BODY_CLASS = 'lampa-header-date-hidden';
-    var HEADER_DATE_TARGET_CLASS = 'lampa-header-date-hidden-target';
-    var headerDateRestoreTimers = [];
-
-    function interfaceBoolValue(value, fallback) {
-        if (value === undefined || value === null) return fallback;
-        if (value === true || value === 'true' || value === 1 || value === '1') return true;
-        if (value === false || value === 'false' || value === 0 || value === '0') return false;
-        return fallback;
-    }
-
-    // ----- Иконки возле рейтинга на карточках -----
-    function ratingCardIconsEnabled() {
-        return interfaceBoolValue(
-            Lampa.Storage.get(RATING_CARD_ICONS_SETTING, true),
-            true
-        );
-    }
-
-    function addRatingCardIconsStyles() {
-        if (document.getElementById(RATING_CARD_ICONS_STYLE_ID)) return;
-
-        var style = document.createElement('style');
-        style.id = RATING_CARD_ICONS_STYLE_ID;
-        style.textContent = [
-            '.' + RATING_CARD_ICONS_HIDE_CLASS + '{',
-            '  display:none!important;',
-            '  visibility:hidden!important;',
-            '  width:0!important;',
-            '  min-width:0!important;',
-            '  max-width:0!important;',
-            '  height:0!important;',
-            '  min-height:0!important;',
-            '  max-height:0!important;',
-            '  margin:0!important;',
-            '  padding:0!important;',
-            '  border:0!important;',
-            '}'
-        ].join('\n');
-        document.head.appendChild(style);
-    }
-
-    function ratingProviderHint(el) {
-        if (!el || el.nodeType !== 1) return false;
-
-        var attrs = [
-            el.className || '',
-            el.id || '',
-            el.getAttribute('alt') || '',
-            el.getAttribute('title') || '',
-            el.getAttribute('aria-label') || '',
-            el.getAttribute('data-source') || '',
-            el.getAttribute('data-provider') || '',
-            el.getAttribute('src') || ''
-        ].join(' ').toLowerCase();
-
-        return /(imdb|kinopoisk|kinopoisk|кинопоиск|kp[_-]?(?:logo|rate|rating)|tmdb|rottentomatoes|rotten[_-]?tomatoes|metacritic|letterboxd|trakt|mdblist|shikimori|myshows|rating[_-]?logo|rate[_-]?logo)/i.test(attrs);
-    }
-
-    function hasNumericCardRating(text) {
-        return /\d(?:[\.,]\d)?/.test(String(text || '').replace(/\s+/g, ' ').trim());
-    }
-
-    function isLampaCard(el) {
-        return !!(
-            el &&
-            el.nodeType === 1 &&
-            el.matches &&
-            el.matches('.card, .card--small, .card--wide, [class~="card"]')
-        );
-    }
-
-    function closestLampaCard(el) {
-        if (!el || el.nodeType !== 1) return null;
-        if (isLampaCard(el)) return el;
-        return el.closest
-            ? el.closest('.card, .card--small, .card--wide, [class~="card"]')
-            : null;
-    }
-
-    function ratingBoxesInCard(card) {
-        if (!card || !card.querySelectorAll) return [];
-
-        var selectors = [
-            '.card__rate',
-            '.card__rating',
-            '.card__vote',
-            '.card__vote-rate',
-            '.card__vote-number',
-            '[class^="card__rate-"]',
-            '[class*=" card__rate-"]',
-            '[class^="card__rating-"]',
-            '[class*=" card__rating-"]'
-        ].join(',');
-
-        return Array.prototype.slice.call(card.querySelectorAll(selectors));
-    }
-
-    function markProviderIconsInRatingBox(box) {
-        if (!box || !box.querySelectorAll) return;
-
-        var graphics = box.querySelectorAll('img,svg,picture');
-        for (var i = 0; i < graphics.length; i++) {
-            var graphic = graphics[i];
-            var rect = null;
-
-            try {
-                rect = graphic.getBoundingClientRect();
-            } catch (e) {}
-
-            var smallGraphic = !rect || (
-                (rect.width || 0) <= 80 &&
-                (rect.height || 0) <= 80
-            );
-
-            if (ratingProviderHint(graphic) || smallGraphic) {
-                graphic.classList.add(RATING_CARD_ICONS_HIDE_CLASS);
-            }
-        }
-
-        var children = box.querySelectorAll('span,i,b,em,div');
-        for (var j = 0; j < children.length; j++) {
-            var child = children[j];
-            if (hasNumericCardRating(child.textContent)) continue;
-
-            if (ratingProviderHint(child)) {
-                child.classList.add(RATING_CARD_ICONS_HIDE_CLASS);
-                continue;
-            }
-
-            try {
-                var cs = window.getComputedStyle(child);
-                var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
-                var rect2 = child.getBoundingClientRect();
-
-                if (
-                    bg !== 'none' &&
-                    rect2.width <= 80 &&
-                    rect2.height <= 80
-                ) {
-                    child.classList.add(RATING_CARD_ICONS_HIDE_CLASS);
-                }
-            } catch (e2) {}
-        }
-    }
-
-    function scanRatingCard(card) {
-        if (!card || !card.querySelectorAll) return;
-        var boxes = ratingBoxesInCard(card);
-        for (var i = 0; i < boxes.length; i++) {
-            markProviderIconsInRatingBox(boxes[i]);
-        }
-    }
-
-    function scanRatingCardIcons(root) {
-        if (
-            ratingCardIconsEnabled() ||
-            !root ||
-            !root.querySelectorAll
-        ) return;
-
-        var ownCard = closestLampaCard(root);
-        if (ownCard) scanRatingCard(ownCard);
-
-        var cards = root.querySelectorAll(
-            '.card, .card--small, .card--wide, [class~="card"]'
-        );
-
-        for (var i = 0; i < cards.length; i++) {
-            scanRatingCard(cards[i]);
-        }
-    }
-
-    function clearRatingCardIconMarks() {
-        var marked = document.querySelectorAll(
-            '.' + RATING_CARD_ICONS_HIDE_CLASS
-        );
-
-        for (var i = 0; i < marked.length; i++) {
-            marked[i].classList.remove(RATING_CARD_ICONS_HIDE_CLASS);
-        }
-    }
-
-    function applyRatingCardIconsSetting() {
-        addRatingCardIconsStyles();
-        clearRatingCardIconMarks();
-
-        if (!ratingCardIconsEnabled() && document.body) {
-            scanRatingCardIcons(document.body);
-        }
-    }
-
-    function observeRatingCardIconsDom() {
-        if (
-            ratingCardIconsObserver ||
-            typeof MutationObserver === 'undefined' ||
-            !document.body
-        ) return;
-
-        ratingCardIconsObserver = new MutationObserver(function(mutations) {
-            if (ratingCardIconsEnabled()) return;
-
-            for (var i = 0; i < mutations.length; i++) {
-                var nodes = mutations[i].addedNodes || [];
-
-                for (var j = 0; j < nodes.length; j++) {
-                    if (nodes[j] && nodes[j].nodeType === 1) {
-                        scanRatingCardIcons(nodes[j]);
-                    }
-                }
-            }
-        });
-
-        ratingCardIconsObserver.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-    }
-
-    function ratingCardIconsRescanBurst() {
-        if (ratingCardIconsRescanTimer) {
-            clearInterval(ratingCardIconsRescanTimer);
-        }
-
-        var count = 0;
-        ratingCardIconsRescanTimer = setInterval(function() {
-            if (!ratingCardIconsEnabled() && document.body) {
-                scanRatingCardIcons(document.body);
-            }
-
-            count++;
-            if (count >= 10) {
-                clearInterval(ratingCardIconsRescanTimer);
-                ratingCardIconsRescanTimer = null;
-            }
-        }, 500);
-    }
-
-    function initRatingCardIconsToggle() {
-        if (window.__lampa_rating_icons_toggle_fixed_loaded) return;
-        window.__lampa_rating_icons_toggle_fixed_loaded = true;
-
-        Lampa.SettingsApi.addParam({
-            component: 'interface',
-            param: {
-                name: RATING_CARD_ICONS_SETTING,
-                type: 'trigger',
-                'default': true
-            },
-            field: {
-                name: 'Иконки возле рейтинга',
-                description: 'Показывать логотипы IMDb, Кинопоиска и других источников только на карточках фильмов и сериалов'
-            },
-            onChange: function() {
-                setTimeout(function() {
-                    applyRatingCardIconsSetting();
-                    ratingCardIconsRescanBurst();
-                }, 50);
-            }
-        });
-
-        if (
-            Lampa.Storage &&
-            Lampa.Storage.listener &&
-            Lampa.Storage.listener.follow
-        ) {
-            Lampa.Storage.listener.follow('change', function(event) {
-                if (!event) return;
-
-                if (
-                    event.name === RATING_CARD_ICONS_SETTING ||
-                    event.name === 'activity'
-                ) {
-                    setTimeout(function() {
-                        applyRatingCardIconsSetting();
-
-                        if (!ratingCardIconsEnabled()) {
-                            ratingCardIconsRescanBurst();
-                        }
-                    }, event.name === 'activity' ? 300 : 30);
-                }
-            });
-        }
-
-        addRatingCardIconsStyles();
-        applyRatingCardIconsSetting();
-        observeRatingCardIconsDom();
-        ratingCardIconsRescanBurst();
-    }
-
-    // ----- Дата в шапке -----
-    function headerDateVisible() {
-        // false по умолчанию сохраняет поведение отдельного date-hidden.js
-        return interfaceBoolValue(
-            Lampa.Storage.get(HEADER_DATE_SETTING, false),
-            false
-        );
-    }
-
-    function headerDateTextMatch(text) {
-        text = String(text || '').trim();
-
-        return (
-            /(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i.test(text) ||
-            /20\d{2}/.test(text) ||
-            /\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text)
-        );
-    }
-
-    function addHeaderDateStyles() {
-        var oldStyle = document.getElementById(HEADER_DATE_STYLE_ID);
-
-        // Если до объединённого плагина был загружен старый date-hidden.js,
-        // заменяем его постоянный CSS на управляемый настройкой.
-        if (oldStyle && !oldStyle.getAttribute('data-rating-merged')) {
-            oldStyle.parentNode.removeChild(oldStyle);
-            oldStyle = null;
-        }
-
-        if (oldStyle) return;
-
-        var style = document.createElement('style');
-        style.id = HEADER_DATE_STYLE_ID;
-        style.type = 'text/css';
-        style.setAttribute('data-rating-merged', '1');
-        style.textContent = [
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__date,',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__weekday,',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__date-time .header__date,',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__time .header__date,',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__clock .header__date,',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header__time span:first-child:not(:only-child),',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header [class*="date"],',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header [class*="weekday"],',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .header [class*="day"],',
-            'body.' + HEADER_DATE_BODY_CLASS + ' .' + HEADER_DATE_TARGET_CLASS + '{',
-            '  display:none!important;',
-            '}'
-        ].join('\n');
-
-        document.head.appendChild(style);
-    }
-
-    function markHeaderDateTextElements() {
-        var header = document.querySelector('.header');
-        if (!header) return;
-
-        var elements = header.querySelectorAll('*');
-
-        for (var i = 0; i < elements.length; i++) {
-            var el = elements[i];
-            var text = (el.textContent || '').trim();
-
-            if (headerDateTextMatch(text)) {
-                el.classList.add(HEADER_DATE_TARGET_CLASS);
-            }
-        }
-    }
-
-    function clearHeaderDateTextMarks() {
-        var marked = document.querySelectorAll(
-            '.' + HEADER_DATE_TARGET_CLASS
-        );
-
-        for (var i = 0; i < marked.length; i++) {
-            marked[i].classList.remove(HEADER_DATE_TARGET_CLASS);
-        }
-    }
-
-    function restoreLegacyHeaderDateInlineStyles() {
-        var header = document.querySelector('.header');
-        if (!header) return;
-
-        var candidates = header.querySelectorAll(
-            '.header__date, .header__weekday, .header__date-time .header__date, ' +
-            '.header__time .header__date, .header__clock .header__date, ' +
-            '.header__time span:first-child:not(:only-child), ' +
-            '[class*="date"], [class*="weekday"], [class*="day"]'
-        );
-
-        for (var i = 0; i < candidates.length; i++) {
-            if (candidates[i].style && candidates[i].style.display === 'none') {
-                candidates[i].style.display = '';
-            }
-        }
-
-        var all = header.querySelectorAll('*');
-        for (var j = 0; j < all.length; j++) {
-            if (
-                headerDateTextMatch(all[j].textContent) &&
-                all[j].style &&
-                all[j].style.display === 'none'
-            ) {
-                all[j].style.display = '';
-            }
-        }
-    }
-
-    function clearHeaderDateRestoreTimers() {
-        while (headerDateRestoreTimers.length) {
-            clearTimeout(headerDateRestoreTimers.pop());
-        }
-    }
-
-    function scheduleHeaderDateVisibleRestore() {
-        clearHeaderDateRestoreTimers();
-
-        // 1.1 с перекрывает старый date-hidden.js, который делал DOM-проверку
-        // через 1 секунду. Это позволяет переключателю работать даже если
-        // старый плагин случайно ещё загружен в текущей сессии.
-        [0, 150, 1150, 1400].forEach(function(delay) {
-            headerDateRestoreTimers.push(
-                setTimeout(function() {
-                    if (!headerDateVisible()) return;
-
-                    if (document.body) {
-                        document.body.classList.remove(HEADER_DATE_BODY_CLASS);
-                    }
-
-                    clearHeaderDateTextMarks();
-                    restoreLegacyHeaderDateInlineStyles();
-                }, delay)
-            );
-        });
-    }
-
-    function hideDateInHeader() {
-        addHeaderDateStyles();
-
-        if (!document.body) return;
-
-        if (headerDateVisible()) {
-            document.body.classList.remove(HEADER_DATE_BODY_CLASS);
-            clearHeaderDateTextMarks();
-            restoreLegacyHeaderDateInlineStyles();
-            return;
-        }
-
-        clearHeaderDateRestoreTimers();
-        document.body.classList.add(HEADER_DATE_BODY_CLASS);
-
-        // Сохраняем дополнительную DOM-проверку из date-hidden.js.
-        setTimeout(function() {
-            if (headerDateVisible()) return;
-            markHeaderDateTextElements();
-        }, 1000);
-    }
-
-    function applyHeaderDateSetting() {
-        hideDateInHeader();
-
-        if (headerDateVisible()) {
-            scheduleHeaderDateVisibleRestore();
-        }
-    }
-
-    function initHeaderDateToggle() {
-        // Флаг совместимости блокирует повторный запуск отдельного date-hidden.js,
-        // если он загрузится после объединённого rating.js.
-        window.hide_date_ready = true;
-        window.hide_date_version = '1.1.0-integrated';
-
-        Lampa.SettingsApi.addParam({
-            component: 'interface',
-            param: {
-                name: HEADER_DATE_SETTING,
-                type: 'trigger',
-                'default': false
-            },
-            field: {
-                name: 'Дата в шапке',
-                description: 'Показывать дату, день недели, месяц и год в шапке Lampa. Время остаётся всегда.'
-            },
-            onChange: function() {
-                setTimeout(function() {
-                    applyHeaderDateSetting();
-                }, 50);
-            }
-        });
-
-        if (
-            Lampa.Storage &&
-            Lampa.Storage.listener &&
-            Lampa.Storage.listener.follow
-        ) {
-            Lampa.Storage.listener.follow('change', function(event) {
-                if (!event) return;
-
-                if (event.name === HEADER_DATE_SETTING) {
-                    setTimeout(function() {
-                        applyHeaderDateSetting();
-                    }, 30);
-                }
-            });
-        }
-
-        Lampa.Listener.follow('activity', function(e) {
-            if (e.type === 'start' || e.type === 'render') {
-                setTimeout(function() {
-                    applyHeaderDateSetting();
-                }, 30);
-            }
-        });
-
-        addHeaderDateStyles();
-        applyHeaderDateSetting();
-    }
-
     // Инициализация плагина
     function startPlugin() {
         if (C_LOGGING) console.log("MAXSM-RATINGS", " Hello!"); 
         window.maxsmRatingsPlugin = true;
-
-        initRatingCardIconsToggle();
-        initHeaderDateToggle();
         
         if (!localStorage.getItem('maxsm_ratings_awards')) {
             localStorage.setItem('maxsm_ratings_awards', 'true');
@@ -2550,4 +2019,648 @@ Lampa.SettingsApi.addParam({
     }
 
     if (!window.maxsmRatingsPlugin) startPlugin();
+})();
+
+/* ===== Integrated: lampa_rating_icons_toggle.js ===== */
+(function () {
+    'use strict';
+
+    var PLUGIN_ID = 'rating_icons_toggle';
+    var SETTING = 'rating_icons_show';
+    var STYLE_ID = 'lampa-rating-icons-toggle-style';
+    var HIDE_CLASS = 'lampa-rating-provider-icon-hidden';
+    var observer = null;
+    var rescanTimer = null;
+
+    function boolValue(value, fallback) {
+        if (value === undefined || value === null) return fallback;
+        if (value === true || value === 'true' || value === 1 || value === '1') return true;
+        if (value === false || value === 'false' || value === 0 || value === '0') return false;
+        return fallback;
+    }
+
+    function iconsEnabled() {
+        return boolValue(Lampa.Storage.get(SETTING, true), true);
+    }
+
+    function addStyles() {
+        if (document.getElementById(STYLE_ID)) return;
+
+        var style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = [
+            /* Only elements explicitly marked by this plugin are hidden. */
+            '.' + HIDE_CLASS + '{',
+            '  display:none!important;',
+            '  visibility:hidden!important;',
+            '  width:0!important;',
+            '  min-width:0!important;',
+            '  max-width:0!important;',
+            '  height:0!important;',
+            '  min-height:0!important;',
+            '  max-height:0!important;',
+            '  margin:0!important;',
+            '  padding:0!important;',
+            '  border:0!important;',
+            '}'
+        ].join('\n');
+        document.head.appendChild(style);
+    }
+
+    function providerHint(el) {
+        if (!el || el.nodeType !== 1) return false;
+
+        var attrs = [
+            el.className || '',
+            el.id || '',
+            el.getAttribute('alt') || '',
+            el.getAttribute('title') || '',
+            el.getAttribute('aria-label') || '',
+            el.getAttribute('data-source') || '',
+            el.getAttribute('data-provider') || '',
+            el.getAttribute('src') || ''
+        ].join(' ').toLowerCase();
+
+        return /(imdb|kinopoisk|kinopoisk|кинопоиск|kp[_-]?(?:logo|rate|rating)|tmdb|rottentomatoes|rotten[_-]?tomatoes|metacritic|letterboxd|trakt|mdblist|shikimori|myshows|rating[_-]?logo|rate[_-]?logo)/i.test(attrs);
+    }
+
+    function hasNumericRating(text) {
+        return /\d(?:[\.,]\d)?/.test(String(text || '').replace(/\s+/g, ' ').trim());
+    }
+
+    function isCard(el) {
+        return !!(el && el.nodeType === 1 && el.matches && el.matches('.card, .card--small, .card--wide, [class~="card"]'));
+    }
+
+    function closestCard(el) {
+        if (!el || el.nodeType !== 1) return null;
+        if (isCard(el)) return el;
+        return el.closest ? el.closest('.card, .card--small, .card--wide, [class~="card"]') : null;
+    }
+
+    /*
+     * IMPORTANT: We only inspect rating areas that live INSIDE movie/series cards.
+     * Nothing in menus, settings, buttons, player controls, posters, etc. is scanned.
+     */
+    function ratingBoxes(card) {
+        if (!card || !card.querySelectorAll) return [];
+
+        var selectors = [
+            '.card__rate',
+            '.card__rating',
+            '.card__vote',
+            '.card__vote-rate',
+            '.card__vote-number',
+            '[class^="card__rate-"]',
+            '[class*=" card__rate-"]',
+            '[class^="card__rating-"]',
+            '[class*=" card__rating-"]'
+        ].join(',');
+
+        return Array.prototype.slice.call(card.querySelectorAll(selectors));
+    }
+
+    function markProviderIconsInBox(box) {
+        if (!box || !box.querySelectorAll) return;
+
+        /* Provider logos rendered as images/SVGs inside the rating badge. */
+        var graphics = box.querySelectorAll('img,svg,picture');
+        for (var i = 0; i < graphics.length; i++) {
+            var graphic = graphics[i];
+
+            /* In card rating boxes, small graphics are provider icons. Never touch poster images. */
+            var rect = null;
+            try { rect = graphic.getBoundingClientRect(); } catch (e) {}
+
+            var smallGraphic = !rect || ((rect.width || 0) <= 80 && (rect.height || 0) <= 80);
+            if (providerHint(graphic) || smallGraphic) graphic.classList.add(HIDE_CLASS);
+        }
+
+        /* Provider logos may be spans/divs with background-image or pseudo-element. */
+        var children = box.querySelectorAll('span,i,b,em,div');
+        for (var j = 0; j < children.length; j++) {
+            var child = children[j];
+            if (hasNumericRating(child.textContent)) continue;
+
+            if (providerHint(child)) {
+                child.classList.add(HIDE_CLASS);
+                continue;
+            }
+
+            try {
+                var cs = window.getComputedStyle(child);
+                var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
+                var rect2 = child.getBoundingClientRect();
+
+                /* Only tiny background-image elements inside a known card rating box. */
+                if (bg !== 'none' && rect2.width <= 80 && rect2.height <= 80) {
+                    child.classList.add(HIDE_CLASS);
+                }
+            } catch (e2) {}
+        }
+    }
+
+    function scanCard(card) {
+        if (!card || !card.querySelectorAll) return;
+        var boxes = ratingBoxes(card);
+        for (var i = 0; i < boxes.length; i++) markProviderIconsInBox(boxes[i]);
+    }
+
+    function scan(root) {
+        if (iconsEnabled() || !root || !root.querySelectorAll) return;
+
+        var ownCard = closestCard(root);
+        if (ownCard) scanCard(ownCard);
+
+        var cards = root.querySelectorAll('.card, .card--small, .card--wide, [class~="card"]');
+        for (var i = 0; i < cards.length; i++) scanCard(cards[i]);
+    }
+
+    function clearMarks() {
+        var marked = document.querySelectorAll('.' + HIDE_CLASS);
+        for (var i = 0; i < marked.length; i++) marked[i].classList.remove(HIDE_CLASS);
+    }
+
+    function applySetting() {
+        addStyles();
+        clearMarks();
+        if (!iconsEnabled()) scan(document.body);
+    }
+
+    function observeDom() {
+        if (observer || typeof MutationObserver === 'undefined' || !document.body) return;
+
+        observer = new MutationObserver(function (mutations) {
+            if (iconsEnabled()) return;
+
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes || [];
+                for (var j = 0; j < nodes.length; j++) {
+                    if (nodes[j] && nodes[j].nodeType === 1) scan(nodes[j]);
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function rescanBurst() {
+        if (rescanTimer) clearInterval(rescanTimer);
+        var n = 0;
+        rescanTimer = setInterval(function () {
+            if (!iconsEnabled()) scan(document.body);
+            n++;
+            if (n >= 10) {
+                clearInterval(rescanTimer);
+                rescanTimer = null;
+            }
+        }, 500);
+    }
+
+    function startPlugin() {
+        if (window.__lampa_rating_icons_toggle_fixed_loaded) return;
+        window.__lampa_rating_icons_toggle_fixed_loaded = true;
+
+        Lampa.SettingsApi.addParam({
+            component: 'interface',
+            param: {
+                name: SETTING,
+                type: 'trigger',
+                'default': true
+            },
+            field: {
+                name: 'Иконки возле рейтинга',
+                description: 'Показывать логотипы IMDb, Кинопоиска и других источников только на карточках фильмов и сериалов'
+            },
+            onChange: function () {
+                setTimeout(function () {
+                    applySetting();
+                    rescanBurst();
+                }, 50);
+            }
+        });
+
+        if (Lampa.Storage && Lampa.Storage.listener && Lampa.Storage.listener.follow) {
+            Lampa.Storage.listener.follow('change', function (event) {
+                if (!event) return;
+                if (event.name === SETTING || event.name === 'activity') {
+                    setTimeout(function () {
+                        applySetting();
+                        if (!iconsEnabled()) rescanBurst();
+                    }, event.name === 'activity' ? 300 : 30);
+                }
+            });
+        }
+
+        addStyles();
+        applySetting();
+        observeDom();
+        rescanBurst();
+    }
+
+    if (window.appready) {
+        startPlugin();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') startPlugin();
+        });
+    }
+})();
+
+/* ===== Integrated: date-hidden.js + UI toggle (fixed for current Lampa HTML) ===== */
+/* -------------------------------------------------------------------------
+   Integrated header date toggle
+   Based on date-hidden.js, adapted for current Lampa markup:
+   <div class="head__time">
+       <div class="head__time-now time--clock">10:09</div>
+       <div>
+           <div class="head__time-date time--full">30 Сентября 2026</div>
+           <div class="head__time-week time--week">Среда</div>
+       </div>
+   </div>
+--------------------------------------------------------------------------- */
+(function () {
+    'use strict';
+
+    var SETTING = 'header_date_show';
+    var STYLE_ID = 'hide-date-style';
+    var HIDDEN_CLASS = 'rating-header-date-hidden';
+    var VISIBLE_CLASS = 'rating-header-date-visible';
+    var FALLBACK_CLASS = 'rating-header-date-fallback-hidden';
+    var observer = null;
+    var rescanTimer = null;
+
+    if (window.__rating_header_date_toggle_loaded) return;
+    window.__rating_header_date_toggle_loaded = true;
+
+    function boolValue(value, fallback) {
+        if (value === undefined || value === null) return fallback;
+        if (value === true || value === 'true' || value === 1 || value === '1') return true;
+        if (value === false || value === 'false' || value === 0 || value === '0') return false;
+        return fallback;
+    }
+
+    function dateVisible(forcedValue) {
+        if (forcedValue !== undefined) {
+            return boolValue(forcedValue, false);
+        }
+
+        return boolValue(
+            Lampa.Storage.get(SETTING, false),
+            false
+        );
+    }
+
+    function exactDateSelector() {
+        return [
+            '.head__time-date',
+            '.head__time-week',
+            '.header__date',
+            '.header__weekday',
+            '.header__date-time .header__date',
+            '.header__time .header__date',
+            '.header__clock .header__date'
+        ].join(',');
+    }
+
+    function addStyles() {
+        var current = document.getElementById(STYLE_ID);
+
+        /*
+         * If the standalone date-hidden.js was loaded earlier, replace its
+         * permanent "always hide" stylesheet with the controlled stylesheet.
+         * We intentionally keep the same id so an old copy loaded later will
+         * not inject its own static CSS.
+         */
+        if (current && current.getAttribute('data-rating-date-toggle') !== '1') {
+            if (current.parentNode) current.parentNode.removeChild(current);
+            current = null;
+        }
+
+        if (current) return;
+
+        var style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.type = 'text/css';
+        style.setAttribute('data-rating-date-toggle', '1');
+
+        style.textContent = [
+            /* Current Lampa markup */
+            'html.' + HIDDEN_CLASS + ' .head__time-date,',
+            'html.' + HIDDEN_CLASS + ' .head__time-week,',
+
+            /* Compatibility with older Lampa themes/layouts */
+            'html.' + HIDDEN_CLASS + ' .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__weekday,',
+            'html.' + HIDDEN_CLASS + ' .header__date-time .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__time .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__clock .header__date,',
+            'html.' + HIDDEN_CLASS + ' .' + FALLBACK_CLASS + '{',
+            '  display:none!important;',
+            '}',
+
+            /*
+             * Important: this also beats inline display:none left behind by
+             * an already-running old date-hidden.js.
+             * The current .head__time-date/.head__time-week nodes are DIVs.
+             */
+            'html.' + VISIBLE_CLASS + ' .head__time-date,',
+            'html.' + VISIBLE_CLASS + ' .head__time-week{',
+            '  display:block!important;',
+            '  visibility:visible!important;',
+            '}'
+        ].join('\n');
+
+        document.head.appendChild(style);
+    }
+
+    function dateTextMatch(text) {
+        text = String(text || '').trim();
+
+        return (
+            /(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i.test(text) ||
+            /20\d{2}/.test(text) ||
+            /\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text)
+        );
+    }
+
+    function isClockElement(el) {
+        if (!el || el.nodeType !== 1) return false;
+
+        try {
+            if (el.matches('.head__time-now, .time--clock')) return true;
+
+            /*
+             * Never hide an ancestor containing the clock.
+             * This fixes the dangerous behavior of the old generic text scan,
+             * where .head__time could match because its textContent also
+             * contained the date.
+             */
+            if (
+                el.querySelector &&
+                el.querySelector('.head__time-now, .time--clock')
+            ) {
+                return true;
+            }
+        } catch (e) {}
+
+        return false;
+    }
+
+    function markFallbackDateNodes(root) {
+        root = root || document;
+        if (!root || !root.querySelectorAll) return;
+
+        var exact = root.querySelectorAll(exactDateSelector());
+
+        for (var i = 0; i < exact.length; i++) {
+            exact[i].classList.add(FALLBACK_CLASS);
+        }
+
+        var headerRoots = [];
+
+        try {
+            if (
+                root.matches &&
+                root.matches('.head, .header, .head__time')
+            ) {
+                headerRoots.push(root);
+            }
+        } catch (e) {}
+
+        var roots = root.querySelectorAll('.head, .header, .head__time');
+
+        for (var r = 0; r < roots.length; r++) {
+            headerRoots.push(roots[r]);
+        }
+
+        for (var h = 0; h < headerRoots.length; h++) {
+            var elements = headerRoots[h].querySelectorAll('*');
+
+            for (var j = 0; j < elements.length; j++) {
+                var el = elements[j];
+
+                if (isClockElement(el)) continue;
+                if (!dateTextMatch(el.textContent)) continue;
+
+                /*
+                 * Mark only a leaf-like node. If a child itself contains the
+                 * date, marking the parent could hide unrelated header UI.
+                 */
+                var childContainsDate = false;
+
+                if (el.children && el.children.length) {
+                    for (var c = 0; c < el.children.length; c++) {
+                        if (dateTextMatch(el.children[c].textContent)) {
+                            childContainsDate = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!childContainsDate) {
+                    el.classList.add(FALLBACK_CLASS);
+                }
+            }
+        }
+    }
+
+    function clearFallbackMarks() {
+        var marked = document.querySelectorAll('.' + FALLBACK_CLASS);
+
+        for (var i = 0; i < marked.length; i++) {
+            marked[i].classList.remove(FALLBACK_CLASS);
+        }
+    }
+
+    function restoreInlineDateStyles(root) {
+        root = root || document;
+        if (!root || !root.querySelectorAll) return;
+
+        var exact = root.querySelectorAll(exactDateSelector());
+
+        for (var i = 0; i < exact.length; i++) {
+            if (exact[i].style && exact[i].style.display === 'none') {
+                exact[i].style.display = '';
+            }
+
+            if (exact[i].style && exact[i].style.visibility === 'hidden') {
+                exact[i].style.visibility = '';
+            }
+        }
+
+        /*
+         * Restore only safe date-like leaf nodes. Never touch the clock.
+         */
+        var headers = root.querySelectorAll('.head, .header, .head__time');
+
+        for (var h = 0; h < headers.length; h++) {
+            var all = headers[h].querySelectorAll('*');
+
+            for (var j = 0; j < all.length; j++) {
+                var el = all[j];
+
+                if (isClockElement(el)) continue;
+                if (!dateTextMatch(el.textContent)) continue;
+
+                if (el.style && el.style.display === 'none') {
+                    el.style.display = '';
+                }
+
+                if (el.style && el.style.visibility === 'hidden') {
+                    el.style.visibility = '';
+                }
+            }
+        }
+    }
+
+    function applySetting(forcedValue) {
+        addStyles();
+
+        var visible = dateVisible(forcedValue);
+        var html = document.documentElement;
+
+        if (!html) return;
+
+        html.classList.toggle(HIDDEN_CLASS, !visible);
+        html.classList.toggle(VISIBLE_CLASS, visible);
+
+        if (visible) {
+            clearFallbackMarks();
+            restoreInlineDateStyles(document);
+        } else {
+            markFallbackDateNodes(document);
+        }
+    }
+
+    function rescanBurst(forcedValue) {
+        if (rescanTimer) clearInterval(rescanTimer);
+
+        var count = 0;
+
+        rescanTimer = setInterval(function () {
+            applySetting(forcedValue);
+
+            count++;
+
+            if (count >= 8) {
+                clearInterval(rescanTimer);
+                rescanTimer = null;
+            }
+        }, 250);
+    }
+
+    function observeDom() {
+        if (
+            observer ||
+            typeof MutationObserver === 'undefined' ||
+            !document.body
+        ) return;
+
+        observer = new MutationObserver(function (mutations) {
+            var visible = dateVisible();
+
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes || [];
+
+                for (var j = 0; j < nodes.length; j++) {
+                    var node = nodes[j];
+
+                    if (!node || node.nodeType !== 1) continue;
+
+                    if (visible) {
+                        restoreInlineDateStyles(node);
+                    } else {
+                        try {
+                            if (
+                                node.matches &&
+                                node.matches(exactDateSelector())
+                            ) {
+                                node.classList.add(FALLBACK_CLASS);
+                            }
+                        } catch (e) {}
+
+                        markFallbackDateNodes(node);
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    function startPlugin() {
+        /*
+         * Compatibility flag from date-hidden.js. If an old standalone copy
+         * is loaded after this combined plugin, it will stop immediately.
+         */
+        window.hide_date_ready = true;
+        window.hide_date_version = '2.0.0-integrated';
+
+        Lampa.SettingsApi.addParam({
+            component: 'interface',
+            param: {
+                name: SETTING,
+                type: 'trigger',
+                'default': false
+            },
+            field: {
+                name: 'Дата в шапке',
+                description: 'Показывать дату и день недели. Время отображается всегда.'
+            },
+            onChange: function (value) {
+                /*
+                 * Use the value passed by SettingsApi immediately instead of
+                 * waiting for Storage to update. Then repeat once for Android TV.
+                 */
+                applySetting(value);
+
+                setTimeout(function () {
+                    applySetting(value);
+                }, 50);
+
+                rescanBurst(value);
+            }
+        });
+
+        if (
+            Lampa.Storage &&
+            Lampa.Storage.listener &&
+            Lampa.Storage.listener.follow
+        ) {
+            Lampa.Storage.listener.follow('change', function (event) {
+                if (!event || event.name !== SETTING) return;
+
+                setTimeout(function () {
+                    applySetting();
+                    rescanBurst();
+                }, 30);
+            });
+        }
+
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type === 'start' || e.type === 'render') {
+                setTimeout(function () {
+                    applySetting();
+                }, 30);
+            }
+        });
+
+        addStyles();
+        applySetting();
+        observeDom();
+    }
+
+    if (window.appready) {
+        startPlugin();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') {
+                startPlugin();
+            }
+        });
+    }
 })();
