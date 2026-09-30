@@ -386,6 +386,7 @@
                 "border-radius: 1px;" +
                 "pointer-events: none;" +
             "}" +
+            ".rate--blue   { color: #03A9F4; }" +
             ".rate--green  { color: #4caf50; }" +
             ".rate--lime   { color: #cddc39; }" +
             ".rate--orange { color: #ff9800; }" +
@@ -901,6 +902,18 @@
         if (rating >= 8.5) return 'rate--green';
         if (rating >= 7.0) return 'rate--lime';
         if (rating >= 5.0) return 'rate--orange';
+        return 'rate--red';
+    }
+
+    // Отдельная цветовая шкала только для СРЕДНЕГО рейтинга.
+    // Остальные рейтинги сохраняют прежнюю логику и цвета.
+    function getAverageRatingClass(rating) {
+        rating = parseFloat(rating) || 0;
+
+        if (rating >= 8.5) return 'rate--blue';
+        if (rating >= 8.0) return 'rate--green';
+        if (rating >= 7.0) return 'rate--lime';
+        if (rating >= 6.0) return 'rate--orange';
         return 'rate--red';
     }
 
@@ -1462,7 +1475,7 @@
                 var colorClass;
                     // Для среднего рейтинга используем специальную функцию
                     if (className === 'rate--avg') {
-                        colorClass = getRatingClass(numericValue);
+                        colorClass = getAverageRatingClass(numericValue);
                         if (colorClass) {
                             item.addClass(colorClass);
                         }
@@ -2024,7 +2037,7 @@
         
         if (totalWeight > 0 && (ratingsCount > 1 ||  mode === 1)) {
             var averageRating = ( weightedSum / totalWeight ).toFixed(1);
-            var colorClass = getRatingClass(averageRating);
+            var colorClass = getAverageRatingClass(averageRating);
             
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Average rating: " + averageRating);
             if (mode === 1) {
