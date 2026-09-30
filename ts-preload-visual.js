@@ -2,7 +2,21 @@
     'use strict';
 
     /* =========================================================================
-     * 1. Модальное окно (упрощённая версия Modal из оригинального плагина)
+     * 0. Проверка доступности нужных API Lampa
+     * ========================================================================= */
+    if (!Lampa || !Lampa.Player || !Lampa.Storage) {
+        console.warn('[ts-preload] Lampa API недоступен, плагин не загружен');
+        return;
+    }
+
+    var ReguestClass = Lampa.Reguest || Lampa.Network;
+    if (!ReguestClass) {
+        console.warn('[ts-preload] Lampa.Reguest/Lampa.Network не найден, плагин не загружен');
+        return;
+    }
+
+    /* =========================================================================
+     * 1. Модальное окно
      * ========================================================================= */
     var Modal = (function () {
         var modalID = 0;
@@ -19,6 +33,7 @@
             var _this = this;
             this.html.on('click', function (e) {
                 if (!$(e.target).closest($('.modal__content', _this.html)).length
+                    && Lampa.DeviceInput && Lampa.DeviceInput.canClick
                     && Lampa.DeviceInput.canClick(e.originalEvent)) {
                     window.history.back();
                 }
@@ -27,8 +42,8 @@
             this.title(this.active.title);
 
             this.html.toggleClass('modal--medium', this.active.size === 'medium');
-            this.html.toggleClass('modal--large', this.active.size === 'large');
-            this.html.toggleClass('modal--full', this.active.size === 'full');
+            this.html.toggleClass('modal--large',  this.active.size === 'large');
+            this.html.toggleClass('modal--full',   this.active.size === 'full');
             this.html.toggleClass('modal--overlay', !!this.active.overlay);
             this.html.toggleClass('modal--align-center', this.active.align === 'center');
 
@@ -119,15 +134,6 @@
             Lampa.Controller.toggle('Modal-' + this.id);
         };
 
-        Modal.prototype.update = function (new_html) {
-            this.last = false;
-            this.scroll.clear();
-            this.scroll.append(new_html);
-            this.bind(new_html);
-            this.max();
-            this.toggle(this.active.select);
-        };
-
         Modal.prototype.title = function (title) {
             this.html.find('.modal__title').text(title);
             this.html.toggleClass('modal--empty-title', !title);
@@ -146,7 +152,7 @@
     })();
 
     /* =========================================================================
-     * 2. Иконки (SVG-строки)
+     * 2. Иконки
      * ========================================================================= */
     var ICON_PEER =
         '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
@@ -187,13 +193,14 @@
      * 4. Утилиты
      * ========================================================================= */
     function tsIP() {
-        return (!!Lampa.Torserver && !!Lampa.Torserver.ip)
-            ? Lampa.Torserver.ip()
-            : Lampa.Storage.get(
-                Lampa.Storage.field('torrserver_use_link') === 'two'
-                    ? 'torrserver_url_two'
-                    : 'torrserver_url'
-            );
+        if (Lampa.Torserver && typeof Lampa.Torserver.ip === 'function') {
+            try {
+                var ip = Lampa.Torserver.ip();
+                if (ip) return ip;
+            } catch (e) {}
+        }
+        var field = Lampa.Storage.field('torrserver_use_link');
+        return Lampa.Storage.get(field === 'two' ? 'torrserver_url_two' : 'torrserver_url');
     }
 
     function params(obj) {
@@ -204,6 +211,7 @@
 
     function parseUrl(url) {
         var m, base_url, stream, args, arg = {};
+        if (typeof url !== 'string') return { clearUrl: url, base_url: '', stream: '', args: '', arg: {} };
         if (!!(m = url.match(/^(https?:\/\/.+?)(\/stream\/[^?]+)\?(.+)$/i))) {
             base_url = m[1];
             stream = m[2];
@@ -235,7 +243,6 @@
         if ($('#' + STYLE_ID).length) return;
 
         var css = ''
-            // --- Статистика ---
             + '.ts-preload-modal .ts-preload-broadcast__text {'
             +     'font-size: 14px; line-height: 1.8; color: #ffffff;'
             +     'font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;'
@@ -261,7 +268,6 @@
             + '.ts-preload-modal .ts-preload-broadcast__text .js-speed-value b {'
             +     'font-weight: 700;'
             + '}'
-            // --- Прогресс-бар ---
             + '.ts-preload-modal .ts-preload-broadcast__scan {'
             +     'height: 4px; background: rgba(255, 255, 255, 0.15);'
             +     'border-radius: 2px; overflow: hidden; position: relative; margin-bottom: 8px;'
@@ -272,7 +278,6 @@
             +     'box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);'
             + '}'
             + '@keyframes ts-preload-scan { 0% { left: -40%; } 100% { left: 100%; } }'
-            // --- ОКНО: тёмный фон + blur ---
             + '.ts-preload-modal.modal {'
             +     'background: rgba(20, 23, 28, 0.75) !important;'
             +     '-webkit-backdrop-filter: blur(24px) !important;'
@@ -281,14 +286,12 @@
             +     'border-radius: 12px !important;'
             +     'box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;'
             + '}'
-            // --- Заголовок ---
             + '.ts-preload-modal .modal__title {'
             +     'color: #ffffff !important; font-size: 18px !important;'
             +     'font-weight: 600 !important; padding: 20px 24px 4px !important;'
             +     'letter-spacing: 0.3px !important;'
             + '}'
             + '.ts-preload-modal .modal__body { padding: 0 24px 24px !important; }'
-            // --- Кнопки ---
             + '.ts-preload-modal .modal__footer {'
             +     'display: flex !important; gap: 12px; padding: 0 24px 24px !important;'
             +     'border: none !important; background: transparent !important;'
@@ -314,7 +317,7 @@
     injectStyles();
 
     /* =========================================================================
-     * 6. Перехват Player.play
+     * 6. Перехват Player.play (безопасный)
      * ========================================================================= */
     var lampaPlay     = Lampa.Player.play;
     var lampaCallback = Lampa.Player.callback;
@@ -352,21 +355,26 @@
     Lampa.Player.callback = function (cb) {
         if (player) player.setCallback(cb); else lampaCallback(cb);
     };
+
     Lampa.Player.play = function (data) {
-        if (Lampa.Storage.field('torrserver_preload')
-            && data.url
-            && tsIP()
-            && data.url.indexOf(tsIP()) > -1
-            && (
-                Lampa.Storage.field('player_timecode') === 'again'
-                || !data.timeline || !data.timeline.time
-                || parseFloat('0' + data.timeline.time) < 60
-                || true
-            )
-        ) {
+        // Всегда сначала пробуем обычный путь, если что-то не так — не мешаем Lampa
+        try {
+            if (!Lampa.Storage.field('torrserver_preload')) return lampaPlay(data);
+            if (!data || !data.url) return lampaPlay(data);
+
+            var ip = tsIP();
+            if (!ip || data.url.indexOf(ip) === -1) return lampaPlay(data);
+
+            if (Lampa.Storage.field('player_timecode') !== 'again'
+                && data.timeline && data.timeline.time
+                && parseFloat('0' + data.timeline.time) >= 60) {
+                return lampaPlay(data);
+            }
+
             preload(data);
-        } else {
-            lampaPlay(data);
+        } catch (e) {
+            console.error('[ts-preload] Ошибка, откат к стандартному плееру:', e);
+            try { lampaPlay(data); } catch (e2) { console.error(e2); }
         }
     };
 
@@ -379,21 +387,21 @@
 
         player = new Player(data);
         var controller = Lampa.Controller.enabled().name;
-        var network    = new Lampa.Reguest();
+        var network    = new ReguestClass();
 
         var modalHtml = $(
             '<div>' +
                 '<div class="ts-preload-broadcast__text">' +
                     '<div class="stat-row js-peer">' +
-                        '<span class="icon" title="' + Lampa.Lang.translate('ts_preload_title') + '">' + ICON_PEER + '</span>' +
+                        '<span class="icon">' + ICON_PEER + '</span>' +
                         '<span class="js-peer-value"> </span>' +
                     '</div>' +
                     '<div class="stat-row js-buff">' +
-                        '<span class="icon" title="' + Lampa.Lang.translate('ts_preload_title') + '">' + ICON_DOWNLOAD + '</span>' +
+                        '<span class="icon">' + ICON_DOWNLOAD + '</span>' +
                         '<span class="js-buff-value"> </span>' +
                     '</div>' +
                     '<div class="stat-row js-speed">' +
-                        '<span class="icon" title="' + Lampa.Lang.translate('ts_preload_title') + '">' + ICON_SPEED + '</span>' +
+                        '<span class="icon">' + ICON_SPEED + '</span>' +
                         '<span class="js-speed-value"> </span>' +
                     '</div>' +
                 '</div>' +
@@ -415,8 +423,6 @@
             ]
         });
         modal.open();
-
-        // --- КЛЮЧЕВОЙ МОМЕНТ: помечаем окно нашим классом ---
         modal.html.addClass('ts-preload-modal');
 
         function destroy() {
@@ -442,10 +448,10 @@
         network.silent(u.clearUrl + '&preload', play, play);
         network.timeout(2000);
 
-        var stat = function (data) {
+        var stat = function (resp) {
             if (!player) return;
-            if (data && data.Torrent) {
-                var t = data.Torrent;
+            if (resp && resp.Torrent) {
+                var t = resp.Torrent;
                 var p = Math.floor((t.preloaded_bytes || 0) * 100 / (t.preload_size || 1));
 
                 peer.html(
@@ -454,12 +460,10 @@
                     (t.connected_seeders || 0) + ' - ' +
                     Lampa.Lang.translate('ts_preload_seeds')
                 );
-
                 buff.html(
                     Lampa.Utils.bytesToSize(t.preloaded_bytes || 0) + ' / ' +
                     Lampa.Utils.bytesToSize(t.preload_size || 0) + ' (' + p + '%)'
                 );
-
                 speed.html(
                     '<b>' + Lampa.Utils.bytesToSize((t.download_speed || 0) * 8, true) + '</b>'
                 );
