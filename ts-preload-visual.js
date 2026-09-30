@@ -156,7 +156,7 @@
     })();
 
     /* =========================================================================
-     * 2. Иконки (SVG-строки, чтобы вставлять через .html())
+     * 2. Иконки (SVG-строки)
      * ========================================================================= */
     var ICON_PEER =
         '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
@@ -194,7 +194,7 @@
     });
 
     /* =========================================================================
-     * 4. Утилиты парсинга URL TorrServer (совместимы с оригиналом)
+     * 4. Утилиты парсинга URL TorrServer
      * ========================================================================= */
     function tsIP() {
         return (!!Lampa.Torserver && !!Lampa.Torserver.ip)
@@ -237,7 +237,7 @@
     }
 
     /* =========================================================================
-     * 5. Встраиваем стили один раз при загрузке плагина
+     * 5. Стили (инжектятся один раз при загрузке плагина)
      * ========================================================================= */
     var STYLE_ID = 'ts-preload-visual-styles';
 
@@ -245,7 +245,8 @@
         if ($('#' + STYLE_ID).length) return;
 
         var css = ''
-            + '.ts-preload-broadcast__text {'
+            /* -------- Блок со статистикой -------- */
+            + '.ts-preload-modal .ts-preload-broadcast__text {'
             +     'font-size: 14px;'
             +     'line-height: 1.8;'
             +     'color: #ffffff;'
@@ -255,7 +256,7 @@
             +     'border: none;'
             +     'margin-bottom: 16px;'
             + '}'
-            + '.ts-preload-broadcast__text .stat-row {'
+            + '.ts-preload-modal .ts-preload-broadcast__text .stat-row {'
             +     'display: flex;'
             +     'align-items: center;'
             +     'gap: 10px;'
@@ -263,7 +264,7 @@
             +     'overflow: hidden;'
             +     'color: #ffffff;'
             + '}'
-            + '.ts-preload-broadcast__text .icon {'
+            + '.ts-preload-modal .ts-preload-broadcast__text .icon {'
             +     'width: 18px;'
             +     'height: 18px;'
             +     'flex-shrink: 0;'
@@ -273,7 +274,7 @@
             +     'color: #ffffff;'
             +     'opacity: 0.9;'
             + '}'
-            + '.ts-preload-broadcast__text .icon svg {'
+            + '.ts-preload-modal .ts-preload-broadcast__text .icon svg {'
             +     'width: 18px;'
             +     'height: 18px;'
             +     'display: block;'
@@ -283,16 +284,18 @@
             +     'stroke-linecap: round;'
             +     'stroke-linejoin: round;'
             + '}'
-            + '.ts-preload-broadcast__text .icon svg.speed-alt {'
+            + '.ts-preload-modal .ts-preload-broadcast__text .icon svg.speed-alt {'
             +     'width: 15px;'
             +     'height: 15px;'
             +     'stroke-width: 2.4;'
             +     'stroke-linejoin: miter;'
             + '}'
-            + '.ts-preload-broadcast__text .js-speed-value b {'
+            + '.ts-preload-modal .ts-preload-broadcast__text .js-speed-value b {'
             +     'font-weight: 700;'
             + '}'
-            + '.ts-preload-broadcast__scan {'
+
+            /* -------- Прогресс-бар -------- */
+            + '.ts-preload-modal .ts-preload-broadcast__scan {'
             +     'height: 4px;'
             +     'background: rgba(255, 255, 255, 0.15);'
             +     'border-radius: 2px;'
@@ -300,7 +303,7 @@
             +     'position: relative;'
             +     'margin-bottom: 8px;'
             + '}'
-            + '.ts-preload-broadcast__scan > div {'
+            + '.ts-preload-modal .ts-preload-broadcast__scan > div {'
             +     'height: 100%;'
             +     'width: 40%;'
             +     'background: #ffffff;'
@@ -312,6 +315,55 @@
             + '@keyframes ts-preload-scan {'
             +     '0%   { left: -40%; }'
             +     '100% { left: 100%; }'
+            + '}'
+
+            /* -------- Модальное окно: полупрозрачный фон + blur -------- */
+            + '.ts-preload-modal.modal {'
+            +     'background: rgba(20, 23, 28, 0.75) !important;'
+            +     '-webkit-backdrop-filter: blur(24px) !important;'
+            +     'backdrop-filter: blur(24px) !important;'
+            +     'border: 1px solid rgba(255, 255, 255, 0.08) !important;'
+            +     'border-radius: 12px !important;'
+            +     'box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;'
+            + '}'
+
+            /* -------- Заголовок -------- */
+            + '.ts-preload-modal .modal__title {'
+            +     'color: #ffffff !important;'
+            +     'font-size: 18px !important;'
+            +     'font-weight: 600 !important;'
+            +     'padding: 20px 24px 4px !important;'
+            +     'letter-spacing: 0.3px !important;'
+            + '}'
+            + '.ts-preload-modal .modal__body {'
+            +     'padding: 0 24px 24px !important;'
+            + '}'
+
+            /* -------- Кнопки: полупрозрачные, в тон окну -------- */
+            + '.ts-preload-modal .modal__footer {'
+            +     'display: flex !important;'
+            +     'gap: 12px;'
+            +     'padding: 0 24px 24px !important;'
+            +     'border: none !important;'
+            +     'background: transparent !important;'
+            + '}'
+            + '.ts-preload-modal .modal__footer .modal__button {'
+            +     'flex: 1 !important;'
+            +     'width: auto !important;'
+            +     'padding: 14px 20px !important;'
+            +     'border-radius: 8px !important;'
+            +     'background: rgba(255, 255, 255, 0.12) !important;'
+            +     'border: 1px solid rgba(255, 255, 255, 0.18) !important;'
+            +     'color: #ffffff !important;'
+            +     'font-size: 15px !important;'
+            +     'font-weight: 500 !important;'
+            +     'text-align: center !important;'
+            +     'transition: background 0.2s ease, border-color 0.2s ease;'
+            + '}'
+            + '.ts-preload-modal .modal__footer .modal__button.focus {'
+            +     'background: rgba(255, 255, 255, 0.25) !important;'
+            +     'border-color: rgba(255, 255, 255, 0.45) !important;'
+            +     'outline: none !important;'
             + '}';
 
         $('<style id="' + STYLE_ID + '">').text(css).appendTo('head');
@@ -320,7 +372,7 @@
     injectStyles();
 
     /* =========================================================================
-     * 6. Подменяем Lampa.Player.play — показываем наше окно предзагрузки
+     * 6. Перехват Lampa.Player.play
      * ========================================================================= */
     var lampaPlay     = Lampa.Player.play;
     var lampaCallback = Lampa.Player.callback;
@@ -339,8 +391,8 @@
         playlist.map(function (d) { d.url = parseUrl(d.url).clearUrl + '&play'; });
         this.playList = playlist;
     };
-    Player.prototype.setStatUrl  = function (url)  { this.statUrl  = url;  };
-    Player.prototype.setCallback = function (cb)   { this.callback = cb;   };
+    Player.prototype.setStatUrl  = function (url) { this.statUrl  = url; };
+    Player.prototype.setCallback = function (cb)  { this.callback = cb;  };
     Player.prototype.play = function () {
         lampaPlay(this.playerData);
         this.playList && lampaPlaylist(this.playList);
@@ -377,7 +429,7 @@
     };
 
     /* =========================================================================
-     * 7. Само окно предзагрузки
+     * 7. Окно предзагрузки
      * ========================================================================= */
     function preload(data) {
         var u = parseUrl(data.url);
@@ -387,7 +439,6 @@
         var controller = Lampa.Controller.enabled().name;
         var network    = new Lampa.Reguest();
 
-        // --- HTML со статистикой и иконками ---
         var modalHtml = $(
             '<div>' +
                 '<div class="ts-preload-broadcast__text">' +
@@ -423,6 +474,9 @@
         });
         modal.open();
 
+        // Помечаем окно классом, чтобы применились наши стили
+        modal.html.addClass('ts-preload-modal');
+
         function destroy() {
             network.clear();
             modal.close();
@@ -442,7 +496,6 @@
             }
         }
 
-        // 30 минут таймаут, как в оригинале
         network.timeout(1800 * 1000);
         network.silent(u.clearUrl + '&preload', play, play);
         network.timeout(2000);
