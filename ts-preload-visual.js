@@ -27,8 +27,8 @@
             this.title(this.active.title);
 
             this.html.toggleClass('modal--medium', this.active.size === 'medium');
-            this.html.toggleClass('modal--large',  this.active.size === 'large');
-            this.html.toggleClass('modal--full',   this.active.size === 'full');
+            this.html.toggleClass('modal--large', this.active.size === 'large');
+            this.html.toggleClass('modal--full', this.active.size === 'full');
             this.html.toggleClass('modal--overlay', !!this.active.overlay);
             this.html.toggleClass('modal--align-center', this.active.align === 'center');
 
@@ -81,16 +81,6 @@
                     this.last = e.target;
                     if (this.active.onSelect) this.active.onSelect($(e.target));
                 });
-        };
-
-        Modal.prototype.jump = function (tofoward) {
-            var select = this.scroll.render().find('.selector.focus');
-            if (tofoward) select = select.nextAll().filter('.selector');
-            else select = select.prevAll().filter('.selector');
-            select = select.slice(0, 10).last();
-            if (select.length) {
-                Lampa.Controller.collectionFocus(this.select[0], this.scroll.render());
-            }
         };
 
         Modal.prototype.roll = function (direction) {
@@ -194,7 +184,7 @@
     });
 
     /* =========================================================================
-     * 4. Утилиты парсинга URL TorrServer
+     * 4. Утилиты
      * ========================================================================= */
     function tsIP() {
         return (!!Lampa.Torserver && !!Lampa.Torserver.ip)
@@ -237,7 +227,7 @@
     }
 
     /* =========================================================================
-     * 5. Стили (инжектятся один раз при загрузке плагина)
+     * 5. Стили
      * ========================================================================= */
     var STYLE_ID = 'ts-preload-visual-styles';
 
@@ -245,79 +235,44 @@
         if ($('#' + STYLE_ID).length) return;
 
         var css = ''
-            /* -------- Блок со статистикой -------- */
+            // --- Статистика ---
             + '.ts-preload-modal .ts-preload-broadcast__text {'
-            +     'font-size: 14px;'
-            +     'line-height: 1.8;'
-            +     'color: #ffffff;'
+            +     'font-size: 14px; line-height: 1.8; color: #ffffff;'
             +     'font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;'
-            +     'background: transparent;'
-            +     'padding: 0;'
-            +     'border: none;'
-            +     'margin-bottom: 16px;'
+            +     'background: transparent; padding: 0; border: none; margin-bottom: 16px;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__text .stat-row {'
-            +     'display: flex;'
-            +     'align-items: center;'
-            +     'gap: 10px;'
-            +     'white-space: nowrap;'
-            +     'overflow: hidden;'
-            +     'color: #ffffff;'
+            +     'display: flex; align-items: center; gap: 10px;'
+            +     'white-space: nowrap; overflow: hidden; color: #ffffff;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__text .icon {'
-            +     'width: 18px;'
-            +     'height: 18px;'
-            +     'flex-shrink: 0;'
-            +     'display: inline-flex;'
-            +     'align-items: center;'
-            +     'justify-content: center;'
-            +     'color: #ffffff;'
-            +     'opacity: 0.9;'
+            +     'width: 18px; height: 18px; flex-shrink: 0;'
+            +     'display: inline-flex; align-items: center; justify-content: center;'
+            +     'color: #ffffff; opacity: 0.9;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__text .icon svg {'
-            +     'width: 18px;'
-            +     'height: 18px;'
-            +     'display: block;'
-            +     'fill: none;'
-            +     'stroke: currentColor;'
-            +     'stroke-width: 2;'
-            +     'stroke-linecap: round;'
-            +     'stroke-linejoin: round;'
+            +     'width: 18px; height: 18px; display: block;'
+            +     'fill: none; stroke: currentColor; stroke-width: 2;'
+            +     'stroke-linecap: round; stroke-linejoin: round;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__text .icon svg.speed-alt {'
-            +     'width: 15px;'
-            +     'height: 15px;'
-            +     'stroke-width: 2.4;'
-            +     'stroke-linejoin: miter;'
+            +     'width: 15px; height: 15px; stroke-width: 2.4; stroke-linejoin: miter;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__text .js-speed-value b {'
             +     'font-weight: 700;'
             + '}'
-
-            /* -------- Прогресс-бар -------- */
+            // --- Прогресс-бар ---
             + '.ts-preload-modal .ts-preload-broadcast__scan {'
-            +     'height: 4px;'
-            +     'background: rgba(255, 255, 255, 0.15);'
-            +     'border-radius: 2px;'
-            +     'overflow: hidden;'
-            +     'position: relative;'
-            +     'margin-bottom: 8px;'
+            +     'height: 4px; background: rgba(255, 255, 255, 0.15);'
+            +     'border-radius: 2px; overflow: hidden; position: relative; margin-bottom: 8px;'
             + '}'
             + '.ts-preload-modal .ts-preload-broadcast__scan > div {'
-            +     'height: 100%;'
-            +     'width: 40%;'
-            +     'background: #ffffff;'
-            +     'border-radius: 2px;'
-            +     'animation: ts-preload-scan 1.8s ease-in-out infinite;'
-            +     'position: absolute;'
+            +     'height: 100%; width: 40%; background: #ffffff; border-radius: 2px;'
+            +     'animation: ts-preload-scan 1.8s ease-in-out infinite; position: absolute;'
             +     'box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);'
             + '}'
-            + '@keyframes ts-preload-scan {'
-            +     '0%   { left: -40%; }'
-            +     '100% { left: 100%; }'
-            + '}'
-
-            /* -------- Модальное окно: полупрозрачный фон + blur -------- */
+            + '@keyframes ts-preload-scan { 0% { left: -40%; } 100% { left: 100%; } }'
+            // --- ОКНО: тёмный фон + blur ---
             + '.ts-preload-modal.modal {'
             +     'background: rgba(20, 23, 28, 0.75) !important;'
             +     '-webkit-backdrop-filter: blur(24px) !important;'
@@ -326,38 +281,25 @@
             +     'border-radius: 12px !important;'
             +     'box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6) !important;'
             + '}'
-
-            /* -------- Заголовок -------- */
+            // --- Заголовок ---
             + '.ts-preload-modal .modal__title {'
-            +     'color: #ffffff !important;'
-            +     'font-size: 18px !important;'
-            +     'font-weight: 600 !important;'
-            +     'padding: 20px 24px 4px !important;'
+            +     'color: #ffffff !important; font-size: 18px !important;'
+            +     'font-weight: 600 !important; padding: 20px 24px 4px !important;'
             +     'letter-spacing: 0.3px !important;'
             + '}'
-            + '.ts-preload-modal .modal__body {'
-            +     'padding: 0 24px 24px !important;'
-            + '}'
-
-            /* -------- Кнопки: полупрозрачные, в тон окну -------- */
+            + '.ts-preload-modal .modal__body { padding: 0 24px 24px !important; }'
+            // --- Кнопки ---
             + '.ts-preload-modal .modal__footer {'
-            +     'display: flex !important;'
-            +     'gap: 12px;'
-            +     'padding: 0 24px 24px !important;'
-            +     'border: none !important;'
-            +     'background: transparent !important;'
+            +     'display: flex !important; gap: 12px; padding: 0 24px 24px !important;'
+            +     'border: none !important; background: transparent !important;'
             + '}'
             + '.ts-preload-modal .modal__footer .modal__button {'
-            +     'flex: 1 !important;'
-            +     'width: auto !important;'
-            +     'padding: 14px 20px !important;'
-            +     'border-radius: 8px !important;'
+            +     'flex: 1 !important; width: auto !important;'
+            +     'padding: 14px 20px !important; border-radius: 8px !important;'
             +     'background: rgba(255, 255, 255, 0.12) !important;'
             +     'border: 1px solid rgba(255, 255, 255, 0.18) !important;'
-            +     'color: #ffffff !important;'
-            +     'font-size: 15px !important;'
-            +     'font-weight: 500 !important;'
-            +     'text-align: center !important;'
+            +     'color: #ffffff !important; font-size: 15px !important;'
+            +     'font-weight: 500 !important; text-align: center !important;'
             +     'transition: background 0.2s ease, border-color 0.2s ease;'
             + '}'
             + '.ts-preload-modal .modal__footer .modal__button.focus {'
@@ -372,7 +314,7 @@
     injectStyles();
 
     /* =========================================================================
-     * 6. Перехват Lampa.Player.play
+     * 6. Перехват Player.play
      * ========================================================================= */
     var lampaPlay     = Lampa.Player.play;
     var lampaCallback = Lampa.Player.callback;
@@ -391,8 +333,8 @@
         playlist.map(function (d) { d.url = parseUrl(d.url).clearUrl + '&play'; });
         this.playList = playlist;
     };
-    Player.prototype.setStatUrl  = function (url) { this.statUrl  = url; };
-    Player.prototype.setCallback = function (cb)  { this.callback = cb;  };
+    Player.prototype.setStatUrl  = function (url)  { this.statUrl  = url;  };
+    Player.prototype.setCallback = function (cb)   { this.callback = cb;   };
     Player.prototype.play = function () {
         lampaPlay(this.playerData);
         this.playList && lampaPlaylist(this.playList);
@@ -474,7 +416,7 @@
         });
         modal.open();
 
-        // Помечаем окно классом, чтобы применились наши стили
+        // --- КЛЮЧЕВОЙ МОМЕНТ: помечаем окно нашим классом ---
         modal.html.addClass('ts-preload-modal');
 
         function destroy() {
