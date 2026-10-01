@@ -1,134 +1,460 @@
-/*
- * Тестовый плагин: проверка открытия штатного окна предзагрузки Lampa
- * 
- * Цель: выяснить, откроется ли штатное окно предзагрузки Lampa,
- * если вызвать Lampa.Player.play() с URL, содержащим &preload,
- * но НЕ из штатного места (списка торрент-раздач), а из плагина.
- * 
- * Использование:
- * 1. Подключить этот плагин в Lampa.
- * 2. Открыть карточку любого фильма.
- * 3. В консоли выполнить:
- *    window.__test_preload_launch('http://IP:8090/stream/file.mkv?link=HASH&index=0&preload')
- *    (замените IP, file.mkv, HASH и index на реальные значения вашего TorrServer)
- * 4. Посмотреть, откроется ли штатное окно предзагрузки.
- * 
- * Если откроется — значит, Lampa показывает окно на основе наличия &preload в URL,
- * независимо от того, откуда пришёл вызов. Это подтвердит гипотезу.
- * 
- * Если не откроется (сразу бросит в плеер или ничего не произойдёт) —
- * значит, Lampa проверяет что-то ещё (контекст, флаги, контроллер),
- * и подход "просто передать &preload" не сработает.
- */
-
-(function() {
+;(function($, Lampa) {
     'use strict';
 
-    if (window.__lampa_test_preload_launch) return;
-    window.__lampa_test_preload_launch = true;
+    // ===================================================================
+    // ts-preload.js — попап предзагрузки торрента
+    //
+    // Публичный API:
+    //   window.__ts_preload_show({
+    //       url:      'http://...&play',   // ссылка на поток
+    //       card:     {...},               // карточка (опционально)
+    //       onReady:  function() {},       // успех / кнопка «Запустить»
+    //       onCancel: function() {}        // отмена
+    //   })
+    //
+    // Если onReady не передан — попап сам запустит плеер (старое поведение).
+    // ===================================================================
 
-    function debug() {
-        var args = Array.prototype.slice.call(arguments);
-        args.unshift('[TestPreload]');
-        try { console.log.apply(console, args); } catch(e) {}
+    var Modal = /** @class */function(){
+        var modalID = 0;
+
+        function Modal(params) {
+            this.id = ++modalID;
+            this.active = params;
+            this.html = Lampa.Template.get('modal', {title: params.title});
+            this.scroll = new Lampa.Scroll({over: true, mask: params.mask});
+            this.last = false;
+        }
+
+        Modal.prototype.open = function(){
+            var _this = this;
+            this.html.on('click',function(e){
+                if(!$(e.target).closest($('.modal__content', _this.html)).length && Lampa.DeviceInput.canClick(e.originalEvent)) window.history.back();
+            })
+
+            this.title(this.active.title);
+
+            this.html.toggleClass('modal--medium', this.active.size === 'medium');
+            this.html.toggleClass('modal--large', this.active.size === 'large');
+            this.html.toggleClass('modal--full', this.active.size === 'full');
+            this.html.toggleClass('modal--overlay', !!this.active.overlay);
+            this.html.toggleClass('modal--align-center', this.active.align === 'center');
+
+            if(this.active.zIndex) this.html.css('z-index', this.active.zIndex);
+
+            this.scroll.render().toggleClass('layer--height', this.active.size === 'full')
+
+            this.html.find('.modal__body').append(this.scroll.render())
+
+            this.bind(this.active.html);
+
+            this.scroll.onWheel = function(step){
+                this.roll(step > 0 ? 'down' : 'up');
+            }
+            this.scroll.append(this.active.html);
+            if(this.active.buttons) this.buttons();
+            $('body').append(this.html);
+            this.max();
+            this.toggle(this.active.select);
+        }
+
+        Modal.prototype.max = function(){
+            this.scroll.render().find('.scroll__content').css('max-height',  Math.round(window.innerHeight - this.scroll.render().offset().top - (window.innerHeight * 0.1)) + 'px');
+        }
+
+        Modal.prototype.buttons = function(){
+            var footer = $('<div class="modal__footer"></div>');
+            this.active.buttons.forEach(function(button){
+                var btn = $('<div class="modal__button selector" style="width: 50%;text-align: center"></div>');
+                btn.text(button.name);
+                btn.on('click hover:enter',function(){
+                    button.onSelect();
+                });
+                footer.append(btn);
+            });
+            this.scroll.append(footer);
+        }
+
+        Modal.prototype.bind = function(where){
+            where.find('.selector')
+                .on('hover:focus',function(e){
+                    this.last = e.target;
+                    this.scroll.update($(e.target));
+                })
+                .on('hover:enter',function(e){
+                    this.last = e.target;
+                    if(this.active.onSelect) this.active.onSelect($(e.target));
+                })
+            ;
+        }
+
+        Modal.prototype.jump = function(tofoward){
+            var select = this.scroll.render().find('.selector.focus');
+
+            if(tofoward) select = select.nextAll().filter('.selector');
+            else         select = select.prevAll().filter('.selector');
+
+            select = select.slice(0,10);
+            select = select.last();
+
+            if(select.length){
+                Lampa.Controller.collectionFocus(this.select[0],this.scroll.render());
+            }
+        }
+
+        Modal.prototype.roll = function(direction){
+            var select = this.scroll.render().find('.selector');
+
+            if(select.length){
+                Navigator.move(direction);
+            }
+            else{
+                var step = Math.round(window.innerHeight * 0.15);
+                this.scroll.wheel(direction === 'down' ? step : -step);
+            }
+        }
+
+        Modal.prototype.toggle = function(need_select){
+            var _this = this;
+            Lampa.Controller.add('Modal-' + this.id, {
+                invisible: true,
+                toggle: function(){
+                    Lampa.Controller.collectionSet(_this.scroll.render());
+                    Lampa.Controller.collectionFocus(need_select || _this.last, _this.scroll.render());
+
+                    Lampa.Layer.visible(_this.scroll.render(true));
+                },
+                up: function(){ _this.roll('up'); },
+                down: function(){ _this.roll('down'); },
+                right: function(){
+                    if(Navigator.canmove('right')) Navigator.move('right');
+                    else _this.jump(true);
+                },
+                left: function(){
+                    if(Navigator.canmove('left')) Navigator.move('left');
+                    else _this.jump(false);
+                },
+                back: function(){
+                    if(_this.active.onBack) _this.active.onBack();
+                }
+            });
+            Lampa.Controller.toggle('Modal-' + this.id);
+        }
+
+        Modal.prototype.update = function(new_html) {
+            this.last = false;
+            this.scroll.clear();
+            this.scroll.append(new_html);
+            this.bind(new_html);
+            this.max();
+            this.toggle(this.active.select);
+        }
+
+        Modal.prototype.title = function(title){
+            this.html.find('.modal__title').text(title);
+            this.html.toggleClass('modal--empty-title',!title);
+        }
+
+        Modal.prototype.destroy = function(){
+            this.last = false;
+            this.scroll.destroy();
+            this.html.remove();
+        }
+
+        Modal.prototype.close = function(){
+            this.destroy();
+        }
+
+        Modal.prototype.render = function(){
+            return this.html;
+        }
+        return Modal;
+    }();
+
+    Lampa.Lang.add({
+        ts_preload_preload: {
+            en: 'Preload', ru: 'Предзагрузка', be: 'Перадзагрузка',
+            uk: 'Передзавантаження', pt: 'Pré-carregar', zh: '预加载'
+        },
+        ts_preload_speed: {
+            en: 'Speed', ru: 'Скорость загрузки', be: 'Хуткасць загрузкі',
+            uk: 'Швидкість', pt: 'Velocidade', zh: '速度'
+        },
+        ts_preload_seeds: {
+            en: 'seeds', ru: 'раздают', be: 'раздаюць',
+            uk: 'роздають', pt: 'entregam', zh: '种子数'
+        },
+        ts_preload_peers: {
+            en: 'Peers', ru: 'Подключились', be: 'Падключыліся',
+            uk: 'Підключилися', pt: 'Conectado', zh: '连接数'
+        }
+    });
+
+    function tsIP(){
+        // Для поддержки версии 1.6.5
+        return (!!Lampa.Torserver && !!Lampa.Torserver.ip)
+            ? Lampa.Torserver.ip()
+            : Lampa.Storage.get(Lampa.Storage.field('torrserver_use_link') === 'two' ? 'torrserver_url_two' : 'torrserver_url');
     }
 
-    function noty(msg) {
-        if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show(msg);
+    // ===================================================================
+    // Оригинальные методы Lampa.Player сохраняем для fallback-режима
+    // ===================================================================
+    var lampaPlay = Lampa.Player.play;
+    var lampaCallback = Lampa.Player.callback;
+    var lampaPlaylist = Lampa.Player.playlist;
+    var lampaStat = Lampa.Player.stat;
+    var player = null;
+
+    var Player = /** @class */function(){
+        function Player(data) {
+            data.url = parseUrl(data.url).clearUrl + '&play';
+            this.playerData = data;
+            this.playList = null;
+            this.statUrl = null;
+            this.callback = null;
+        }
+        Player.prototype.setPlayList = function(playlist){
+            playlist.map(function(data){data.url = parseUrl(data.url).clearUrl + '&play'});
+            this.playList = playlist;
+        };
+        Player.prototype.setStatUrl = function(url){this.statUrl = url};
+        Player.prototype.setCallback = function(callback){this.callback = callback};
+        Player.prototype.play = function(){
+            lampaPlay(this.playerData);
+            this.playList && lampaPlaylist(this.playList);
+            this.callback && lampaCallback(this.callback);
+            this.statUrl && lampaStat(this.statUrl);
+            player = null;
+        }
+        return Player;
+    }();
+
+    Lampa.Player.playlist = function(playlist) {
+        if (player) player.setPlayList(playlist);
+        else lampaPlaylist(playlist);
+    };
+    Lampa.Player.stat = function(url) {
+        if (player) player.setStatUrl(url);
+        else lampaStat(url);
+    };
+    Lampa.Player.callback = function(callback) {
+        if (player) player.setCallback(callback);
+        else lampaCallback(callback);
+    };
+
+    // ===================================================================
+    // ВАЖНО: Lampa.Player.play НЕ перехватываем глобально.
+    // Попап показывается только когда его явно вызвали через
+    // window.__ts_preload_show() — например, из Continue Torrent.
+    // Это позволяет штатной предзагрузке Lampa работать как обычно
+    // при запуске из списка торрент-раздач.
+    // ===================================================================
+
+    function params(obj) {
+        var prop, pairs = [];
+        for (prop in obj) pairs.push(prop + (obj[prop] ? '=' + obj[prop] : ''));
+        return pairs.join('&');
     }
 
-    // Основная функция для ручного теста
-    window.__test_preload_launch = function(testUrl) {
-        if (!testUrl) {
-            noty('Укажите URL: window.__test_preload_launch("http://...&preload")');
+    function parseUrl(url) {
+        var m, base_url, stream, args, arg = {};
+        if (!!(m = url.match(/^(https?:\/\/.+?)(\/stream\/[^?]+)\?(.+)$/i))) {
+            base_url = m[1];
+            stream = m[2];
+            args = m[3];
+            args.split('&').map(function(v){var p=v.split('=');arg[p[0]] = p[1] || null;});
+            delete(arg['play']);delete(arg['preload']);delete(arg['stat']);
+        }
+        args = params(arg);
+        return {
+            clearUrl: base_url + stream + '?' + args,
+            base_url: base_url,
+            stream: stream,
+            args: '?' + args,
+            arg: arg
+        }
+    }
+
+    // ===================================================================
+    // Основная функция попапа предзагрузки
+    // options:
+    //   onReady  — вызывается после успешной предзагрузки или по кнопке
+    //              «Запустить». Если не задан — запускаем плеер сами.
+    //   onCancel — вызывается при отмене (закрытие/Back/«Отмена»).
+    // ===================================================================
+    function preload(data, options) {
+        options = options || {};
+
+        var u = parseUrl(data.url);
+        if (!u.arg.link) {
+            // Нет ссылки на торрент — просто запускаем плеер напрямую
+            if (options.onReady) options.onReady(data);
+            else lampaPlay(data);
             return;
         }
 
-        debug('=== ЗАПУСК ТЕСТА ===');
-        debug('URL:', testUrl);
-        debug('Контроллер:', Lampa.Controller && Lampa.Controller.enabled ? Lampa.Controller.enabled().name : '?');
+        player = new Player(data);
+        var controller = Lampa.Controller.enabled().name;
+        var network = new Lampa.Reguest();
 
-        // Собираем данные для плеера
-        var data = {
-            url: testUrl,
-            title: 'Test Preload',
-            // Указываем, что это торрент, чтобы Lampa могла отслеживать таймлайн
-            torrent_hash: '',
-            // Карточка не обязательна для теста, но добавим
-            card: null
-        };
+        var modalHtml = $('<div>' +
+            '<div class="broadcast__text" style="text-align: left">' +
+                '<span class="js-peer">&nbsp;</span><br>' +
+                '<span class="js-buff">&nbsp;</span><br>' +
+                '<span class="js-speed">&nbsp;</span>' +
+            '</div>' +
+            '<div class="broadcast__scan"><div></div></div>' +
+        '</div>');
 
-        // Пытаемся вытащить текущую карточку
-        try {
-            var active = Lampa.Activity && Lampa.Activity.active ? Lampa.Activity.active() : null;
-            if (active && active.movie) {
-                data.card = active.movie;
-                data.torrent_hash = active.movie.torrent_hash || '';
-                debug('Карточка найдена:', data.card.title || data.card.name);
-            }
-        } catch(e) {
-            debug('Не удалось получить карточку:', e.message);
+        var peer = modalHtml.find('.js-peer');
+        var buff = modalHtml.find('.js-buff');
+        var speed = modalHtml.find('.js-speed');
+
+        var modal = new Modal({
+            title: Lampa.Lang.translate('loading'),
+            html: modalHtml,
+            onBack: cancel,
+            buttons: [
+                {
+                    name: Lampa.Lang.translate('cancel'),
+                    onSelect: cancel
+                },
+                {
+                    name: Lampa.Lang.translate('player_lauch'),
+                    onSelect: play
+                }
+            ]
+        });
+
+        modal.open();
+
+        var finished = false;
+
+        function destroy() {
+            network.clear();
+            modal.close();
+            try {
+                Lampa.Controller.toggle(controller);
+            } catch (e) {}
         }
 
-        // Запоминаем оригинальный play для сравнения
-        var originalPlay = Lampa.Player.play;
+        function cancel(){
+            if (finished) return;
+            finished = true;
 
-        // Оборачиваем, чтобы увидеть, что происходит внутри
-        var callCount = 0;
-        Lampa.Player.play = function(d) {
-            callCount++;
-            debug('Lampa.Player.play вызван (#' + callCount + ')');
-            debug('  URL в data:', d && d.url ? d.url.substring(0, 80) + '...' : '(нет)');
-            debug('  return_result:', d && d.return_result);
-            
-            // Проверяем, есть ли &preload в URL
-            if (d && d.url && d.url.indexOf('&preload') !== -1) {
-                debug('  → URL содержит &preload');
+            if (player) {
+                destroy();
+                player.callback && player.callback();
+                player = null;
+            }
+
+            if (options.onCancel) {
+                try { options.onCancel(); } catch (e) {}
+            }
+        }
+
+        function play(){
+            if (finished) return;
+            finished = true;
+
+            if (!player) {
+                if (options.onReady) options.onReady(data);
+                else lampaPlay(data);
+                return;
+            }
+
+            destroy();
+
+            if (options.onReady) {
+                // Отдаём управление наружу (Continue Torrent сам запустит)
+                try { options.onReady(data); } catch (e) {}
             } else {
-                debug('  → URL НЕ содержит &preload');
+                // Старое поведение — запускаем плеер сами
+                player.play();
             }
-            
-            var result = originalPlay.apply(this, arguments);
-            
-            // Восстанавливаем через секунду (на случай цепочки вызовов)
-            setTimeout(function() {
-                Lampa.Player.play = originalPlay;
-                debug('Lampa.Player.play восстановлен (было вызовов: ' + callCount + ')');
-            }, 1000);
-            
-            return result;
+            player = null;
+        }
+
+        network.timeout(1800 * 1000); /* 30 минут на предзагрузку */
+        network.silent(u.clearUrl + '&preload', play, play);
+
+        network.timeout(2000);
+
+        var stat = function(response) {
+            if (finished) return;
+            if (!player) return;
+
+            if (response && response.Torrent) {
+                var t = response.Torrent;
+                var p = Math.floor((t.preloaded_bytes || 0) * 100 / (t.preload_size || 1));
+
+                peer.html(
+                    Lampa.Lang.translate('ts_preload_peers') + ': ' +
+                    (t.active_peers || 0) + ' / ' +
+                    (t.pending_peers || 0) + ' (' +
+                    (t.total_peers || 0) + ') &bull; ' +
+                    (t.connected_seeders || 0) + ' - ' +
+                    Lampa.Lang.translate('ts_preload_seeds')
+                );
+
+                buff.html(
+                    Lampa.Lang.translate('ts_preload_preload') + ': ' +
+                    Lampa.Utils.bytesToSize(t.preloaded_bytes || 0) + ' / ' +
+                    Lampa.Utils.bytesToSize(t.preload_size || 0) + ' (' + p + '%)'
+                );
+
+                speed.text(
+                    Lampa.Lang.translate('ts_preload_speed') + ': ' +
+                    Lampa.Utils.bytesToSize((t.download_speed || 0) * 8, true)
+                );
+            }
+
+            network.silent(
+                u.base_url + '/cache',
+                stat,
+                stat,
+                JSON.stringify({action: 'get', hash: u.arg.link})
+            );
         };
 
-        try {
-            noty('Тест: вызов Lampa.Player.play с &preload...');
-            Lampa.Player.play(data);
-            debug('Lampa.Player.play успешно вызван');
-        } catch(e) {
-            debug('ОШИБКА при вызове Lampa.Player.play:', e.message);
-            noty('Ошибка: ' + e.message);
-            Lampa.Player.play = originalPlay;
-        }
-    };
-
-    // Дополнительно: функция для проверки, как выглядит URL, который строит Lampa
-    window.__test_build_stream_url = function(path, hash, index) {
-        if (!Lampa.Torserver || !Lampa.Torserver.stream) {
-            noty('Lampa.Torserver.stream недоступен');
-            return;
-        }
-        var url = Lampa.Torserver.stream(path, hash, index);
-        debug('Lampa.Torserver.stream вернул:', url);
-        noty('URL: ' + url);
-        return url;
-    };
-
-    console.log('[TestPreload] Плагин загружен. Доступны функции:');
-    console.log('  window.__test_preload_launch(url) — запустить тест с указанным URL');
-    console.log('  window.__test_build_stream_url(path, hash, index) — посмотреть, какой URL строит Lampa');
-
-    // Показываем уведомление при загрузке, если appready уже был
-    if (window.appready) {
-        noty('TestPreload: плагин загружен. См. консоль.');
+        stat({
+            Torrent: {
+                active_peers: 0, pending_peers: 0, total_peers: 0,
+                connected_seeders: 0, preloaded_bytes: 0, preload_size: 0,
+                download_speed: 0
+            }
+        });
     }
 
-})();
+    // ===================================================================
+    // Публичный API для внешних плагинов (Continue Torrent)
+    //
+    // window.__ts_preload_show({
+    //     url: 'http://...&play',
+    //     card: {...},            // опционально
+    //     onReady: function() {}, // вызывается вместо player.play()
+    //     onCancel: function() {}
+    // })
+    // ===================================================================
+    window.__ts_preload_show = function(opts) {
+        opts = opts || {};
+
+        if (!opts.url) {
+            console.warn('[ts-preload] __ts_preload_show: нет url');
+            if (opts.onReady) opts.onReady();
+            return;
+        }
+
+        preload(
+            { url: opts.url, card: opts.card },
+            {
+                onReady: opts.onReady,
+                onCancel: opts.onCancel
+            }
+        );
+    };
+
+    console.log('[ts-preload] готов. Публичный API: window.__ts_preload_show(opts)');
+
+})(jQuery, Lampa);
