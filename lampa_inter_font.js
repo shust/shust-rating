@@ -2,7 +2,7 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.0.0';
+  var PLUGIN_VERSION = '1.1.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
@@ -16,17 +16,20 @@
     original: {
       title: 'Оригинальный',
       family: null, // null = не трогаем шрифт
-      url: null
+      url: null,
+      scale: 1
     },
     inter: {
       title: 'Inter',
       family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-      url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap'
+      url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap',
+      scale: 0.8 // -20%
     },
     onest: {
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-      url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap'
+      url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap',
+      scale: 0.8 // -20%
     }
   };
 
@@ -50,6 +53,87 @@
     var style = document.getElementById(STYLE_ID);
     if (style && style.parentNode) style.parentNode.removeChild(style);
     document.documentElement.style.removeProperty('--lampa-font-family');
+    document.documentElement.style.removeProperty('--lampa-font-scale');
+  }
+
+  function buildScaleCss(scale) {
+    if (scale === 1) return '';
+
+    // Процент уменьшения относительно базового размера
+    var pct = Math.round(scale * 100); // например, 80
+
+    return `
+      /* ===== Уменьшение всех шрифтов на 20% (при кастомном шрифте) ===== */
+      html,
+      body,
+      #app {
+        font-size: ${pct}% !important;
+      }
+
+      /* Основные контейнеры и элементы интерфейса */
+      #app div,
+      #app span,
+      #app p,
+      #app a,
+      #app button,
+      #app input,
+      #app textarea,
+      #app select,
+      #app option,
+      #app label,
+      #app h1,
+      #app h2,
+      #app h3,
+      #app h4,
+      #app h5,
+      #app h6,
+      .selectbox,
+      .modal,
+      .settings,
+      .settings-param,
+      .settings-box,
+      .menu,
+      .head,
+      .card,
+      .full,
+      .activity,
+      .notice,
+      .keyboard {
+        font-size: ${pct}% !important;
+      }
+
+      /* ===== ИСКЛЮЧЕНИЕ: рейтинги на странице фильма/сериала ===== */
+      /* Возвращаем исходный (100%) размер для блока рейтингов */
+      .full-start__rate,
+      .full-start__rate *,
+      .full-start__rate .rate-value,
+      .full-start__rate .rate-country,
+      .full-start__rate .rate-source,
+      .full-start__rate .rate-name,
+      .full-start__rate .rating-value,
+      .full-start__rate .rating-name,
+      .full-start__rating,
+      .full-start__rating *,
+      .full__rate,
+      .full__rate *,
+      .rate,
+      .rate *,
+      .rate-value,
+      .rate-name,
+      .rate-source,
+      .rating,
+      .rating *,
+      .ratings,
+      .ratings *,
+      .ratings__item,
+      .ratings__item *,
+      .ratings__value,
+      .ratings__name,
+      [class*="rate"] ,
+      [class*="rating"] {
+        font-size: 100% !important;
+      }
+    `;
   }
 
   function applyFont(key) {
@@ -78,6 +162,8 @@
       style.id = STYLE_ID;
       document.head.appendChild(style);
     }
+
+    var scaleCss = buildScaleCss(font.scale || 1);
 
     style.textContent = `
       html,
@@ -131,9 +217,12 @@
       [class*="FontAwesome"] {
         font-family: inherit;
       }
+
+      ${scaleCss}
     `;
 
     document.documentElement.style.setProperty('--lampa-font-family', font.family);
+    document.documentElement.style.setProperty('--lampa-font-scale', String(font.scale || 1));
   }
 
   // ---------- Интеграция с настройками Lampa ----------
@@ -161,7 +250,7 @@
       },
       field: {
         name: 'Шрифт',
-        description: 'Выбор шрифта интерфейса Lampa (v' + PLUGIN_VERSION + ')'
+        description: 'Выбор шрифта интерфейса Lampa. Inter/Onest уменьшают шрифт на 20% (v' + PLUGIN_VERSION + ')'
       },
       onChange: function (value) {
         setChoice(value);
