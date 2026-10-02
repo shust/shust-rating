@@ -927,11 +927,67 @@
         return !key || localStorage.getItem(key) !== 'false';
     }
 
+    function isAverageRatingEnabled() {
+        return localStorage.getItem('maxsm_ratings_show_average') !== 'false';
+    }
+
+    function hasRatingValue(element) {
+        if (!element || !element.length) return false;
+
+        var value = parseFloat(
+            element.find('> div').eq(0).text().replace(',', '.')
+        );
+
+        return !isNaN(value) && value > 0;
+    }
+
     function applyRatingSourceVisibility(render) {
         if (!render) return;
-        $('.rate--kp', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('kp'));
-        $('.rate--tmdb', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('tmdb'));
-        $('.rate--imdb', render).toggleClass('maxsm-source-disabled', !isRatingSourceEnabled('imdb'));
+
+        var kpElement = $('.rate--kp', render);
+        var imdbElement = $('.rate--imdb', render);
+        var tmdbElement = $('.rate--tmdb', render);
+
+        var kpEnabled = isRatingSourceEnabled('kp');
+        var imdbEnabled = isRatingSourceEnabled('imdb');
+
+        /*
+         * TMDB показываем в двух случаях:
+         * 1. пользователь включил TMDB в настройках;
+         * 2. у конкретной карточки НЕТ рейтинга ни Kinopoisk, ни IMDb.
+         *
+         * Важно: если рейтинг KP/IMDb у карточки существует, но пользователь
+         * сам отключил его в настройках, это НЕ является причиной принудительно
+         * показывать TMDB.
+         */
+        var kpHasRating =
+            hasRatingValue(kpElement);
+
+        var imdbHasRating =
+            hasRatingValue(imdbElement);
+
+        var noPrimaryRating =
+            !kpHasRating &&
+            !imdbHasRating;
+
+        var tmdbEnabled =
+            isRatingSourceEnabled('tmdb') ||
+            noPrimaryRating;
+
+        kpElement.toggleClass(
+            'maxsm-source-disabled',
+            !kpEnabled
+        );
+
+        imdbElement.toggleClass(
+            'maxsm-source-disabled',
+            !imdbEnabled
+        );
+
+        tmdbElement.toggleClass(
+            'maxsm-source-disabled',
+            !tmdbEnabled
+        );
     }
 
     function refreshRatingSourceSettings() {
@@ -943,8 +999,9 @@
 
             applyRatingSourceVisibility(render);
 
-            var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
-            if (mode !== 2) calculateAverageRating(globalCurrentCard, render);
+            // Функция сама учитывает переключатель Да/Нет
+            // и удаляет средний рейтинг, если он отключён.
+            calculateAverageRating(globalCurrentCard, render);
 
             insertIcons(globalCurrentCard, render);
             updateAverageSeparator(render);
@@ -952,7 +1009,6 @@
             if (C_LOGGING) console.warn('MAXSM-RATINGS', 'Unable to refresh source visibility', e);
         }
     }
-
     // Основная функция
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
@@ -1111,20 +1167,10 @@
                 render
             );
 
-            var mode =
-                parseInt(
-                    localStorage.getItem(
-                        'maxsm_ratings_mode'
-                    ),
-                    10
-                );
-
-            if (mode !== 2) {
-                calculateAverageRating(
-                    localCurrentCard,
-                    render
-                );
-            }
+            calculateAverageRating(
+                localCurrentCard,
+                render
+            );
 
             insertIcons(
                 localCurrentCard,
@@ -2030,19 +2076,20 @@
         }
     
         $('.rate--avg', rateLine).remove();
-        
-        var mode = parseInt(localStorage.getItem('maxsm_ratings_mode'), 10);
-       // var isPortrait = window.innerHeight > window.innerWidth;
-       // if (isPortrait) mode = 1;
-        
-        if (totalWeight > 0 && (ratingsCount > 1 ||  mode === 1)) {
+        // Показ среднего рейтинга теперь управляется обычным
+        // переключателем Да/Нет, как Kinopoisk / TMDB / IMDb.
+        if (!isAverageRatingEnabled()) {
+            updateAverageSeparator(render);
+            return;
+        }
+
+        // Сохраняем прежнюю логику обычного режима:
+        // среднее показывается, когда доступно больше одного источника.
+        if (totalWeight > 0 && ratingsCount > 1) {
             var averageRating = ( weightedSum / totalWeight ).toFixed(1);
             var colorClass = getAverageRatingClass(averageRating);
-            
+
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Average rating: " + averageRating);
-            if (mode === 1) {
-                $('.full-start__rate', rateLine).not('.rate--oscars, .rate--avg, .rate--awards').hide();
-            } 
 
             var avgElement = $(
                 '<div class="full-start__rate rate--avg ' + colorClass + '">' +
@@ -2096,8 +2143,15 @@
             localStorage.setItem('maxsm_ratings_icon_style', '0');
         }
     
-        if (!localStorage.getItem('maxsm_ratings_mode')) {
-            localStorage.setItem('maxsm_ratings_mode', '0');
+        if (localStorage.getItem('maxsm_ratings_show_average') === null) {
+            // Миграция со старой настройки:
+            // режим "Без среднего рейтинга" (2) -> Нет,
+            // остальные старые режимы -> Да.
+            var legacyAverageMode = localStorage.getItem('maxsm_ratings_mode');
+            localStorage.setItem(
+                'maxsm_ratings_show_average',
+                legacyAverageMode === '2' ? 'false' : 'true'
+            );
         }
 
         if (localStorage.getItem('maxsm_ratings_font_weight') === null) {
@@ -2111,12 +2165,6 @@ Lampa.SettingsApi.addComponent({
             icon: star_svg
         });
 
-        // Создание объекта для значений выбора режима
-        var modeValue = {};
-        modeValue[0] = Lampa.Lang.translate("maxsm_ratings_mode_normal");
-        modeValue[1] = Lampa.Lang.translate("maxsm_ratings_mode_simple");
-        modeValue[2] = Lampa.Lang.translate("maxsm_ratings_mode_noavg");
-
         var iconStyleValue = {};
         iconStyleValue[0] = Lampa.Lang.translate("maxsm_ratings_icon_style_color");
         iconStyleValue[1] = Lampa.Lang.translate("maxsm_ratings_icon_style_white");
@@ -2128,25 +2176,21 @@ Lampa.SettingsApi.addComponent({
         fontWeightValue[600] = '600';
         fontWeightValue[700] = '700';
         
-      //  var isPortrait = window.innerHeight > window.innerWidth;
-      //  if (!isPortrait) {
-            Lampa.SettingsApi.addParam({
-                component: "maxsm_ratings",
-                param: {
-                    name: "maxsm_ratings_mode",
-                    type: 'select',
-                    values: modeValue,
-                    default: 0
-                },
-                field: {
-                    name: Lampa.Lang.translate("maxsm_ratings_mode"),
-                    description: ''
-                },
-                onChange: function(value) {
-    
-                }
-            });
-    //    }
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: {
+                name: "maxsm_ratings_show_average",
+                type: "trigger",
+                default: true
+            },
+            field: {
+                name: Lampa.Lang.translate("maxsm_ratings_mode"),
+                description: ''
+            },
+            onChange: function(value) {
+                refreshRatingSourceSettings();
+            }
+        });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
