@@ -2,7 +2,7 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.4.0';
+  var PLUGIN_VERSION = '1.5.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
@@ -11,33 +11,30 @@
   var LINK_ID     = 'lampa-custom-font-source';
   var STYLE_ID    = 'lampa-custom-font-style';
 
-  // scale — коэффициент уменьшения базового размера шрифта (html font-size).
-  // Lampa использует rem для текста, поэтому уменьшение html font-size
-  // уменьшает ВЕСЬ текст один раз (без каскада), сохраняя пропорции.
   var FONTS = {
     original: {
       title: 'Оригинальный',
       family: null,
       url: null,
-      scale: 1
+      size: null
     },
     inter: {
       title: 'Inter',
       family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      scale: 0.9
+      size: 16
     },
     onest: {
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      scale: 0.9
+      size: 16
     },
     roboto: {
       title: 'Roboto',
       family: '"Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap',
-      scale: 0.93
+      size: 17
     }
   };
 
@@ -60,6 +57,30 @@
     if (style && style.parentNode) style.parentNode.removeChild(style);
     document.documentElement.style.removeProperty('--lampa-font-family');
     document.documentElement.style.removeProperty('font-size');
+    document.body.style.removeProperty('font-size');
+  }
+
+  // Перехват Lampa.Layer.update — сюда Lampa сбрасывает свои размеры
+  function hookLayerUpdate() {
+    if (!window.Lampa || !Lampa.Layer || !Lampa.Layer.update) return false;
+    if (Lampa.Layer._font_hooked) return true;
+    Lampa.Layer._font_hooked = true;
+
+    var originalUpdate = Lampa.Layer.update;
+    Lampa.Layer.update = function () {
+      var result = originalUpdate.apply(this, arguments);
+
+      var choice = getChoice();
+      var font = FONTS[choice];
+      if (font && font.family && font.size) {
+        // Принудительно ставим размер на body после того, как Lampa
+        // применит свои responsive-настройки
+        document.body.style.setProperty('font-size', font.size + 'px', 'important');
+      }
+
+      return result;
+    };
+    return true;
   }
 
   function applyFont(key) {
@@ -93,7 +114,6 @@
         font-family: ${font.family} !important;
       }
 
-      /* Иконочные шрифты не трогаем */
       [class*="icon--"],
       [class^="icon--"],
       .icon,
@@ -108,26 +128,10 @@
         font-family: inherit !important;
         font-size: inherit !important;
       }
-
-      /* Кнопки: центрируем текст, если он «съехал» из-за метрик шрифта */
-      #app .button,
-      #app button,
-      #app .btn {
-        line-height: 1 !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-      }
     `;
 
-    // Уменьшаем БАЗОВЫЙ размер шрифта у html.
-    // В Lampa почти весь текст задан в rem, поэтому это уменьшит текст
-    // ровно один раз (без каскадного перемножения), сохранив пропорции
-    // заголовков, подписей и т.д.
-    if (font.scale && font.scale !== 1) {
-      document.documentElement.style.setProperty('font-size', (font.scale * 100) + '%');
-    } else {
-      document.documentElement.style.removeProperty('font-size');
+    if (font.size) {
+      document.body.style.setProperty('font-size', font.size + 'px', 'important');
     }
 
     document.documentElement.style.setProperty('--lampa-font-family', font.family);
@@ -188,6 +192,7 @@
 
     applyFont(getChoice());
     registerVersion();
+    hookLayerUpdate();
 
     if (!addSettingsItem()) {
       var tries = 0;
