@@ -61,6 +61,14 @@
                 background-color: #4b4b4b91 !important;
             }
 
+            /* Подзаголовок с номером сезона/серии под названием */
+            .${MODAL_CLASS} .modal__subtitle {
+                font-size: 0.85em;
+                opacity: 0.65;
+                margin-top: 0.35em;
+                line-height: 1.2;
+            }
+
             @media (max-width: 768px), (max-height: 500px) {
                 .${MODAL_CLASS} .modal__content {
                     width: 92vw;
@@ -160,19 +168,19 @@
         return { season: season, episode: episode };
     }
 
-    function buildDisplayTitle(card) {
-        var name = getTitle(card);
-        if (!name) return null;
+    // Только название (без сезона/серии)
+    function getDisplayName(card) {
+        return getTitle(card);
+    }
+
+    // Отдельная строка с сезоном/серией
+    function getSeasonEpisodeLabel(card) {
+        if (!card) return null;
 
         var se = getSeasonEpisode(card);
-        var isSerial = card && (card.name || card.media_type === 'tv' || card.number_of_seasons);
+        if (se.season === null || se.episode === null) return null;
 
-        if (isSerial && se.season !== null && se.episode !== null) {
-            var s = se.season < 10 ? '0' + se.season : '' + se.season;
-            var e = se.episode < 10 ? '0' + se.episode : '' + se.episode;
-            return name + ' (S' + s + 'E' + e + ')';
-        }
-        return name;
+        return 'Сезон ' + se.season + ' • Серия ' + se.episode;
     }
 
     // ========== ОЧИСТКА ШАПКИ И ЗАМЕНА ЗАГОЛОВКА ==========
@@ -193,8 +201,8 @@
             } catch (err) {}
         }
 
-        var customTitle = buildDisplayTitle(card);
-        if (!customTitle) {
+        var displayName = getDisplayName(card);
+        if (!displayName) {
             console.log('[TLM] Нет данных карточки для замены заголовка');
             return;
         }
@@ -203,15 +211,31 @@
         for (var i = head.childNodes.length - 1; i >= 0; i--) {
             var node = head.childNodes[i];
             if (node.nodeType === 3) {
-                // Текстовый узел — удаляем
                 head.removeChild(node);
             }
         }
 
-        // 2) Заменяем текст внутри .modal__title
-        titleEl.textContent = customTitle;
+        // 2) Заменяем текст внутри .modal__title (только название)
+        titleEl.textContent = displayName;
 
-        console.log('[TLM] Заголовок заменён на:', customTitle);
+        // 3) Добавляем/обновляем подзаголовок с сезоном и серией
+        var subtitle = head.querySelector('.modal__subtitle');
+        if (!subtitle) {
+            subtitle = document.createElement('div');
+            subtitle.className = 'modal__subtitle';
+            head.appendChild(subtitle);
+        }
+
+        var seLabel = getSeasonEpisodeLabel(card);
+        if (seLabel) {
+            subtitle.textContent = seLabel;
+            subtitle.style.display = '';
+        } else {
+            // Для фильмов — прячем подзаголовок
+            subtitle.style.display = 'none';
+        }
+
+        console.log('[TLM] Заголовок:', displayName, '| Подзаголовок:', seLabel || '—');
     }
 
     function markModal(modal) {
