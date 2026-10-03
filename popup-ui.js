@@ -82,7 +82,7 @@
         document.head.appendChild(style);
     }
 
-    // ========== ЗАХВАТ ДАННЫХ ==========
+    // ========== ЗАХВАТ КАРТОЧКИ ==========
     var lastCardData = null;
 
     function setupDataCapture() {
@@ -91,21 +91,12 @@
         Lampa.Listener.follow('full', function (e) {
             if (e.type === 'complite' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-                console.log('[TLM] Карточка из full:', lastCardData.title || lastCardData.name);
             }
         });
 
         Lampa.Listener.follow('activity', function (e) {
             if (e.type === 'start' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-            }
-        });
-
-        // Ловим выбор файла торрента — как в continue_torrent_v2
-        Lampa.Listener.follow('torrent_file', function (e) {
-            if (e.type === 'onenter' && e.element) {
-                window.__tlm_last_file = e.element;
-                console.log('[TLM] Файл торрента выбран:', e.element);
             }
         });
     }
@@ -126,120 +117,88 @@
         return false;
     }
 
-    // ========== ИЗВЛЕЧЕНИЕ ДАННЫХ О СЕРИАЛЕ ==========
     function getTitle(card) {
         if (!card) return null;
         return card.title || card.name || card.original_title || card.original_name || null;
     }
 
-    // Способ 1: прямо из активной сессии плагина Continue Torrent
-    // (если он выставляет window.__lampa_continue_torrent_session)
-    function seasonEpisodeFromSession() {
-        var s = window.__lampa_continue_torrent_session;
-        if (!s) return null;
+    // ========== ЧТЕНИЕ ДАННЫХ ИЗ КНОПКИ CONTINUE TORRENT ==========
+    // Кнопка имеет класс .view--continue-torrent-v2.
+    // Внутри неё .ctv-continue-text с текстом вида:
+    //   "Сезон 1 · Серия 5"  или  "Серия 5"  или  "Продолжить · Сезон 1 · Серия 5"
+    // А также .ctv-continue-time с временем.
+    function seasonEpisodeFromContinueButton() {
+        var btn = document.querySelector('.view--continue-torrent-v2');
+        if (!btn) return null;
 
-        if (n(s.season) && n(s.episode)) {
-            return { season: n(s.season), episode: n(s.episode) };
+        var textEl = btn.querySelector('.ctv-continue-text');
+        var text = textEl ? (textEl.textContent || '').trim() : '';
+
+        if (!text) return null;
+
+        var season = null, episode = null;
+
+        // "Сезон N · Серия M" / "Сезон N" / "Серия M"
+        var sMatch = text.match(/Сезон\s+(\d+)/i);
+        var eMatch = text.match(/Серия\s+(\d+)/i);
+
+        if (sMatch) season = parseInt(sMatch[1], 10);
+        if (eMatch) episode = parseInt(eMatch[1], 10);
+
+        // Резервный вариант: "S01E05"
+        if (season === null || episode === null) {
+            var m = text.match(/S(\d{1,2})[\s._·-]*E(\d{1,3})/i);
+            if (m) {
+                if (season === null) season = parseInt(m[1], 10);
+                if (episode === null) episode = parseInt(m[2], 10);
+            }
         }
+
+        // "Следующая серия N" / "Следующий сезон N"
+        if (season === null) {
+            var nextS = text.match(/Следующий\s+сезон\s+(\d+)/i);
+            if (nextS) season = parseInt(nextS[1], 10);
+        }
+        if (episode === null) {
+            var nextE = text.match(/Следующая\s+серия\s+(\d+)/i);
+            if (nextE) episode = parseInt(nextE[1], 10);
+        }
+
+        if (season || episode) {
+            return { season: season, episode: episode };
+        }
+
         return null;
     }
 
-    // Способ 2: из выбранного файла торрента (перехвачено в torrent_file)
-    function seasonEpisodeFromSelectedFile() {
-        var file = window.__tlm_last_file;
-        if (!file) return null;
-
-        var s = n(file.season);
-        var e = n(file.episode);
-
-        if (s && e) return { season: s, episode: e };
-
-        // Пробуем распарсить имя файла
-        var card = lastCardData;
-        if (card && window.Lampa && Lampa.Torserver && Lampa.Torserver.parse) {
-            try {
-                var parsed = Lampa.Torserver.parse({
-                    movie: card,
-                    files: [],
-                    filename: file.path_human || file.path,
-                    path: file.path
-                }) || {};
-
-                if (n(parsed.season) && n(parsed.episode)) {
-                    return { season: n(parsed.season), episode: n(parsed.episode) };
-                }
-            } catch (err) {}
-        }
-
-        // Последний шанс — regex по имени файла
-        var name = (file.path_human || file.path || file.title || '');
-        var m = name.match(/[Ss](\d{1,2})[\s._-]*[Ee](\d{1,3})/);
-        if (m) {
-            return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
-        }
-
-        return null;
-    }
-
-    // Способ 3: из карточки фильма (last_episode_to_air) — как в continue_torrent_v2
+    // Резерв: из карточки фильма
     function seasonEpisodeFromCard(card) {
         if (!card) return null;
 
-        // Карточка может содержать напрямую season/episode (если открыт эпизод)
-        var directSeason = n(card.season || card.season_number);
-        var directEpisode = n(card.episode || card.episode_number);
-        if (directSeason && directEpisode) {
-            return { season: directSeason, episode: directEpisode };
-        }
+        var s = card.season !== undefined ? card.season : card.season_number;
+        var e = card.episode !== undefined ? card.episode : card.episode_number;
 
-        // Смотрим в last_episode_to_air
-        var candidates = [
-            card.last_episode_to_air,
-            card.last_episode,
-            card.last_aired_episode
-        ];
-
-        for (var i = 0; i < candidates.length; i++) {
-            var item = candidates[i];
-            if (!item) continue;
-
-            var s = n(item.season_number !== undefined ? item.season_number : item.season);
-            var e = n(item.episode_number !== undefined ? item.episode_number : item.episode);
-
-            if (s && e) return { season: s, episode: e };
+        if (n(s) && n(e)) {
+            return { season: n(s), episode: n(e) };
         }
 
         return null;
     }
 
     function getSeasonEpisode(card) {
-        // 1. Сессия continue_torrent
-        var fromSession = seasonEpisodeFromSession();
-        if (fromSession) return fromSession;
+        var fromButton = seasonEpisodeFromContinueButton();
+        if (fromButton) return fromButton;
 
-        // 2. Выбранный файл торрента
-        var fromFile = seasonEpisodeFromSelectedFile();
-        if (fromFile) return fromFile;
-
-        // 3. Карточка фильма
-        var fromCard = seasonEpisodeFromCard(card);
-        if (fromCard) return fromCard;
-
-        return { season: null, episode: null };
-    }
-
-    function getDisplayName(card) {
-        return getTitle(card);
+        return seasonEpisodeFromCard(card);
     }
 
     function getSeasonEpisodeLabel(card) {
         var se = getSeasonEpisode(card);
-        if (!se.season || !se.episode) return null;
+        if (!se || !se.season || !se.episode) return null;
 
         return 'Сезон ' + se.season + ' • Серия ' + se.episode;
     }
 
-    // ========== ОБНОВЛЕНИЕ ШАПКИ ==========
     function replaceTitle(modal) {
         if (!modal || !modal.classList.contains(MODAL_CLASS)) return;
 
@@ -257,13 +216,13 @@
             } catch (err) {}
         }
 
-        var displayName = getDisplayName(card);
+        var displayName = getTitle(card);
         if (!displayName) {
             console.log('[TLM] Нет данных карточки');
             return;
         }
 
-        // Убираем текстовые узлы (дубли)
+        // Убираем текстовые узлы-дубли
         for (var i = head.childNodes.length - 1; i >= 0; i--) {
             var node = head.childNodes[i];
             if (node.nodeType === 3) {
@@ -271,10 +230,8 @@
             }
         }
 
-        // Заголовок
         titleEl.textContent = displayName;
 
-        // Подзаголовок с сезоном/серией
         var subtitle = head.querySelector('.modal__subtitle');
         if (!subtitle) {
             subtitle = document.createElement('div');
