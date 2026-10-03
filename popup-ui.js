@@ -28,6 +28,9 @@
             .torrent-serial {
                 background: #1d1f20de !important;
             }
+            .torrent-serial.focus {
+                background-color: #4b4b4b91 !important;
+            }
         `;
         document.head.appendChild(style);
     }
