@@ -2,7 +2,7 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.3.0';
+  var PLUGIN_VERSION = '1.4.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
@@ -11,35 +11,33 @@
   var LINK_ID     = 'lampa-custom-font-source';
   var STYLE_ID    = 'lampa-custom-font-style';
 
-  // Описание доступных шрифтов
-  // adjust — значение font-size-adjust (x-height ratio).
-  //   0.5 — примерно как у большинства системных шрифтов.
-  //   Чем БОЛЬШЕ x-height у шрифта, тем МЕНЬШЕ должно быть значение.
-  //   Если не хочешь трогать размер — поставь null.
+  // scale — коэффициент уменьшения базового размера шрифта (html font-size).
+  // Lampa использует rem для текста, поэтому уменьшение html font-size
+  // уменьшает ВЕСЬ текст один раз (без каскада), сохраняя пропорции.
   var FONTS = {
     original: {
       title: 'Оригинальный',
       family: null,
       url: null,
-      adjust: null
+      scale: 1
     },
     inter: {
       title: 'Inter',
       family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      adjust: 0.52
+      scale: 0.9
     },
     onest: {
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      adjust: 0.52
+      scale: 0.9
     },
     roboto: {
       title: 'Roboto',
       family: '"Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap',
-      adjust: 0.53
+      scale: 0.93
     }
   };
 
@@ -61,6 +59,7 @@
     var style = document.getElementById(STYLE_ID);
     if (style && style.parentNode) style.parentNode.removeChild(style);
     document.documentElement.style.removeProperty('--lampa-font-family');
+    document.documentElement.style.removeProperty('font-size');
   }
 
   function applyFont(key) {
@@ -71,7 +70,6 @@
       return;
     }
 
-    // Подгружаем CSS шрифта
     var link = document.getElementById(LINK_ID);
     if (!link) {
       link = document.createElement('link');
@@ -81,7 +79,6 @@
     }
     if (link.href !== font.url) link.href = font.url;
 
-    // Стили применения
     var style = document.getElementById(STYLE_ID);
     if (!style) {
       style = document.createElement('style');
@@ -89,21 +86,14 @@
       document.head.appendChild(style);
     }
 
-    // Опциональная коррекция метрик шрифта.
-    // font-size-adjust НЕ меняет font-size, он подгоняет визуальную высоту
-    // строчных букв под заданный x-height ratio. На старых WebView
-    // свойство просто игнорируется — вёрстка от этого не поедет.
-    var adjustCss = font.adjust ? `font-size-adjust: ${font.adjust};` : '';
-
     style.textContent = `
       html,
       body,
       #app {
         font-family: ${font.family} !important;
-        ${adjustCss}
       }
 
-      /* Не трогаем иконочные шрифты */
+      /* Иконочные шрифты не трогаем */
       [class*="icon--"],
       [class^="icon--"],
       .icon,
@@ -118,7 +108,27 @@
         font-family: inherit !important;
         font-size: inherit !important;
       }
+
+      /* Кнопки: центрируем текст, если он «съехал» из-за метрик шрифта */
+      #app .button,
+      #app button,
+      #app .btn {
+        line-height: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+      }
     `;
+
+    // Уменьшаем БАЗОВЫЙ размер шрифта у html.
+    // В Lampa почти весь текст задан в rem, поэтому это уменьшит текст
+    // ровно один раз (без каскадного перемножения), сохранив пропорции
+    // заголовков, подписей и т.д.
+    if (font.scale && font.scale !== 1) {
+      document.documentElement.style.setProperty('font-size', (font.scale * 100) + '%');
+    } else {
+      document.documentElement.style.removeProperty('font-size');
+    }
 
     document.documentElement.style.setProperty('--lampa-font-family', font.family);
   }
@@ -191,6 +201,9 @@
         var current = getChoice();
         if (current === 'original') return;
         if (!document.getElementById(STYLE_ID)) applyFont(current);
+        if (!document.documentElement.style.getPropertyValue('--lampa-font-family')) {
+          applyFont(current);
+        }
       });
       observer.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {}
