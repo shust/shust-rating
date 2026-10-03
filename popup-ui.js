@@ -61,7 +61,6 @@
                 background-color: #4b4b4b91 !important;
             }
 
-            /* Подзаголовок с номером сезона/серии под названием */
             .${MODAL_CLASS} .modal__subtitle {
                 font-size: 0.85em;
                 opacity: 0.65;
@@ -83,7 +82,7 @@
         document.head.appendChild(style);
     }
 
-    // ========== СОХРАНЯЕМ ДАННЫЕ КАРТОЧКИ ==========
+    // ========== ЗАХВАТ ДАННЫХ ==========
     var lastCardData = null;
 
     function setupDataCapture() {
@@ -92,14 +91,21 @@
         Lampa.Listener.follow('full', function (e) {
             if (e.type === 'complite' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-                console.log('[TLM] Карточка из full:', lastCardData.title || lastCardData.name, lastCardData);
+                console.log('[TLM] Карточка из full:', lastCardData.title || lastCardData.name);
             }
         });
 
         Lampa.Listener.follow('activity', function (e) {
             if (e.type === 'start' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-                console.log('[TLM] Карточка из activity:', lastCardData.title || lastCardData.name);
+            }
+        });
+
+        // Ловим выбор файла торрента — как в continue_torrent_v2
+        Lampa.Listener.follow('torrent_file', function (e) {
+            if (e.type === 'onenter' && e.element) {
+                window.__tlm_last_file = e.element;
+                console.log('[TLM] Файл торрента выбран:', e.element);
             }
         });
     }
@@ -112,78 +118,128 @@
             modal.classList.contains('modal--torrent-loading')
         ) return true;
 
-        if (modal.querySelector('.torrent-loading, .torrent-parse, .torrent-progress, .torrent-info')) return true;
         if (modal.querySelector('.broadcast__text, .broadcast__scan')) return true;
 
         var title = modal.querySelector('.modal__title');
         if (title && /загрузка/i.test(title.textContent)) return true;
 
-        var body = modal.querySelector('.modal__body');
-        if (body) {
-            var t = (body.textContent || '').toLowerCase();
-            if (t.indexOf('подключились') !== -1 || t.indexOf('предзагрузка') !== -1 || t.indexOf('скорость загрузки') !== -1) return true;
-        }
         return false;
     }
 
-    // ========== ИЗВЛЕЧЕНИЕ ДАННЫХ О ФИЛЬМЕ/СЕРИАЛЕ ==========
+    // ========== ИЗВЛЕЧЕНИЕ ДАННЫХ О СЕРИАЛЕ ==========
     function getTitle(card) {
         if (!card) return null;
         return card.title || card.name || card.original_title || card.original_name || null;
     }
 
-    function getSeasonEpisode(card) {
-        if (!card) return { season: null, episode: null };
+    // Способ 1: прямо из активной сессии плагина Continue Torrent
+    // (если он выставляет window.__lampa_continue_torrent_session)
+    function seasonEpisodeFromSession() {
+        var s = window.__lampa_continue_torrent_session;
+        if (!s) return null;
 
-        var season = null, episode = null;
-
-        // Плоские поля
-        if (card.season !== undefined) season = card.season;
-        if (card.season_number !== undefined) season = card.season_number;
-        if (card.episode !== undefined) episode = card.episode;
-        if (card.episode_number !== undefined) episode = card.episode_number;
-
-        // Вложенные
-        if (card.seasons && card.seasons.season !== undefined) season = card.seasons.season;
-        if (card.seasons && card.seasons.episode !== undefined) episode = card.seasons.episode;
-
-        // Парсинг из строки названия "S01E05"
-        if (season === null || episode === null) {
-            var titleStr = (card.title || card.name || '');
-            var m = titleStr.match(/S(\d+)[\s._-]*E(\d+)/i);
-            if (m) {
-                if (season === null) season = parseInt(m[1], 10);
-                if (episode === null) episode = parseInt(m[2], 10);
-            }
+        if (n(s.season) && n(s.episode)) {
+            return { season: n(s.season), episode: n(s.episode) };
         }
-
-        // Lampa.Full
-        try {
-            if (window.Lampa && Lampa.Full) {
-                if (season === null && Lampa.Full.season !== undefined) season = Lampa.Full.season;
-                if (episode === null && Lampa.Full.episode !== undefined) episode = Lampa.Full.episode;
-            }
-        } catch (e) {}
-
-        return { season: season, episode: episode };
+        return null;
     }
 
-    // Только название (без сезона/серии)
+    // Способ 2: из выбранного файла торрента (перехвачено в torrent_file)
+    function seasonEpisodeFromSelectedFile() {
+        var file = window.__tlm_last_file;
+        if (!file) return null;
+
+        var s = n(file.season);
+        var e = n(file.episode);
+
+        if (s && e) return { season: s, episode: e };
+
+        // Пробуем распарсить имя файла
+        var card = lastCardData;
+        if (card && window.Lampa && Lampa.Torserver && Lampa.Torserver.parse) {
+            try {
+                var parsed = Lampa.Torserver.parse({
+                    movie: card,
+                    files: [],
+                    filename: file.path_human || file.path,
+                    path: file.path
+                }) || {};
+
+                if (n(parsed.season) && n(parsed.episode)) {
+                    return { season: n(parsed.season), episode: n(parsed.episode) };
+                }
+            } catch (err) {}
+        }
+
+        // Последний шанс — regex по имени файла
+        var name = (file.path_human || file.path || file.title || '');
+        var m = name.match(/[Ss](\d{1,2})[\s._-]*[Ee](\d{1,3})/);
+        if (m) {
+            return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
+        }
+
+        return null;
+    }
+
+    // Способ 3: из карточки фильма (last_episode_to_air) — как в continue_torrent_v2
+    function seasonEpisodeFromCard(card) {
+        if (!card) return null;
+
+        // Карточка может содержать напрямую season/episode (если открыт эпизод)
+        var directSeason = n(card.season || card.season_number);
+        var directEpisode = n(card.episode || card.episode_number);
+        if (directSeason && directEpisode) {
+            return { season: directSeason, episode: directEpisode };
+        }
+
+        // Смотрим в last_episode_to_air
+        var candidates = [
+            card.last_episode_to_air,
+            card.last_episode,
+            card.last_aired_episode
+        ];
+
+        for (var i = 0; i < candidates.length; i++) {
+            var item = candidates[i];
+            if (!item) continue;
+
+            var s = n(item.season_number !== undefined ? item.season_number : item.season);
+            var e = n(item.episode_number !== undefined ? item.episode_number : item.episode);
+
+            if (s && e) return { season: s, episode: e };
+        }
+
+        return null;
+    }
+
+    function getSeasonEpisode(card) {
+        // 1. Сессия continue_torrent
+        var fromSession = seasonEpisodeFromSession();
+        if (fromSession) return fromSession;
+
+        // 2. Выбранный файл торрента
+        var fromFile = seasonEpisodeFromSelectedFile();
+        if (fromFile) return fromFile;
+
+        // 3. Карточка фильма
+        var fromCard = seasonEpisodeFromCard(card);
+        if (fromCard) return fromCard;
+
+        return { season: null, episode: null };
+    }
+
     function getDisplayName(card) {
         return getTitle(card);
     }
 
-    // Отдельная строка с сезоном/серией
     function getSeasonEpisodeLabel(card) {
-        if (!card) return null;
-
         var se = getSeasonEpisode(card);
-        if (se.season === null || se.episode === null) return null;
+        if (!se.season || !se.episode) return null;
 
         return 'Сезон ' + se.season + ' • Серия ' + se.episode;
     }
 
-    // ========== ОЧИСТКА ШАПКИ И ЗАМЕНА ЗАГОЛОВКА ==========
+    // ========== ОБНОВЛЕНИЕ ШАПКИ ==========
     function replaceTitle(modal) {
         if (!modal || !modal.classList.contains(MODAL_CLASS)) return;
 
@@ -203,11 +259,11 @@
 
         var displayName = getDisplayName(card);
         if (!displayName) {
-            console.log('[TLM] Нет данных карточки для замены заголовка');
+            console.log('[TLM] Нет данных карточки');
             return;
         }
 
-        // 1) Убираем все текстовые узлы в .modal__head (дубли "Твин Пикс")
+        // Убираем текстовые узлы (дубли)
         for (var i = head.childNodes.length - 1; i >= 0; i--) {
             var node = head.childNodes[i];
             if (node.nodeType === 3) {
@@ -215,10 +271,10 @@
             }
         }
 
-        // 2) Заменяем текст внутри .modal__title (только название)
+        // Заголовок
         titleEl.textContent = displayName;
 
-        // 3) Добавляем/обновляем подзаголовок с сезоном и серией
+        // Подзаголовок с сезоном/серией
         var subtitle = head.querySelector('.modal__subtitle');
         if (!subtitle) {
             subtitle = document.createElement('div');
@@ -231,7 +287,6 @@
             subtitle.textContent = seLabel;
             subtitle.style.display = '';
         } else {
-            // Для фильмов — прячем подзаголовок
             subtitle.style.display = 'none';
         }
 
@@ -242,7 +297,7 @@
         if (!modal || modal.classList.contains(MODAL_CLASS)) return;
         if (!isTorrentLoadingModal(modal)) return;
         modal.classList.add(MODAL_CLASS);
-        setTimeout(function () { replaceTitle(modal); }, 50);
+        setTimeout(function () { replaceTitle(modal); }, 100);
     }
 
     function scanModals() {
