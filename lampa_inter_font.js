@@ -2,12 +2,12 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.0.0';
+  var PLUGIN_VERSION = '1.1.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
 
-  var STORAGE_KEY = 'lampa_font_choice';   // 'original' | 'inter' | 'onest'
+  var STORAGE_KEY = 'lampa_font_choice';   // 'original' | 'inter' | 'onest' | 'roboto'
   var LINK_ID     = 'lampa-custom-font-source';
   var STYLE_ID    = 'lampa-custom-font-style';
 
@@ -27,6 +27,11 @@
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap'
+    },
+    roboto: {
+      title: 'Roboto',
+      family: '"Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
+      url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap'
     }
   };
 
@@ -155,7 +160,8 @@
         values: {
           original: 'Оригинальный',
           inter: 'Inter',
-          onest: 'Onest'
+          onest: 'Onest',
+          roboto: 'Roboto'
         },
         default: 'original'
       },
