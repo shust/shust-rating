@@ -11,7 +11,6 @@
         style.id = STYLE_ID;
         style.type = 'text/css';
         style.textContent = `
-            /* ===== Центрирование и размеры окна предзагрузки ===== */
             .${MODAL_CLASS} {
                 display: flex !important;
                 align-items: center !important;
@@ -76,7 +75,31 @@
         document.head.appendChild(style);
     }
 
-    // Проверка, что это попап предзагрузки торрента
+    // ========== СОХРАНЯЕМ ДАННЫЕ КАРТОЧКИ ИЗ ПОСЛЕДНЕГО ВЫЗОВА ==========
+    var lastCardData = null;
+
+    // Перехватываем события Lampa
+    function setupDataCapture() {
+        if (!window.Lampa || !Lampa.Listener) return;
+
+        // Ловим открытие полной карточки
+        Lampa.Listener.follow('full', function (e) {
+            if (e.type === 'complite' && e.data && e.data.movie) {
+                lastCardData = e.data.movie;
+                console.log('[Torrent Loading Modal] Захвачена карточка из full:', lastCardData.title || lastCardData.name);
+            }
+        });
+
+        // Ловим активность
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type === 'start' && e.data && e.data.movie) {
+                lastCardData = e.data.movie;
+                console.log('[Torrent Loading Modal] Захвачена карточка из activity:', lastCardData.title || lastCardData.name);
+            }
+        });
+    }
+
+    // ========== ОПРЕДЕЛЕНИЕ ПОПАПА ==========
     function isTorrentLoadingModal(modal) {
         if (!modal || !modal.classList) return false;
         if (
@@ -98,58 +121,82 @@
         return false;
     }
 
-    // Формирование заголовка из данных карточки
-    function buildTitleFromCard(card) {
+    // ========== ФОРМИРОВАНИЕ ЗАГОЛОВКА ==========
+    function buildTitle(card) {
         if (!card) return null;
-        var name = card.title || card.name || card.original_name;
+
+        // Пробуем разные варианты названия
+        var name = card.title || card.name || card.original_title || card.original_name;
         if (!name) return null;
 
-        // Для сериалов добавляем сезон и серию
-        if (card.media_type === 'tv' || card.name) {
+        // Для сериалов
+        var isSerial = card.name || card.media_type === 'tv' || card.number_of_seasons;
+        if (isSerial) {
+            // Ищем сезон/серию в разных полях
             var season = card.season || card.season_number;
             var episode = card.episode || card.episode_number;
+
+            // Если это объект серии (например, из full)
+            if (card.season !== undefined && card.episode !== undefined) {
+                season = card.season;
+                episode = card.episode;
+            }
+
             if (season !== undefined && episode !== undefined) {
-                var s = season < 10 ? '0' + season : season;
-                var e = episode < 10 ? '0' + episode : episode;
+                var s = season < 10 ? '0' + season : '' + season;
+                var e = episode < 10 ? '0' + episode : '' + episode;
                 return name + ' (S' + s + 'E' + e + ')';
             }
         }
+
         return name;
     }
 
     function replaceTitle(modal) {
         if (!modal || !modal.classList.contains(MODAL_CLASS)) return;
 
-        // Пытаемся получить карточку из активного объекта Lampa
-        var card = null;
-        try {
-            if (Lampa.Activity && Lampa.Activity.active && Lampa.Activity.active() && Lampa.Activity.active().movie) {
-                card = Lampa.Activity.active().movie;
-            }
-            // Резерв: берём из события open компонента full
-            if (!card && Lampa.Full && Lampa.Full.movie) {
-                card = Lampa.Full.movie;
-            }
-        } catch (e) {}
+        // Если нет сохранённых данных — пробуем взять из Activity
+        var card = lastCardData;
+        if (!card && Lampa.Activity && Lampa.Activity.active) {
+            try {
+                var active = Lampa.Activity.active();
+                if (active && active.movie) card = active.movie;
+            } catch (err) {}
+        }
 
-        var customTitle = buildTitleFromCard(card);
-        if (!customTitle) return;
+        var customTitle = buildTitle(card);
+        if (!customTitle) {
+            console.log('[Torrent Loading Modal] Нет данных карточки для замены заголовка');
+            return;
+        }
 
         var head = modal.querySelector('.modal__head');
         if (head) {
-            // Ищем текстовый узел с «Загрузка» или заменяем весь текст в шапке
-            var textNode = null;
+            // Ищем именно текстовый узел «Загрузка»
+            var found = false;
             for (var i = 0; i < head.childNodes.length; i++) {
-                if (head.childNodes[i].nodeType === 3 && /загрузка/i.test(head.childNodes[i].textContent)) {
-                    textNode = head.childNodes[i];
+                var node = head.childNodes[i];
+                if (node.nodeType === 3 && /загрузка/i.test(node.textContent)) {
+                    node.textContent = node.textContent.replace(/загрузка/i, customTitle);
+                    found = true;
                     break;
                 }
             }
-            if (textNode) {
-                textNode.textContent = customTitle;
-            } else if (/загрузка/i.test(head.textContent)) {
-                head.textContent = customTitle;
+            // Если не нашли — пробуем заменить весь текст (кроме других элементов)
+            if (!found && /загрузка/i.test(head.textContent)) {
+                // Сохраняем нетекстовые узлы (например, крестик закрытия)
+                var newContent = document.createDocumentFragment();
+                head.childNodes.forEach(function (n) {
+                    if (n.nodeType === 3) {
+                        newContent.appendChild(document.createTextNode(customTitle));
+                    } else {
+                        newContent.appendChild(n.cloneNode(true));
+                    }
+                });
+                head.innerHTML = '';
+                head.appendChild(newContent);
             }
+            console.log('[Torrent Loading Modal] Заголовок заменён на:', customTitle);
         }
     }
 
@@ -157,8 +204,8 @@
         if (!modal || modal.classList.contains(MODAL_CLASS)) return;
         if (!isTorrentLoadingModal(modal)) return;
         modal.classList.add(MODAL_CLASS);
-        // Небольшая задержка, чтобы Lampa успела проставить карточку
-        setTimeout(function () { replaceTitle(modal); }, 100);
+        // Небольшая задержка, чтобы Lampa успела дорисовать DOM
+        setTimeout(function () { replaceTitle(modal); }, 50);
     }
 
     function scanModals() {
@@ -173,6 +220,7 @@
         }
 
         addStyles();
+        setupDataCapture();
 
         if (Lampa.Listener) {
             Lampa.Listener.follow('app', function (e) {
