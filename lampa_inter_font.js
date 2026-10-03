@@ -2,45 +2,46 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.2.0';
+  var PLUGIN_VERSION = '1.3.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
 
-  var STORAGE_KEY = 'lampa_font_choice';   // 'original' | 'inter' | 'onest' | 'roboto'
+  var STORAGE_KEY = 'lampa_font_choice';
   var LINK_ID     = 'lampa-custom-font-source';
   var STYLE_ID    = 'lampa-custom-font-style';
 
   // Описание доступных шрифтов
-  // scale — коэффициент подгонки размера (1 = как есть, 0.9 = на 10% меньше)
+  // adjust — значение font-size-adjust (x-height ratio).
+  //   0.5 — примерно как у большинства системных шрифтов.
+  //   Чем БОЛЬШЕ x-height у шрифта, тем МЕНЬШЕ должно быть значение.
+  //   Если не хочешь трогать размер — поставь null.
   var FONTS = {
     original: {
       title: 'Оригинальный',
-      family: null, // null = не трогаем шрифт
+      family: null,
       url: null,
-      scale: 1
+      adjust: null
     },
     inter: {
       title: 'Inter',
       family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      scale: 0.9
+      adjust: 0.52
     },
     onest: {
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap',
-      scale: 0.9
+      adjust: 0.52
     },
     roboto: {
       title: 'Roboto',
       family: '"Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
       url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap',
-      scale: 0.92
+      adjust: 0.53
     }
   };
-
-  // ---------- Работа со шрифтом ----------
 
   function getChoice() {
     var v = null;
@@ -65,7 +66,6 @@
   function applyFont(key) {
     var font = FONTS[key] || FONTS.original;
 
-    // Оригинальный — просто убираем всё наше
     if (!font.family) {
       removeFont();
       return;
@@ -89,45 +89,18 @@
       document.head.appendChild(style);
     }
 
-    var scale = font.scale || 1;
+    // Опциональная коррекция метрик шрифта.
+    // font-size-adjust НЕ меняет font-size, он подгоняет визуальную высоту
+    // строчных букв под заданный x-height ratio. На старых WebView
+    // свойство просто игнорируется — вёрстка от этого не поедет.
+    var adjustCss = font.adjust ? `font-size-adjust: ${font.adjust};` : '';
 
     style.textContent = `
       html,
       body,
       #app {
         font-family: ${font.family} !important;
-      }
-
-      #app div,
-      #app span,
-      #app p,
-      #app a,
-      #app button,
-      #app input,
-      #app textarea,
-      #app select,
-      #app option,
-      #app label,
-      #app h1,
-      #app h2,
-      #app h3,
-      #app h4,
-      #app h5,
-      #app h6,
-      .selectbox,
-      .modal,
-      .settings,
-      .settings-param,
-      .settings-box,
-      .menu,
-      .head,
-      .card,
-      .full,
-      .activity,
-      .notice,
-      .keyboard {
-        font-family: ${font.family} !important;
-        font-size: calc(1em * ${scale}) !important;
+        ${adjustCss}
       }
 
       /* Не трогаем иконочные шрифты */
@@ -142,15 +115,13 @@
       .fab,
       [class*="fontawesome"],
       [class*="FontAwesome"] {
-        font-family: inherit;
+        font-family: inherit !important;
         font-size: inherit !important;
       }
     `;
 
     document.documentElement.style.setProperty('--lampa-font-family', font.family);
   }
-
-  // ---------- Интеграция с настройками Lampa ----------
 
   function addSettingsItem() {
     if (!window.Lampa || !Lampa.SettingsApi || !Lampa.SettingsApi.addComponent) return false;
@@ -183,7 +154,6 @@
       }
     });
 
-    // Восстанавливаем сохранённое значение в UI
     try {
       var saved = getChoice();
       Lampa.SettingsApi.set('font_choice', saved);
@@ -191,8 +161,6 @@
 
     return true;
   }
-
-  // ---------- Регистрация версии в Lampa (если возможно) ----------
 
   function registerVersion() {
     try {
@@ -202,21 +170,15 @@
     } catch (e) {}
   }
 
-  // ---------- Инициализация ----------
-
   function init() {
     if (!document.head) {
       setTimeout(init, 100);
       return;
     }
 
-    // Применяем сохранённый шрифт
     applyFont(getChoice());
-
-    // Регистрируем версию
     registerVersion();
 
-    // Регистрируем настройку (может понадобиться подождать Lampa)
     if (!addSettingsItem()) {
       var tries = 0;
       var t = setInterval(function () {
@@ -224,7 +186,6 @@
       }, 200);
     }
 
-    // Переприменяем стили, если Lampa их снесла
     try {
       var observer = new MutationObserver(function () {
         var current = getChoice();
