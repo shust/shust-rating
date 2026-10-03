@@ -39,6 +39,17 @@
                 flex: 0 0 auto;
             }
 
+            .${MODAL_CLASS} .modal__title {
+                font-weight: 600;
+            }
+
+            .${MODAL_CLASS} .modal__subtitle {
+                font-size: 1.2em;
+                opacity: 0.7;
+                margin-top: 0.6em;
+                line-height: 1.2;
+            }
+
             .${MODAL_CLASS} .modal__body {
                 flex: 1 1 auto;
                 min-height: 0;
@@ -59,13 +70,6 @@
 
             .${MODAL_CLASS} .torrent-serial.focus {
                 background-color: #4b4b4b91 !important;
-            }
-
-            .${MODAL_CLASS} .modal__subtitle {
-                font-size: 1.3em;
-                opacity: 0.7;
-                margin-top: 0.6em;
-                line-height: 1.2;
             }
 
             @media (max-width: 768px), (max-height: 500px) {
