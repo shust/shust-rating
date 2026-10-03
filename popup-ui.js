@@ -25,6 +25,9 @@
             .scroll__content {
                 padding-bottom: 0.0em !important;
             }
+            .torrent-serial {
+                background: #1d1f20de !important;
+            }
         `;
         document.head.appendChild(style);
     }
