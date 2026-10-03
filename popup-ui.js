@@ -62,9 +62,9 @@
             }
 
             .${MODAL_CLASS} .modal__subtitle {
-                font-size: 0.85em;
-                opacity: 0.65;
-                margin-top: 0.35em;
+                font-size: 1.3em;
+                opacity: 0.7;
+                margin-top: 0.6em;
                 line-height: 1.2;
             }
 
@@ -123,10 +123,6 @@
     }
 
     // ========== ЧТЕНИЕ ДАННЫХ ИЗ КНОПКИ CONTINUE TORRENT ==========
-    // Кнопка имеет класс .view--continue-torrent-v2.
-    // Внутри неё .ctv-continue-text с текстом вида:
-    //   "Сезон 1 · Серия 5"  или  "Серия 5"  или  "Продолжить · Сезон 1 · Серия 5"
-    // А также .ctv-continue-time с временем.
     function seasonEpisodeFromContinueButton() {
         var btn = document.querySelector('.view--continue-torrent-v2');
         if (!btn) return null;
@@ -138,14 +134,12 @@
 
         var season = null, episode = null;
 
-        // "Сезон N · Серия M" / "Сезон N" / "Серия M"
         var sMatch = text.match(/Сезон\s+(\d+)/i);
         var eMatch = text.match(/Серия\s+(\d+)/i);
 
         if (sMatch) season = parseInt(sMatch[1], 10);
         if (eMatch) episode = parseInt(eMatch[1], 10);
 
-        // Резервный вариант: "S01E05"
         if (season === null || episode === null) {
             var m = text.match(/S(\d{1,2})[\s._·-]*E(\d{1,3})/i);
             if (m) {
@@ -154,7 +148,6 @@
             }
         }
 
-        // "Следующая серия N" / "Следующий сезон N"
         if (season === null) {
             var nextS = text.match(/Следующий\s+сезон\s+(\d+)/i);
             if (nextS) season = parseInt(nextS[1], 10);
@@ -171,15 +164,14 @@
         return null;
     }
 
-    // Резерв: из карточки фильма
     function seasonEpisodeFromCard(card) {
         if (!card) return null;
 
         var s = card.season !== undefined ? card.season : card.season_number;
         var e = card.episode !== undefined ? card.episode : card.episode_number;
 
-        if (n(s) && n(e)) {
-            return { season: n(s), episode: n(e) };
+        if (Number(s) && Number(e)) {
+            return { season: Number(s), episode: Number(e) };
         }
 
         return null;
@@ -222,7 +214,6 @@
             return;
         }
 
-        // Убираем текстовые узлы-дубли
         for (var i = head.childNodes.length - 1; i >= 0; i--) {
             var node = head.childNodes[i];
             if (node.nodeType === 3) {
