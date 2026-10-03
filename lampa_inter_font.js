@@ -2,7 +2,7 @@
   'use strict';
 
   var PLUGIN_ID      = 'lampa_custom_font_global';
-  var PLUGIN_VERSION = '1.1.0';
+  var PLUGIN_VERSION = '1.2.0';
 
   if (window[PLUGIN_ID]) return;
   window[PLUGIN_ID] = true;
@@ -12,26 +12,31 @@
   var STYLE_ID    = 'lampa-custom-font-style';
 
   // Описание доступных шрифтов
+  // scale — коэффициент подгонки размера (1 = как есть, 0.9 = на 10% меньше)
   var FONTS = {
     original: {
       title: 'Оригинальный',
       family: null, // null = не трогаем шрифт
-      url: null
+      url: null,
+      scale: 1
     },
     inter: {
       title: 'Inter',
       family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-      url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap'
+      url: 'https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap',
+      scale: 0.9
     },
     onest: {
       title: 'Onest',
       family: '"Onest", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-      url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap'
+      url: 'https://fonts.googleapis.com/css2?family=Onest:wght@100;200;300;400;500;600;700;800;900&display=swap',
+      scale: 0.9
     },
     roboto: {
       title: 'Roboto',
       family: '"Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif',
-      url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap'
+      url: 'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap',
+      scale: 0.92
     }
   };
 
@@ -84,6 +89,8 @@
       document.head.appendChild(style);
     }
 
+    var scale = font.scale || 1;
+
     style.textContent = `
       html,
       body,
@@ -120,6 +127,7 @@
       .notice,
       .keyboard {
         font-family: ${font.family} !important;
+        font-size: calc(1em * ${scale}) !important;
       }
 
       /* Не трогаем иконочные шрифты */
@@ -135,6 +143,7 @@
       [class*="fontawesome"],
       [class*="FontAwesome"] {
         font-family: inherit;
+        font-size: inherit !important;
       }
     `;
 
