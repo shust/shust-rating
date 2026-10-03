@@ -75,31 +75,27 @@
         document.head.appendChild(style);
     }
 
-    // ========== СОХРАНЯЕМ ДАННЫЕ КАРТОЧКИ ИЗ ПОСЛЕДНЕГО ВЫЗОВА ==========
+    // ========== СОХРАНЯЕМ ДАННЫЕ КАРТОЧКИ ==========
     var lastCardData = null;
 
-    // Перехватываем события Lampa
     function setupDataCapture() {
         if (!window.Lampa || !Lampa.Listener) return;
 
-        // Ловим открытие полной карточки
         Lampa.Listener.follow('full', function (e) {
             if (e.type === 'complite' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-                console.log('[Torrent Loading Modal] Захвачена карточка из full:', lastCardData.title || lastCardData.name);
+                console.log('[TLM] Карточка из full:', lastCardData.title || lastCardData.name, lastCardData);
             }
         });
 
-        // Ловим активность
         Lampa.Listener.follow('activity', function (e) {
             if (e.type === 'start' && e.data && e.data.movie) {
                 lastCardData = e.data.movie;
-                console.log('[Torrent Loading Modal] Захвачена карточка из activity:', lastCardData.title || lastCardData.name);
+                console.log('[TLM] Карточка из activity:', lastCardData.title || lastCardData.name);
             }
         });
     }
 
-    // ========== ОПРЕДЕЛЕНИЕ ПОПАПА ==========
     function isTorrentLoadingModal(modal) {
         if (!modal || !modal.classList) return false;
         if (
@@ -109,9 +105,10 @@
         ) return true;
 
         if (modal.querySelector('.torrent-loading, .torrent-parse, .torrent-progress, .torrent-info')) return true;
+        if (modal.querySelector('.broadcast__text, .broadcast__scan')) return true;
 
-        var head = modal.querySelector('.modal__head');
-        if (head && (head.textContent || '').trim().toLowerCase().indexOf('загрузка') !== -1) return true;
+        var title = modal.querySelector('.modal__title');
+        if (title && /загрузка/i.test(title.textContent)) return true;
 
         var body = modal.querySelector('.modal__body');
         if (body) {
@@ -121,41 +118,73 @@
         return false;
     }
 
-    // ========== ФОРМИРОВАНИЕ ЗАГОЛОВКА ==========
-    function buildTitle(card) {
+    // ========== ИЗВЛЕЧЕНИЕ ДАННЫХ О ФИЛЬМЕ/СЕРИАЛЕ ==========
+    function getTitle(card) {
         if (!card) return null;
+        return card.title || card.name || card.original_title || card.original_name || null;
+    }
 
-        // Пробуем разные варианты названия
-        var name = card.title || card.name || card.original_title || card.original_name;
-        if (!name) return null;
+    function getSeasonEpisode(card) {
+        if (!card) return { season: null, episode: null };
 
-        // Для сериалов
-        var isSerial = card.name || card.media_type === 'tv' || card.number_of_seasons;
-        if (isSerial) {
-            // Ищем сезон/серию в разных полях
-            var season = card.season || card.season_number;
-            var episode = card.episode || card.episode_number;
+        var season = null, episode = null;
 
-            // Если это объект серии (например, из full)
-            if (card.season !== undefined && card.episode !== undefined) {
-                season = card.season;
-                episode = card.episode;
-            }
+        // Плоские поля
+        if (card.season !== undefined) season = card.season;
+        if (card.season_number !== undefined) season = card.season_number;
+        if (card.episode !== undefined) episode = card.episode;
+        if (card.episode_number !== undefined) episode = card.episode_number;
 
-            if (season !== undefined && episode !== undefined) {
-                var s = season < 10 ? '0' + season : '' + season;
-                var e = episode < 10 ? '0' + episode : '' + episode;
-                return name + ' (S' + s + 'E' + e + ')';
+        // Вложенные
+        if (card.seasons && card.seasons.season !== undefined) season = card.seasons.season;
+        if (card.seasons && card.seasons.episode !== undefined) episode = card.seasons.episode;
+
+        // Парсинг из строки названия "S01E05"
+        if (season === null || episode === null) {
+            var titleStr = (card.title || card.name || '');
+            var m = titleStr.match(/S(\d+)[\s._-]*E(\d+)/i);
+            if (m) {
+                if (season === null) season = parseInt(m[1], 10);
+                if (episode === null) episode = parseInt(m[2], 10);
             }
         }
 
+        // Lampa.Full
+        try {
+            if (window.Lampa && Lampa.Full) {
+                if (season === null && Lampa.Full.season !== undefined) season = Lampa.Full.season;
+                if (episode === null && Lampa.Full.episode !== undefined) episode = Lampa.Full.episode;
+            }
+        } catch (e) {}
+
+        return { season: season, episode: episode };
+    }
+
+    function buildDisplayTitle(card) {
+        var name = getTitle(card);
+        if (!name) return null;
+
+        var se = getSeasonEpisode(card);
+        var isSerial = card && (card.name || card.media_type === 'tv' || card.number_of_seasons);
+
+        if (isSerial && se.season !== null && se.episode !== null) {
+            var s = se.season < 10 ? '0' + se.season : '' + se.season;
+            var e = se.episode < 10 ? '0' + se.episode : '' + se.episode;
+            return name + ' (S' + s + 'E' + e + ')';
+        }
         return name;
     }
 
+    // ========== ОЧИСТКА ШАПКИ И ЗАМЕНА ЗАГОЛОВКА ==========
     function replaceTitle(modal) {
         if (!modal || !modal.classList.contains(MODAL_CLASS)) return;
 
-        // Если нет сохранённых данных — пробуем взять из Activity
+        var head = modal.querySelector('.modal__head');
+        if (!head) return;
+
+        var titleEl = head.querySelector('.modal__title');
+        if (!titleEl) return;
+
         var card = lastCardData;
         if (!card && Lampa.Activity && Lampa.Activity.active) {
             try {
@@ -164,47 +193,31 @@
             } catch (err) {}
         }
 
-        var customTitle = buildTitle(card);
+        var customTitle = buildDisplayTitle(card);
         if (!customTitle) {
-            console.log('[Torrent Loading Modal] Нет данных карточки для замены заголовка');
+            console.log('[TLM] Нет данных карточки для замены заголовка');
             return;
         }
 
-        var head = modal.querySelector('.modal__head');
-        if (head) {
-            // Ищем именно текстовый узел «Загрузка»
-            var found = false;
-            for (var i = 0; i < head.childNodes.length; i++) {
-                var node = head.childNodes[i];
-                if (node.nodeType === 3 && /загрузка/i.test(node.textContent)) {
-                    node.textContent = node.textContent.replace(/загрузка/i, customTitle);
-                    found = true;
-                    break;
-                }
+        // 1) Убираем все текстовые узлы в .modal__head (дубли "Твин Пикс")
+        for (var i = head.childNodes.length - 1; i >= 0; i--) {
+            var node = head.childNodes[i];
+            if (node.nodeType === 3) {
+                // Текстовый узел — удаляем
+                head.removeChild(node);
             }
-            // Если не нашли — пробуем заменить весь текст (кроме других элементов)
-            if (!found && /загрузка/i.test(head.textContent)) {
-                // Сохраняем нетекстовые узлы (например, крестик закрытия)
-                var newContent = document.createDocumentFragment();
-                head.childNodes.forEach(function (n) {
-                    if (n.nodeType === 3) {
-                        newContent.appendChild(document.createTextNode(customTitle));
-                    } else {
-                        newContent.appendChild(n.cloneNode(true));
-                    }
-                });
-                head.innerHTML = '';
-                head.appendChild(newContent);
-            }
-            console.log('[Torrent Loading Modal] Заголовок заменён на:', customTitle);
         }
+
+        // 2) Заменяем текст внутри .modal__title
+        titleEl.textContent = customTitle;
+
+        console.log('[TLM] Заголовок заменён на:', customTitle);
     }
 
     function markModal(modal) {
         if (!modal || modal.classList.contains(MODAL_CLASS)) return;
         if (!isTorrentLoadingModal(modal)) return;
         modal.classList.add(MODAL_CLASS);
-        // Небольшая задержка, чтобы Lampa успела дорисовать DOM
         setTimeout(function () { replaceTitle(modal); }, 50);
     }
 
@@ -247,7 +260,7 @@
         observer.observe(document.body, { childList: true, subtree: true });
 
         scanModals();
-        console.log('[Torrent Loading Modal] Плагин загружен');
+        console.log('[TLM] Плагин загружен');
     }
 
     if (document.readyState === 'loading') {
