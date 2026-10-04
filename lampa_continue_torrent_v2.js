@@ -1,21 +1,23 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.4.2 (кнопка: сезон не закрыт, но раздача закончилась)
+ * Version: 2.5.0 (выбор серии, если раздача закончилась, а сезон — нет)
+ *
+ * Изменения v2.5.0:
+ *  - Если в раздаче просмотрены все серии, но сезон по TMDB ещё не закончился,
+ *    кнопка показывает "Сезон Y · Просмотрено X из X серий Сезона Y (всего Z серий)"
+ *    и по нажатию открывает попап выбора следующей серии (showNextEpisodePicker).
+ *  - buttonView() возвращает флаг needsNextSource.
+ *  - Добавлена showNextEpisodePicker(card).
  *
  * Изменения v2.4.2:
- *  - buttonView(): если в раздаче просмотрены все серии (is_last_torrent_episode),
- *    но по данным TMDB в текущем сезоне серий больше (seasonEpisodeCount > torrent_episode_count),
- *    выводится "Сезон Y · Просмотрено X из X серий Сезона Y (всего Z серий)".
- *  - Добавлена seasonEpisodeCount(card, season).
- *  - В остальном логика v2.4.1 не тронута.
+ *  - seasonEpisodeCount(card, season) и новая надпись для "раздача кончилась, сезон — нет".
  *
  * Изменения v2.4.1:
  *  - launchVimu() проверяет window.__ts_preload_show.
  *  - Если функция есть — показывает попап предзагрузки из ts-preload.js,
  *    а Lampa.Player.play вызывает в колбэке onReady.
  *  - Если функции нет — работает как раньше (запуск плеера сразу).
- *  - Все механизмы трекинга прогресса не тронуты.
  */
 (function () {
     'use strict';
@@ -70,7 +72,7 @@
     function debug() {
         if (!debugEnabled() || !window.console || !console.log) return;
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.4.2]');
+        args.unshift('[ContinueTorrent v2.5.0]');
         try { console.log.apply(console, args); } catch (e) {}
     }
 
@@ -746,7 +748,7 @@
     }
 
     function stableTimelineHash(card, torrentHash, item) {
-        var raw = ['continue-torrent-v242', cardIdentity(card), t(torrentHash).toUpperCase(), fileIdentity(item)].join('|');
+        var raw = ['continue-torrent-v250', cardIdentity(card), t(torrentHash).toUpperCase(), fileIdentity(item)].join('|');
         try {
             if (Lampa.Utils && typeof Lampa.Utils.hash === 'function') return String(Lampa.Utils.hash(raw));
         } catch (e) {}
@@ -1287,7 +1289,6 @@
         return {season: 0, episode: 0};
     }
 
-    // === НОВОЕ: подсчёт серий в сезоне по данным TMDB ===
     function seasonEpisodeCount(card, season) {
         season = n(season);
         if (!season || !card) return 0;
@@ -1465,13 +1466,7 @@
     }
 
     // ===================================================================
-    // ГЛАВНОЕ ИЗМЕНЕНИЕ v2.4.1
-    //
-    // launchVimu теперь:
-    //   1. Готовит data (prepareExternalTracking).
-    //   2. Если есть window.__ts_preload_show — вызывает попап
-    //      из ts-preload.js, а Lampa.Player.play делает в onReady.
-    //   3. Если попапа нет — работает как раньше (запуск сразу).
+    // launchVimu: запуск через ts-preload или напрямую
     // ===================================================================
     function launchVimu(item, playlist, time, options) {
         options = options || {};
@@ -1502,7 +1497,6 @@
         try {
             prepareExternalTracking(data);
 
-            // Внутренняя функция запуска плеера с готовыми данными
             function doLaunch() {
                 try {
                     Lampa.Player.play(data);
@@ -1514,7 +1508,6 @@
                 }
             }
 
-            // Если есть попап из ts-preload — показываем его
             if (typeof window.__ts_preload_show === 'function') {
                 debug('launchVimu -> ts-preload popup', 'file=', data.id);
 
@@ -1530,7 +1523,6 @@
                     }
                 });
             } else {
-                // Fallback: запускаем плеер сразу, как раньше
                 debug('launchVimu -> direct launch (no ts-preload)', 'file=', data.id);
                 doLaunch();
             }
@@ -1661,7 +1653,7 @@
             });
         }).catch(function(error) {
             if (error && error.cancelled) return;
-            console.error('[ContinueTorrent v2.4.2]', error);
+            console.error('[ContinueTorrent v2.5.0]', error);
             if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Не удалось открыть сохранённую раздачу');
         }).then(function() {
             stopResumeLoading(job);
@@ -1845,7 +1837,7 @@
     }
 
     function buttonView(card, record) {
-        if (!record) return {text: 'Продолжить', time: '', progress: 0, hasTime: false, series: false};
+        if (!record) return {text: 'Продолжить', time: '', progress: 0, hasTime: false, series: false, needsNextSource: false};
 
         var series = isSeries(card) || Boolean(n(record.season) && n(record.episode));
         var done = n(record.percent) >= COMPLETE_PERCENT;
@@ -1856,46 +1848,45 @@
             if (done) {
                 var lastInTorrent = record.is_last_torrent_episode === true;
                 if (lastInTorrent) {
-                    // Все серии в раздаче просмотрены
                     if (recordIsLastReleasedEpisode(card, record)) {
-                        return {text: 'Сезон просмотрен', time: '', progress: 0, hasTime: false, series: true};
+                        return {text: 'Сезон просмотрен', time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
                     }
 
                     var torrentCount = n(record.torrent_episode_count);
                     var currentSeason = n(record.season);
                     var seasonTotal = seasonEpisodeCount(card, currentSeason);
 
-                    // Раздача закончилась, но сезон ещё не закрыт (в сезоне больше серий, чем в раздаче)
                     if (torrentCount > 0 && currentSeason && seasonTotal > torrentCount) {
                         return {
                             text: 'Сезон ' + currentSeason + ' · Просмотрено ' + torrentCount +
                                   ' из ' + torrentCount + ' серий Сезона ' + currentSeason +
                                   ' (всего ' + seasonTotal + ' серий)',
-                            time: '', progress: 0, hasTime: false, series: true
+                            time: '', progress: 0, hasTime: false, series: true,
+                            needsNextSource: true
                         };
                     }
 
                     if (torrentCount > 0) {
-                        return {text: 'Просмотрено ' + torrentCount + ' серий', time: '', progress: 0, hasTime: false, series: true};
+                        return {text: 'Просмотрено ' + torrentCount + ' серий', time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
                     }
                 }
                 var nextSeason = n(record.next_season);
                 var curSeason = n(record.season);
                 if (nextSeason && curSeason && nextSeason > curSeason) {
-                    return {text: 'Продолжить · Следующий сезон ' + nextSeason, time: '', progress: 0, hasTime: false, series: true};
+                    return {text: 'Продолжить · Следующий сезон ' + nextSeason, time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
                 }
                 var nextEpisode = n(record.next_episode);
-                return {text: 'Продолжить · Следующая серия' + (nextEpisode ? ' ' + nextEpisode : ''), time: '', progress: 0, hasTime: false, series: true};
+                return {text: 'Продолжить · Следующая серия' + (nextEpisode ? ' ' + nextEpisode : ''), time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
             }
             if (hasTime) {
-                return {text: ep || '', time: formatTime(record.time), progress: progressFor(record), hasTime: true, series: true};
+                return {text: ep || '', time: formatTime(record.time), progress: progressFor(record), hasTime: true, series: true, needsNextSource: false};
             }
-            return {text: ep ? 'Продолжить · ' + ep : 'Продолжить', time: '', progress: 0, hasTime: false, series: true};
+            return {text: ep ? 'Продолжить · ' + ep : 'Продолжить', time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
         }
 
-        if (done) return {text: 'Продолжить просмотр', time: '', progress: 0, hasTime: false, series: false};
-        if (hasTime) return {text: 'Продолжить', time: formatTime(record.time), progress: progressFor(record), hasTime: true, series: false};
-        return {text: 'Продолжить', time: '', progress: 0, hasTime: false, series: false};
+        if (done) return {text: 'Продолжить просмотр', time: '', progress: 0, hasTime: false, series: false, needsNextSource: false};
+        if (hasTime) return {text: 'Продолжить', time: formatTime(record.time), progress: progressFor(record), hasTime: true, series: false, needsNextSource: false};
+        return {text: 'Продолжить', time: '', progress: 0, hasTime: false, series: false, needsNextSource: false};
     }
 
     function escapeButtonText(value) {
@@ -2039,6 +2030,107 @@
 
     function notify(message) {
         if (Lampa.Noty && typeof Lampa.Noty.show === 'function') Lampa.Noty.show(message);
+    }
+
+    // ===================================================================
+    // showNextEpisodePicker: попап выбора серии, когда раздача закончилась,
+    // а сезон ещё не закрыт.
+    // Открывает список серий текущего сезона из TMDB.
+    // ===================================================================
+    function showNextEpisodePicker(card) {
+        if (!card) return;
+
+        var record = get(card) || {};
+        var currentSeason = n(record.season) || 1;
+        var total = seasonEpisodeCount(card, currentSeason);
+        var watchedCount = n(record.torrent_episode_count);
+
+        if (!total) {
+            notify('Нет данных о сериях сезона');
+            return;
+        }
+
+        var enabled = '';
+        try {
+            var controller = Lampa.Controller && Lampa.Controller.enabled ? Lampa.Controller.enabled() : null;
+            enabled = controller && controller.name ? controller.name : '';
+        } catch (e) {}
+
+        var items = [];
+        for (var ep = 1; ep <= total; ep++) {
+            var title = 'Серия ' + ep;
+            if (ep <= watchedCount) title += ' · просмотрено';
+            items.push({
+                title: title,
+                episode: ep,
+                action: 'watch'
+            });
+        }
+
+        items.push({title: 'Открыть раздачу', action: 'open_torrent'});
+        items.push({title: 'Выбрать другую раздачу', action: 'choose_torrent'});
+
+        function restoreController() {
+            if (!enabled || !Lampa.Controller || typeof Lampa.Controller.toggle !== 'function') return;
+            try { Lampa.Controller.toggle(enabled); } catch (e) {}
+        }
+
+        Lampa.Select.show({
+            title: 'Сезон ' + currentSeason + ' · Выбор серии',
+            items: items,
+            onBack: function() { restoreController(); },
+            onSelect: function(item) {
+                restoreController();
+                if (!item) return;
+
+                setTimeout(function() {
+                    if (item.action === 'open_torrent') {
+                        openSavedTorrent(card);
+                    } else if (item.action === 'choose_torrent') {
+                        chooseAnotherTorrent(card);
+                    } else if (item.action === 'watch') {
+                        startEpisodeFromOtherSource(card, currentSeason, item.episode);
+                    }
+                }, 30);
+            }
+        });
+    }
+
+    // Запуск серии, которой нет в текущей раздаче.
+    // Пробуем найти её через штатный поиск торрентов Lampa для карточки.
+    function startEpisodeFromOtherSource(card, season, episode) {
+        season = n(season);
+        episode = n(episode);
+
+        // 1) Переключаем карточку на нужный сезон/серию и открываем список торрентов
+        try {
+            if (Lampa.Activity && typeof Lampa.Activity.push === 'function') {
+                Lampa.Activity.push({
+                    url: '',
+                    component: 'torrents',
+                    title: t(card.title || card.name || card.original_title) + ' · S' + season + 'E' + episode,
+                    card: card,
+                    movie: card,
+                    season: season,
+                    episode: episode
+                });
+                return;
+            }
+        } catch (e) {
+            debug('Activity.push(torrents) failed', e);
+        }
+
+        // 2) Fallback — открываем список торрентов через кнопку, как chooseAnotherTorrent
+        var ctx = activeFullContext();
+        if (ctx && cardIdentity(ctx.card) === cardIdentity(card)) {
+            var torrentButton = ctx.root.find('.view--torrent').first();
+            if (torrentButton.length) {
+                torrentButton.trigger('hover:enter');
+                return;
+            }
+        }
+
+        notify('Не удалось открыть поиск раздач');
     }
 
     function resetProgress(card) {
@@ -2189,6 +2281,15 @@
 
         button.on('hover:enter', function() {
             if (Date.now() < n(runtime.longPressUntil)) return;
+
+            // v2.5.0: если раздача закончилась, а сезон — нет, открываем попап выбора серии
+            var currentRecord = get(card);
+            var view = buttonView(card, currentRecord);
+            if (view && view.needsNextSource === true) {
+                showNextEpisodePicker(card);
+                return;
+            }
+
             resume(card);
         });
 
@@ -2316,7 +2417,7 @@
             });
         }
 
-        console.log('[ContinueTorrent v2.4.2] Lampa + TorrServer + Vimu ready (ts-preload integration)');
+        console.log('[ContinueTorrent v2.5.0] Lampa + TorrServer + Vimu ready (ts-preload integration, next-source picker)');
     }
 
     if (window.appready) {
