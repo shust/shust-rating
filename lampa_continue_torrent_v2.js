@@ -1,18 +1,19 @@
 /*
  * Lampa Continue Torrent — V2
  * Lampa + TorrServer + Vimu
- * Version: 2.5.1 (попап выбора серии; убрано дублирование "Сезона Y")
+ * Version: 2.5.2 (короткая надпись, попап с 2 пунктами)
+ *
+ * Изменения v2.5.2:
+ *  - Надпись кнопки: "Сезон Y · X/X · всего Z".
+ *  - Попап по кнопке (когда раздача кончилась, а сезон — нет) содержит только
+ *    "Открыть раздачу" и "Искать другие раздачи".
  *
  * Изменения v2.5.1:
- *  - В buttonView() ветка "раздача кончилась, сезон — нет" теперь без дублирования сезона:
- *    "Сезон Y · Просмотрено X из X серий (всего Z серий)".
- *  - Порядок проверок в buttonView(): сначала seasonTotal > torrentCount,
- *    потом recordIsLastReleasedEpisode(). Иначе last_episode_to_air перекрывает.
+ *  - Убрано дублирование "Сезона Y" в надписи.
+ *  - seasonEpisodeCount(card, currentSeason) || n(record.last_released_episode) как fallback.
  *
  * Изменения v2.5.0:
- *  - Если раздача закончилась, а сезон по TMDB ещё не закрыт — кнопка открывает попап
- *    выбора серии (showNextEpisodePicker).
- *  - buttonView() возвращает флаг needsNextSource.
+ *  - Кнопка открывает попап выбора (showNextEpisodePicker), если needsNextSource === true.
  *
  * Изменения v2.4.1:
  *  - launchVimu() проверяет window.__ts_preload_show.
@@ -70,7 +71,7 @@
     function debug() {
         if (!debugEnabled() || !window.console || !console.log) return;
         var args = Array.prototype.slice.call(arguments);
-        args.unshift('[ContinueTorrent v2.5.1]');
+        args.unshift('[ContinueTorrent v2.5.2]');
         try { console.log.apply(console, args); } catch (e) {}
     }
 
@@ -746,7 +747,7 @@
     }
 
     function stableTimelineHash(card, torrentHash, item) {
-        var raw = ['continue-torrent-v251', cardIdentity(card), t(torrentHash).toUpperCase(), fileIdentity(item)].join('|');
+        var raw = ['continue-torrent-v252', cardIdentity(card), t(torrentHash).toUpperCase(), fileIdentity(item)].join('|');
         try {
             if (Lampa.Utils && typeof Lampa.Utils.hash === 'function') return String(Lampa.Utils.hash(raw));
         } catch (e) {}
@@ -1648,7 +1649,7 @@
             });
         }).catch(function(error) {
             if (error && error.cancelled) return;
-            console.error('[ContinueTorrent v2.5.1]', error);
+            console.error('[ContinueTorrent v2.5.2]', error);
             if (Lampa.Noty && Lampa.Noty.show) Lampa.Noty.show('Не удалось открыть сохранённую раздачу');
         }).then(function() {
             stopResumeLoading(job);
@@ -1848,17 +1849,15 @@
                     var currentSeason = n(record.season);
                     var seasonTotal = seasonEpisodeCount(card, currentSeason) || n(record.last_released_episode);
 
-                    // Сначала: раздача кончилась, но в сезоне ещё есть серии → выбор серии.
                     if (torrentCount > 0 && currentSeason && seasonTotal > torrentCount) {
                         return {
-                            text: 'Сезон ' + currentSeason + ' · Просмотрено ' + torrentCount +
-                                  ' из ' + torrentCount + ' серий (всего ' + seasonTotal + ' серий)',
+                            text: 'Сезон ' + currentSeason + ' · ' + torrentCount + '/' + torrentCount +
+                                  ' · всего ' + seasonTotal,
                             time: '', progress: 0, hasTime: false, series: true,
                             needsNextSource: true
                         };
                     }
 
-                    // Сезон реально закрыт.
                     if (recordIsLastReleasedEpisode(card, record)) {
                         return {text: 'Сезон просмотрен', time: '', progress: 0, hasTime: false, series: true, needsNextSource: false};
                     }
@@ -2031,7 +2030,7 @@
     }
 
     // ===================================================================
-    // showNextEpisodePicker: попап выбора серии, когда раздача закончилась,
+    // showNextEpisodePicker: попап с 2 пунктами, когда раздача закончилась,
     // а сезон ещё не закрыт.
     // ===================================================================
     function showNextEpisodePicker(card) {
@@ -2039,13 +2038,6 @@
 
         var record = get(card) || {};
         var currentSeason = n(record.season) || 1;
-        var total = seasonEpisodeCount(card, currentSeason) || n(record.last_released_episode);
-        var watchedCount = n(record.torrent_episode_count);
-
-        if (!total) {
-            notify('Нет данных о сериях сезона');
-            return;
-        }
 
         var enabled = '';
         try {
@@ -2053,19 +2045,10 @@
             enabled = controller && controller.name ? controller.name : '';
         } catch (e) {}
 
-        var items = [];
-        for (var ep = 1; ep <= total; ep++) {
-            var title = 'Серия ' + ep;
-            if (ep <= watchedCount) title += ' · просмотрено';
-            items.push({
-                title: title,
-                episode: ep,
-                action: 'watch'
-            });
-        }
-
-        items.push({title: 'Открыть раздачу', action: 'open_torrent'});
-        items.push({title: 'Выбрать другую раздачу', action: 'choose_torrent'});
+        var items = [
+            {title: 'Открыть раздачу', action: 'open_torrent'},
+            {title: 'Искать другие раздачи', action: 'choose_torrent'}
+        ];
 
         function restoreController() {
             if (!enabled || !Lampa.Controller || typeof Lampa.Controller.toggle !== 'function') return;
@@ -2073,7 +2056,7 @@
         }
 
         Lampa.Select.show({
-            title: 'Сезон ' + currentSeason + ' · Выбор серии',
+            title: 'Сезон ' + currentSeason,
             items: items,
             onBack: function() { restoreController(); },
             onSelect: function(item) {
@@ -2085,45 +2068,10 @@
                         openSavedTorrent(card);
                     } else if (item.action === 'choose_torrent') {
                         chooseAnotherTorrent(card);
-                    } else if (item.action === 'watch') {
-                        startEpisodeFromOtherSource(card, currentSeason, item.episode);
                     }
                 }, 30);
             }
         });
-    }
-
-    function startEpisodeFromOtherSource(card, season, episode) {
-        season = n(season);
-        episode = n(episode);
-
-        try {
-            if (Lampa.Activity && typeof Lampa.Activity.push === 'function') {
-                Lampa.Activity.push({
-                    url: '',
-                    component: 'torrents',
-                    title: t(card.title || card.name || card.original_title) + ' · S' + season + 'E' + episode,
-                    card: card,
-                    movie: card,
-                    season: season,
-                    episode: episode
-                });
-                return;
-            }
-        } catch (e) {
-            debug('Activity.push(torrents) failed', e);
-        }
-
-        var ctx = activeFullContext();
-        if (ctx && cardIdentity(ctx.card) === cardIdentity(card)) {
-            var torrentButton = ctx.root.find('.view--torrent').first();
-            if (torrentButton.length) {
-                torrentButton.trigger('hover:enter');
-                return;
-            }
-        }
-
-        notify('Не удалось открыть поиск раздач');
     }
 
     function resetProgress(card) {
@@ -2409,7 +2357,7 @@
             });
         }
 
-        console.log('[ContinueTorrent v2.5.1] Lampa + TorrServer + Vimu ready (ts-preload integration, next-source picker)');
+        console.log('[ContinueTorrent v2.5.2] Lampa + TorrServer + Vimu ready (ts-preload integration, 2-пунктовый попап)');
     }
 
     if (window.appready) {
