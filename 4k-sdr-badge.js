@@ -8,7 +8,7 @@
             background-color: rgba(255, 255, 255, 0.85) !important;
             color: #1d1f20 !important;
             font-weight: 700 !important;
-            border: 1px solid rgba(255, 255, 255, 0.9) !important;
+            border: none !important;
 
             /* Фикс разметки */
             display: inline-flex !important;
