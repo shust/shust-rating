@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var DEBUG = true; // ← включить отладку в консоли
+    var DEBUG = false; // Поставьте true для отладки
 
     var styleId = 'lampa-4k-sdr-badge-style';
     var css = `
@@ -22,10 +22,11 @@
         document.head.appendChild(style);
     }
 
+    // Только надёжные признаки HDR — без коротких/неоднозначных
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
-        return /(HDR10\+|HDR10|HDR\s*10|HDR|DOLBY\s*VISION|\bDV\b|\bHLG\b)/.test(t);
+        return /(HDR10\+|HDR10|HDR\s*10|\bHDR\b|DOLBY\s*VISION|DV\s*P\d|\bHLG\b)/.test(t);
     }
 
     function hasSDR(text) {
@@ -48,80 +49,71 @@
         var items = document.querySelectorAll('.torrent-item');
         var changed = 0;
 
-        if (DEBUG) console.log('[4k-sdr] processTorrents: найдено .torrent-item =', items.length);
-
         items.forEach(function (item, idx) {
-            if (item.dataset.sdrProcessed === '1') {
-                if (DEBUG) console.log('[4k-sdr] #' + idx + ' уже обработано, пропуск');
-                return;
-            }
+            if (item.dataset.sdrProcessed === '1') return;
 
             var titleEl = item.querySelector('.torrent-item__title');
             var title = titleEl ? titleEl.textContent : '';
 
             var block = item.querySelector('.torrent-item__ffprobe');
-            if (!block) {
-                if (DEBUG) console.log('[4k-sdr] #' + idx + ' нет .torrent-item__ffprobe');
+            if (!block) return;
+
+            var is4k = is4K(title, block);
+            if (!is4k) {
+                item.dataset.sdrProcessed = '1';
                 return;
             }
 
-            var is4k = is4K(title, block);
             var titleHasHDR = hasHDR(title);
             var titleHasSDR = hasSDR(title);
 
             var hasHdrBadge = false;
             var res4kBadge = null;
-            var badgeTexts = [];
             block.querySelectorAll('.m-resolution').forEach(function (b) {
                 var txt = b.textContent.trim().toUpperCase();
-                badgeTexts.push(txt);
                 if (txt === 'HDR') hasHdrBadge = true;
                 if (txt === '4K') res4kBadge = b;
             });
 
+            if (!res4kBadge) {
+                item.dataset.sdrProcessed = '1';
+                return;
+            }
+
             if (DEBUG) {
                 console.log('[4k-sdr] #' + idx, {
-                    title: title.substring(0, 80) + '...',
+                    title: title,
                     is4k: is4k,
                     titleHasHDR: titleHasHDR,
                     titleHasSDR: titleHasSDR,
-                    hasHdrBadge: hasHdrBadge,
-                    has4kBadge: !!res4kBadge,
-                    badges: badgeTexts
+                    hasHdrBadge: hasHdrBadge
                 });
             }
 
-            if (!is4k || !res4kBadge) {
-                item.dataset.sdrProcessed = '1';
-                return;
-            }
-
-            var sdrByName = titleHasSDR && !titleHasHDR;
-            var sdrByBadge = !hasHdrBadge;
-
+            // Защита: если в названии есть явный HDR — не трогаем
             if (titleHasHDR) {
-                if (DEBUG) console.log('[4k-sdr] #' + idx + ' → HDR по названию, не трогаем');
                 item.dataset.sdrProcessed = '1';
                 return;
             }
 
-            if (sdrByName || sdrByBadge) {
+            // SDR = в названии SDR ИЛИ нет бейджа HDR
+            var isSDR = titleHasSDR || !hasHdrBadge;
+
+            if (isSDR) {
                 res4kBadge.textContent = '4K SDR';
                 res4kBadge.classList.add('m-resolution--sdr');
                 changed++;
-                if (DEBUG) console.log('[4k-sdr] #' + idx + ' → ПОМЕЧЕНО как 4K SDR');
             }
 
             item.dataset.sdrProcessed = '1';
         });
 
-        if (DEBUG) console.log('[4k-sdr] изменено:', changed);
+        if (DEBUG && changed > 0) console.log('[4k-sdr] изменено:', changed);
         return changed;
     }
 
     function init() {
         injectStyles();
-
         setTimeout(processTorrents, 300);
         setTimeout(processTorrents, 1000);
         setTimeout(processTorrents, 2500);
@@ -142,7 +134,6 @@
         init();
     }
 
-    // Ручной триггер для отладки
     window.__4kSdrDebug = function () {
         document.querySelectorAll('.torrent-item').forEach(function (x) {
             delete x.dataset.sdrProcessed;
