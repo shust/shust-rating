@@ -25,21 +25,14 @@
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
-        // Ищем HDR, HDR10, HDR10+, Dolby Vision, DV (как отдельное слово), HLG
-        return /(HDR10\+|HDR10|HDR|DOLBY\s*VISION|\bDV\b|HLG)/.test(t);
-    }
-
-    // Проверка признака SDR в строке
-    function hasSDR(text) {
-        if (!text) return false;
-        return /\bSDR\b/.test(text.toUpperCase());
+        // HDR10+, HDR10, HDR, Dolby Vision, DV (отдельным словом), HLG
+        // Порядок альтернатив: сначала более длинные, потом короткие
+        return /(HDR10\+|HDR10|HDR\s*10|HDR|DOLBY\s*VISION|\bDV\b|\bHLG\b)/.test(t);
     }
 
     // Проверка: является ли раздача 4K (по названию или по бейджу)
     function is4K(name, block) {
-        // 1. По названию
-        if (name && /\b4K\b|2160P|UHD/i.test(name)) return true;
-        // 2. По бейджу разрешения
+        if (name && /(\b4K\b|2160P|UHD)/i.test(name)) return true;
         var resolutions = block.querySelectorAll('.m-resolution');
         var found = false;
         resolutions.forEach(function (r) {
@@ -61,23 +54,32 @@
             var block = item.querySelector('.torrent-item__ffprobe');
             if (!block) return;
 
-            // Условие: это 4K, в названии есть SDR, и нет признаков HDR
+            // 1. Это 4K?
             var is4k = is4K(title, block);
-            var sdrByName = hasSDR(title) && !hasHDR(title);
+            if (!is4k) return;
 
-            // Запасной вариант: 4K-бейдж есть, HDR-бейджа нет
-            var badges = block.querySelectorAll('.m-resolution');
+            // 2. Есть ли признаки HDR?
+            // Проверяем и название, и весь текст блока бейджей, и весь item на всякий случай
+            var blockText = block.textContent || '';
+            var itemText  = item.textContent  || '';
+
+            var titleHasHDR = hasHDR(title);
+            var blockHasHDR = hasHDR(blockText);
+            var itemHasHDR  = hasHDR(itemText);
+
             var hasHdrBadge = false;
             var res4kBadge = null;
+            var badges = block.querySelectorAll('.m-resolution');
             badges.forEach(function (b) {
                 var txt = b.textContent.trim().toUpperCase();
                 if (txt === 'HDR') hasHdrBadge = true;
                 if (txt === '4K') res4kBadge = b;
             });
 
-            var sdrByBadge = res4kBadge && !hasHdrBadge;
+            // 3. SDR = нет ни одного признака HDR
+            var isSDR = !titleHasHDR && !blockHasHDR && !itemHasHDR && !hasHdrBadge;
 
-            if (is4k && (sdrByName || sdrByBadge) && res4kBadge) {
+            if (isSDR && res4kBadge) {
                 res4kBadge.textContent = '4K SDR';
                 res4kBadge.classList.add('m-resolution--sdr');
                 item.dataset.sdrProcessed = '1';
