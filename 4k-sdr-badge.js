@@ -21,17 +21,22 @@
         document.head.appendChild(style);
     }
 
-    // Проверка признаков HDR в строке
+    // Признаки HDR в строке
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
-        // HDR10+, HDR10, HDR 10, HDR, Dolby Vision, DV (отдельным словом), HLG
         return /(HDR10\+|HDR10|HDR\s*10|HDR|DOLBY\s*VISION|\bDV\b|\bHLG\b)/.test(t);
     }
 
-    // Проверка: является ли раздача 4K (по названию или по бейджу)
-    function is4K(text, badgeContainer) {
-        if (text && /(\b4K\b|2160P|UHD)/i.test(text)) return true;
+    // Признак SDR в строке
+    function hasSDR(text) {
+        if (!text) return false;
+        return /\bSDR\b/.test(text.toUpperCase());
+    }
+
+    // 4K ли раздача
+    function is4K(name, badgeContainer) {
+        if (name && /(\b4K\b|2160P|UHD)/i.test(name)) return true;
         if (!badgeContainer) return false;
         var resolutions = badgeContainer.querySelectorAll('.m-resolution');
         var found = false;
@@ -54,22 +59,16 @@
             var block = item.querySelector('.torrent-item__ffprobe');
             if (!block) return;
 
-            // 1. Это 4K?
             var is4k = is4K(title, block);
             if (!is4k) {
-                // Не 4K — помечаем, чтобы больше не дёргать эту раздачу
                 item.dataset.sdrProcessed = '1';
                 return;
             }
 
-            // 2. Есть ли признаки HDR?
-            var blockText = block.textContent || '';
-            var itemText  = item.textContent  || '';
-
+            // Признак HDR только в названии — защита от ложных SDR
             var titleHasHDR = hasHDR(title);
-            var blockHasHDR = hasHDR(blockText);
-            var itemHasHDR  = hasHDR(itemText);
 
+            // Ищем бейдж 4K и бейдж HDR
             var hasHdrBadge = false;
             var res4kBadge = null;
             var badges = block.querySelectorAll('.m-resolution');
@@ -79,10 +78,24 @@
                 if (txt === '4K') res4kBadge = b;
             });
 
-            // 3. SDR = нет ни одного признака HDR
-            var isSDR = !titleHasHDR && !blockHasHDR && !itemHasHDR && !hasHdrBadge;
+            if (!res4kBadge) {
+                item.dataset.sdrProcessed = '1';
+                return;
+            }
 
-            if (isSDR && res4kBadge) {
+            // Логика из первой (рабочей) версии:
+            // SDR либо явно указан в названии, либо отсутствует HDR в бейджах.
+            // Но если в НАЗВАНИИ есть HDR — никогда не SDR.
+            var sdrByName  = hasSDR(title) && !titleHasHDR;
+            var sdrByBadge = !hasHdrBadge;
+
+            if (titleHasHDR) {
+                // Точный HDR по названию — не трогаем
+                item.dataset.sdrProcessed = '1';
+                return;
+            }
+
+            if (sdrByName || sdrByBadge) {
                 res4kBadge.textContent = '4K SDR';
                 res4kBadge.classList.add('m-resolution--sdr');
                 changed++;
@@ -94,29 +107,13 @@
         return changed;
     }
 
-    // Многократный прогон — на случай поздней подгрузки
-    function runRepeatedly() {
-        var tries = 0;
-        var maxTries = 10; // 10 попыток × 500 мс = 5 секунд
-        var timer = setInterval(function () {
-            tries++;
-            processTorrents();
-            if (tries >= maxTries) {
-                clearInterval(timer);
-            }
-        }, 500);
-    }
-
     function init() {
         injectStyles();
 
-        // Первый прогон сразу и через короткие интервалы
         setTimeout(processTorrents, 300);
         setTimeout(processTorrents, 1000);
-        setTimeout(processTorrents, 2000);
-        runRepeatedly();
+        setTimeout(processTorrents, 2500);
 
-        // Следим за изменениями DOM (переключение вкладок, обновление списка)
         var observer = new MutationObserver(function (mutations) {
             var need = false;
             mutations.forEach(function (m) {
@@ -124,21 +121,7 @@
             });
             if (need) processTorrents();
         });
-
         observer.observe(document.body, { childList: true, subtree: true });
-
-        // Обработка кликов/фокуса — Lampa может перерисовывать список
-        document.addEventListener('click', function () {
-            setTimeout(processTorrents, 150);
-        }, true);
-
-        // Клавиатура (пульт ТВ)
-        document.addEventListener('keyup', function (e) {
-            // Стрелки, Enter — основные клавиши навигации
-            if ([37, 38, 39, 40, 13].indexOf(e.keyCode) !== -1) {
-                setTimeout(processTorrents, 150);
-            }
-        }, true);
     }
 
     if (document.readyState === 'loading') {
