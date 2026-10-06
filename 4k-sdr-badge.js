@@ -41,80 +41,82 @@
         return found;
     }
 
-    // Универсальная обработка одного контейнера раздачи
-    function processItem(item, titleSelector, blockSelector) {
-        if (item.dataset.sdrProcessed === '1') return;
+    function processTorrents() {
+        var items = document.querySelectorAll('.torrent-item');
+        var changed = 0;
 
-        var titleEl = item.querySelector(titleSelector);
-        var title = titleEl ? titleEl.textContent : '';
+        items.forEach(function (item) {
+            if (item.dataset.sdrProcessed === '1') return;
 
-        // Контейнер с бейджами может называться по-разному,
-        // поэтому ищем его гибко
-        var block = item.querySelector(blockSelector);
-        if (!block) {
-            // Запасной вариант — взять любой из известных контейнеров
-            block = item.querySelector('.torrent-item__ffprobe, .torrent-serial__ffprobe, .torrent-serial__info');
-        }
-        if (!block) return;
+            var titleEl = item.querySelector('.torrent-item__title');
+            var title = titleEl ? titleEl.textContent : '';
 
-        // 1. Это 4K?
-        var is4k = is4K(title, block);
-        if (!is4k) return;
+            var block = item.querySelector('.torrent-item__ffprobe');
+            if (!block) return;
 
-        // 2. Есть ли признаки HDR? Проверяем везде
-        var blockText = block.textContent || '';
-        var itemText  = item.textContent  || '';
+            // 1. Это 4K?
+            var is4k = is4K(title, block);
+            if (!is4k) {
+                // Не 4K — помечаем, чтобы больше не дёргать эту раздачу
+                item.dataset.sdrProcessed = '1';
+                return;
+            }
 
-        var titleHasHDR = hasHDR(title);
-        var blockHasHDR = hasHDR(blockText);
-        var itemHasHDR  = hasHDR(itemText);
+            // 2. Есть ли признаки HDR?
+            var blockText = block.textContent || '';
+            var itemText  = item.textContent  || '';
 
-        var hasHdrBadge = false;
-        var res4kBadge = null;
-        var badges = block.querySelectorAll('.m-resolution');
-        badges.forEach(function (b) {
-            var txt = b.textContent.trim().toUpperCase();
-            if (txt === 'HDR') hasHdrBadge = true;
-            if (txt === '4K') res4kBadge = b;
-        });
+            var titleHasHDR = hasHDR(title);
+            var blockHasHDR = hasHDR(blockText);
+            var itemHasHDR  = hasHDR(itemText);
 
-        // Если бейдж 4K не нашли в основном блоке — попробуем найти во всём item
-        if (!res4kBadge) {
-            var allBadges = item.querySelectorAll('.m-resolution');
-            allBadges.forEach(function (b) {
+            var hasHdrBadge = false;
+            var res4kBadge = null;
+            var badges = block.querySelectorAll('.m-resolution');
+            badges.forEach(function (b) {
                 var txt = b.textContent.trim().toUpperCase();
                 if (txt === 'HDR') hasHdrBadge = true;
-                if (txt === '4K' && !res4kBadge) res4kBadge = b;
+                if (txt === '4K') res4kBadge = b;
             });
-        }
 
-        // 3. SDR = нет ни одного признака HDR
-        var isSDR = !titleHasHDR && !blockHasHDR && !itemHasHDR && !hasHdrBadge;
+            // 3. SDR = нет ни одного признака HDR
+            var isSDR = !titleHasHDR && !blockHasHDR && !itemHasHDR && !hasHdrBadge;
 
-        if (isSDR && res4kBadge) {
-            res4kBadge.textContent = '4K SDR';
-            res4kBadge.classList.add('m-resolution--sdr');
+            if (isSDR && res4kBadge) {
+                res4kBadge.textContent = '4K SDR';
+                res4kBadge.classList.add('m-resolution--sdr');
+                changed++;
+            }
+
             item.dataset.sdrProcessed = '1';
-        }
+        });
+
+        return changed;
     }
 
-    function processTorrents() {
-        // Обычные торренты (фильмы)
-        document.querySelectorAll('.torrent-item').forEach(function (item) {
-            processItem(item, '.torrent-item__title', '.torrent-item__ffprobe');
-        });
-
-        // Сериальные торренты
-        document.querySelectorAll('.torrent-serial').forEach(function (item) {
-            processItem(item, '.torrent-serial__title, .torrent-item__title', '.torrent-serial__ffprobe, .torrent-serial__info');
-        });
+    // Многократный прогон — на случай поздней подгрузки
+    function runRepeatedly() {
+        var tries = 0;
+        var maxTries = 10; // 10 попыток × 500 мс = 5 секунд
+        var timer = setInterval(function () {
+            tries++;
+            processTorrents();
+            if (tries >= maxTries) {
+                clearInterval(timer);
+            }
+        }, 500);
     }
 
     function init() {
         injectStyles();
-        setTimeout(processTorrents, 500);
-        setTimeout(processTorrents, 1500); // на случай поздней подгрузки
 
+        // Первый прогон сразу и через короткие интервалы
+        setTimeout(processTorrents, 300);
+        setTimeout(processTorrents, 1000);
+        setTimeout(processTorrents, 2000);
+        runRepeatedly();
+
+        // Следим за изменениями DOM (переключение вкладок, обновление списка)
         var observer = new MutationObserver(function (mutations) {
             var need = false;
             mutations.forEach(function (m) {
@@ -124,6 +126,19 @@
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
+
+        // Обработка кликов/фокуса — Lampa может перерисовывать список
+        document.addEventListener('click', function () {
+            setTimeout(processTorrents, 150);
+        }, true);
+
+        // Клавиатура (пульт ТВ)
+        document.addEventListener('keyup', function (e) {
+            // Стрелки, Enter — основные клавиши навигации
+            if ([37, 38, 39, 40, 13].indexOf(e.keyCode) !== -1) {
+                setTimeout(processTorrents, 150);
+            }
+        }, true);
     }
 
     if (document.readyState === 'loading') {
