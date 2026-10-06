@@ -1,9 +1,10 @@
 (function () {
     'use strict';
 
+    var DEBUG = true; // ← включить отладку в консоли
+
     var styleId = 'lampa-4k-sdr-badge-style';
     var css = `
-        /* Стиль для бейджа 4K SDR */
         .m-resolution.m-resolution--sdr {
             background-color: rgba(255, 255, 255, 0.85) !important;
             color: #1d1f20 !important;
@@ -21,20 +22,17 @@
         document.head.appendChild(style);
     }
 
-    // Признаки HDR в строке
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
         return /(HDR10\+|HDR10|HDR\s*10|HDR|DOLBY\s*VISION|\bDV\b|\bHLG\b)/.test(t);
     }
 
-    // Признак SDR в строке
     function hasSDR(text) {
         if (!text) return false;
         return /\bSDR\b/.test(text.toUpperCase());
     }
 
-    // 4K ли раздача
     function is4K(name, badgeContainer) {
         if (name && /(\b4K\b|2160P|UHD)/i.test(name)) return true;
         if (!badgeContainer) return false;
@@ -50,47 +48,59 @@
         var items = document.querySelectorAll('.torrent-item');
         var changed = 0;
 
-        items.forEach(function (item) {
-            if (item.dataset.sdrProcessed === '1') return;
+        if (DEBUG) console.log('[4k-sdr] processTorrents: найдено .torrent-item =', items.length);
+
+        items.forEach(function (item, idx) {
+            if (item.dataset.sdrProcessed === '1') {
+                if (DEBUG) console.log('[4k-sdr] #' + idx + ' уже обработано, пропуск');
+                return;
+            }
 
             var titleEl = item.querySelector('.torrent-item__title');
             var title = titleEl ? titleEl.textContent : '';
 
             var block = item.querySelector('.torrent-item__ffprobe');
-            if (!block) return;
-
-            var is4k = is4K(title, block);
-            if (!is4k) {
-                item.dataset.sdrProcessed = '1';
+            if (!block) {
+                if (DEBUG) console.log('[4k-sdr] #' + idx + ' нет .torrent-item__ffprobe');
                 return;
             }
 
-            // Признак HDR только в названии — защита от ложных SDR
+            var is4k = is4K(title, block);
             var titleHasHDR = hasHDR(title);
+            var titleHasSDR = hasSDR(title);
 
-            // Ищем бейдж 4K и бейдж HDR
             var hasHdrBadge = false;
             var res4kBadge = null;
-            var badges = block.querySelectorAll('.m-resolution');
-            badges.forEach(function (b) {
+            var badgeTexts = [];
+            block.querySelectorAll('.m-resolution').forEach(function (b) {
                 var txt = b.textContent.trim().toUpperCase();
+                badgeTexts.push(txt);
                 if (txt === 'HDR') hasHdrBadge = true;
                 if (txt === '4K') res4kBadge = b;
             });
 
-            if (!res4kBadge) {
+            if (DEBUG) {
+                console.log('[4k-sdr] #' + idx, {
+                    title: title.substring(0, 80) + '...',
+                    is4k: is4k,
+                    titleHasHDR: titleHasHDR,
+                    titleHasSDR: titleHasSDR,
+                    hasHdrBadge: hasHdrBadge,
+                    has4kBadge: !!res4kBadge,
+                    badges: badgeTexts
+                });
+            }
+
+            if (!is4k || !res4kBadge) {
                 item.dataset.sdrProcessed = '1';
                 return;
             }
 
-            // Логика из первой (рабочей) версии:
-            // SDR либо явно указан в названии, либо отсутствует HDR в бейджах.
-            // Но если в НАЗВАНИИ есть HDR — никогда не SDR.
-            var sdrByName  = hasSDR(title) && !titleHasHDR;
+            var sdrByName = titleHasSDR && !titleHasHDR;
             var sdrByBadge = !hasHdrBadge;
 
             if (titleHasHDR) {
-                // Точный HDR по названию — не трогаем
+                if (DEBUG) console.log('[4k-sdr] #' + idx + ' → HDR по названию, не трогаем');
                 item.dataset.sdrProcessed = '1';
                 return;
             }
@@ -99,11 +109,13 @@
                 res4kBadge.textContent = '4K SDR';
                 res4kBadge.classList.add('m-resolution--sdr');
                 changed++;
+                if (DEBUG) console.log('[4k-sdr] #' + idx + ' → ПОМЕЧЕНО как 4K SDR');
             }
 
             item.dataset.sdrProcessed = '1';
         });
 
+        if (DEBUG) console.log('[4k-sdr] изменено:', changed);
         return changed;
     }
 
@@ -129,5 +141,13 @@
     } else {
         init();
     }
+
+    // Ручной триггер для отладки
+    window.__4kSdrDebug = function () {
+        document.querySelectorAll('.torrent-item').forEach(function (x) {
+            delete x.dataset.sdrProcessed;
+        });
+        return processTorrents();
+    };
 
 })();
