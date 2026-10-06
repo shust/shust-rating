@@ -3,12 +3,36 @@
 
     var styleId = 'lampa-4k-sdr-badge-style';
     var css = `
-        /* Стиль для бейджа 4K SDR */
+        /* ===== Стиль для бейджа 4K SDR ===== */
         .m-resolution.m-resolution--sdr {
             background-color: rgba(255, 255, 255, 0.85) !important;
             color: #1d1f20 !important;
             font-weight: 700 !important;
             border: 1px solid rgba(255, 255, 255, 0.9) !important;
+
+            /* Фикс разметки */
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            white-space: nowrap !important;
+            flex: 0 0 auto !important;
+            align-self: flex-start !important;
+            margin: 0 !important;
+            padding: 0 0.4em !important;
+            min-width: 2.6em !important;
+            box-sizing: border-box !important;
+            line-height: 1.6 !important;
+        }
+
+        /* Контейнер бейджей: прижимаем элементы к верху,
+           чтобы длинный бейдж не растягивал строку по вертикали */
+        .torrent-item__ffprobe {
+            align-items: flex-start !important;
+        }
+
+        /* Убираем лишний отступ у бейджа, идущего сразу после 4K SDR */
+        .m-resolution.m-resolution--sdr + .m-video {
+            margin-left: 0 !important;
         }
     `;
 
@@ -25,7 +49,6 @@
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
-        // Ищем HDR, HDR10, HDR10+, Dolby Vision, DV (как отдельное слово), HLG
         return /(HDR10\+|HDR10|HDR|DOLBY\s*VISION|\bDV\b|HLG)/.test(t);
     }
 
@@ -35,11 +58,9 @@
         return /\bSDR\b/.test(text.toUpperCase());
     }
 
-    // Проверка: является ли раздача 4K (по названию или по бейджу)
+    // Проверка: является ли раздача 4K
     function is4K(name, block) {
-        // 1. По названию
-        if (name && /\b4K\b|2160P|UHD/i.test(name)) return true;
-        // 2. По бейджу разрешения
+        if (name && /(\b4K\b|2160P|UHD)/i.test(name)) return true;
         var resolutions = block.querySelectorAll('.m-resolution');
         var found = false;
         resolutions.forEach(function (r) {
@@ -52,7 +73,6 @@
         var items = document.querySelectorAll('.torrent-item');
 
         items.forEach(function (item) {
-            // Пропускаем уже обработанные
             if (item.dataset.sdrProcessed === '1') return;
 
             var titleEl = item.querySelector('.torrent-item__title');
@@ -61,11 +81,9 @@
             var block = item.querySelector('.torrent-item__ffprobe');
             if (!block) return;
 
-            // Условие: это 4K, в названии есть SDR, и нет признаков HDR
             var is4k = is4K(title, block);
             var sdrByName = hasSDR(title) && !hasHDR(title);
 
-            // Запасной вариант: 4K-бейдж есть, HDR-бейджа нет
             var badges = block.querySelectorAll('.m-resolution');
             var hasHdrBadge = false;
             var res4kBadge = null;
