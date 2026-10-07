@@ -2,7 +2,12 @@
     'use strict';
 
     var network = new Lampa.Reguest();
-    var CORS_PROXY = 'https://script.google.com/macros/s/AKfycbyW-G0Kicxj6N_cqb-yCzYNXFL4uxKSRi7B51qrNYsVa1wmuVr4adZ8tOHpGvNXtoWS/exec';
+
+    // ===== ТВОЙ СОБСТВЕННЫЙ CLOUDFLARE WORKER =====
+    var CORS_PROXY = 'https://kinopoisk-proxy.shust-blr.workers.dev';
+
+    // Должно совпадать с limit в воркере!
+    var RATINGS_PAGE_SIZE = 15;
 
     // ======================= ИКОНКИ =======================
 
@@ -14,25 +19,16 @@
     // Лоадер
     var buttonLoader = '<svg class="button--kinopoisk_rating_icon" xmlns="http://www.w3.org/2000/svg" style="margin:auto;background:none;display:block;shape-rendering:auto;" width="24px" height="24px" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid"><circle cx="50" cy="50" fill="none" stroke="#ffffff" stroke-width="5" r="35" stroke-dasharray="164.93361431346415 56.97787143782138"><animateTransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animateTransform></circle></svg>';
 
-    /**
-     * Белый круг с цифрой оценки внутри.
-     * Без окраски — просто белый круг и тёмная цифра.
-     */
     function makeRatingIcon(rating) {
         var fontSize = String(rating).length > 1 ? 10 : 13;
-
         return '<svg class="button--kinopoisk_rating_icon" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
             '<circle cx="12" cy="12" r="11" fill="#ffffff"/>' +
             '<text x="12" y="12" text-anchor="middle" dominant-baseline="central" ' +
             'fill="#1a1a1a" font-size="' + fontSize + '" font-weight="700" ' +
             'font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" ' +
-            'style="user-select:none">' + rating + '</text>' +
-            '</svg>';
+            'style="user-select:none">' + rating + '</text></svg>';
     }
 
-    /**
-     * Возвращает нужную иконку: звезда если нет оценки, круг с цифрой если есть.
-     */
     function getButtonIcon(rating) {
         return rating ? makeRatingIcon(rating) : starIconEmpty;
     }
@@ -138,62 +134,134 @@
 
     // ======================= RATINGS =======================
 
-    function getKinopoiskRatings(offset, limit, showResult) {
+    var RATINGS_MAX_RETRIES = 5;
+    var RATINGS_RETRY_DELAY = 3000;
+
+    function isTimeoutError(data) {
+        if (!data || !data.errors) return false;
+        return data.errors.some(function (e) {
+            return e.classification === 'TimeoutError' ||
+                   e.message === 'TimeoutError' ||
+                   (e.extensions && e.extensions.classification === 'TimeoutError');
+        });
+    }
+
+    function fetchRatingsPage(offset, onSuccess, onError, attempt) {
+        attempt = attempt || 1;
+
+        var oauth = Lampa.Storage.get('kinopoisk_access_token');
+        if (!oauth) { onError && onError('no_token'); return; }
+
+        console.log('Kinopoisk Ratings',
+            'Fetching page offset=' + offset + ' attempt=' + attempt);
+
+        network.silent(CORS_PROXY + '?method=getRated&oauth=' + oauth +
+                       '&offset=' + String(offset) + '&limit=' + RATINGS_PAGE_SIZE,
+            function (data) {
+                if (isTimeoutError(data)) {
+                    console.log('Kinopoisk Ratings',
+                        'TimeoutError, offset=' + offset + ' attempt=' + attempt);
+
+                    if (attempt < RATINGS_MAX_RETRIES) {
+                        setTimeout(function () {
+                            fetchRatingsPage(offset, onSuccess, onError, attempt + 1);
+                        }, RATINGS_RETRY_DELAY);
+                    } else {
+                        onError && onError('timeout');
+                    }
+                    return;
+                }
+
+                var userData = data && data.data && data.data.userProfile &&
+                               data.data.userProfile.userData;
+
+                if (userData && userData.ratedOrWatchedMovies) {
+                    onSuccess && onSuccess(
+                        userData.ratedOrWatchedMovies.items || [],
+                        userData.ratedOrWatchedMovies.total || 0
+                    );
+                } else {
+                    console.log('Kinopoisk Ratings', 'Unexpected response', data);
+                    onError && onError('bad_response');
+                }
+            },
+            function (data) {
+                console.log('Kinopoisk Ratings',
+                    'Network error offset=' + offset + ' attempt=' + attempt, data);
+                if (attempt < RATINGS_MAX_RETRIES) {
+                    setTimeout(function () {
+                        fetchRatingsPage(offset, onSuccess, onError, attempt + 1);
+                    }, RATINGS_RETRY_DELAY);
+                } else {
+                    onError && onError('network');
+                }
+            }
+        );
+    }
+
+    /**
+     * Загружает оценки постранично.
+     * offset      — с какой записи начинать
+     * limit       — true: только первая страница, false: все страницы
+     * showResult  — показывать ли уведомления
+     * silent      — если true, не показывать уведомления между страницами
+     */
+    function getKinopoiskRatings(offset, limit, showResult, silent) {
         offset = offset || 0;
         limit = limit !== undefined ? limit : true;
         showResult = showResult !== undefined ? showResult : true;
 
-        var oauth = Lampa.Storage.get('kinopoisk_access_token');
-        if (!oauth) return;
-
-        console.log('Kinopoisk Ratings', 'Getting ratings from offset ' + offset);
-        network.silent(CORS_PROXY + '?method=getRated&oauth=' + oauth + '&offset=' + String(offset),
-            function (data) {
-                if (data && data.data && data.data.userProfile && data.data.userProfile.userData && data.data.userProfile.userData.ratedOrWatchedMovies) {
-                    var ratingsCount = data.data.userProfile.userData.ratedOrWatchedMovies.total;
-                    var receivedRatings = data.data.userProfile.userData.ratedOrWatchedMovies.items;
-
-                    var kinopoiskRatingsReceived = {};
-                    receivedRatings.forEach(m => {
-                        if (m.item && m.item.movieUserVote && m.item.movieUserVote.voting.value) {
-                            kinopoiskRatingsReceived[m.item.id] = String(m.item.movieUserVote.voting.value);
-                        }
-                    });
-
-                    var kinopoiskRatingsStored = Lampa.Storage.get('kinopoisk_my_ratings', {});
-                    for (var attrname in kinopoiskRatingsReceived) {
-                        kinopoiskRatingsStored[attrname] = kinopoiskRatingsReceived[attrname];
-                    }
-                    Lampa.Storage.set('kinopoisk_my_ratings', kinopoiskRatingsStored);
-
-                    if (!limit && ratingsCount > offset + 20) {
-                        getKinopoiskRatings(offset + 20, limit);
-                    } else if (showResult) {
-                        Lampa.Noty.show('Импорт оценок завершён (' + ratingsCount + ')');
-                    }
-                } else {
-                    console.log('Kinopoisk Ratings', 'Unable to parse ratings', data);
+        fetchRatingsPage(offset, function (items, total) {
+            var received = {};
+            items.forEach(function (m) {
+                if (m.item && m.item.movieUserVote && m.item.movieUserVote.voting.value) {
+                    received[m.item.id] = String(m.item.movieUserVote.voting.value);
                 }
-            },
-            function (data) {
-                console.log('Kinopoisk Ratings', 'Error getting ratings', data);
+            });
+
+            var stored = Lampa.Storage.get('kinopoisk_my_ratings', {});
+            for (var k in received) stored[k] = received[k];
+            Lampa.Storage.set('kinopoisk_my_ratings', stored);
+
+            console.log('Kinopoisk Ratings',
+                'Page offset=' + offset + ' received=' + items.length +
+                ' total=' + total + ' stored=' + Object.keys(stored).length);
+
+            // Продолжаем пагинацию
+            if (!limit && total > offset + RATINGS_PAGE_SIZE) {
+                if (!silent) {
+                    Lampa.Noty.show('Загружено ' + (offset + items.length) + ' из ' + total);
+                }
+                // Небольшая пауза между страницами, чтобы не долбить API
+                setTimeout(function () {
+                    getKinopoiskRatings(offset + RATINGS_PAGE_SIZE, limit, showResult, silent);
+                }, 500);
+            } else if (showResult) {
+                Lampa.Noty.show('Импорт оценок завершён (' + total + ')');
             }
-        );
+        }, function (reason) {
+            if (showResult) {
+                Lampa.Noty.show('Не удалось получить оценки с Кинопоиска');
+            }
+            console.log('Kinopoisk Ratings', 'Import failed', reason);
+        });
     }
 
     function setRating(oauth, kinopoiskId, rating, background) {
         if (!background) $('.button--kinopoisk_rating_icon').replaceWith(buttonLoader);
 
-        network.silent(CORS_PROXY + '?method=setVote&oauth=' + oauth + '&movie=' + String(kinopoiskId) + '&rate=' + rating,
+        network.silent(CORS_PROXY + '?method=setVote&oauth=' + oauth +
+                       '&movie=' + String(kinopoiskId) + '&rate=' + rating,
             function (data) {
-                if (data && data.data && data.data.movie && data.data.movie.vote && data.data.movie.vote.set && data.data.movie.vote.set.status === 'SUCCESS') {
-                    var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
-                    kinopoiskRatings[kinopoiskId] = rating;
-                    Lampa.Storage.set('kinopoisk_my_ratings', kinopoiskRatings);
+                if (data && data.data && data.data.movie && data.data.movie.vote &&
+                    data.data.movie.vote.set && data.data.movie.vote.set.status === 'SUCCESS') {
+                    var ratings = Lampa.Storage.get('kinopoisk_my_ratings', {});
+                    ratings[kinopoiskId] = rating;
+                    Lampa.Storage.set('kinopoisk_my_ratings', ratings);
 
                     if (!background) {
                         $('.button--kinopoisk_rating_icon').replaceWith(getButtonIcon(rating));
-                        Lampa.Noty.show('Оценка ' + rating + ' установлена на Кинопоиске');
+                        Lampa.Noty.show('Оценка ' + rating + ' установлена');
                     }
                 } else {
                     if (!background) {
@@ -221,12 +289,14 @@
 
     function removeRating(oauth, kinopoiskId) {
         $('.button--kinopoisk_rating_icon').replaceWith(buttonLoader);
-        network.silent(CORS_PROXY + '?method=removeVote&oauth=' + oauth + '&movie=' + String(kinopoiskId),
+        network.silent(CORS_PROXY + '?method=removeVote&oauth=' + oauth +
+                       '&movie=' + String(kinopoiskId),
             function (data) {
-                if (data && data.data && data.data.movie && data.data.movie.vote && data.data.movie.vote.remove && data.data.movie.vote.remove.status === 'SUCCESS') {
-                    var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
-                    delete kinopoiskRatings[kinopoiskId];
-                    Lampa.Storage.set('kinopoisk_my_ratings', kinopoiskRatings);
+                if (data && data.data && data.data.movie && data.data.movie.vote &&
+                    data.data.movie.vote.remove && data.data.movie.vote.remove.status === 'SUCCESS') {
+                    var ratings = Lampa.Storage.get('kinopoisk_my_ratings', {});
+                    delete ratings[kinopoiskId];
+                    Lampa.Storage.set('kinopoisk_my_ratings', ratings);
                     $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
                     Lampa.Noty.show('Оценка удалена');
                 } else {
@@ -245,25 +315,23 @@
     // ======================= UI =======================
 
     function showRatingSelect(kinopoiskId, tmdbId, e) {
-        var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
-        var kinopoiskRating = kinopoiskRatings[kinopoiskId];
+        var ratings = Lampa.Storage.get('kinopoisk_my_ratings', {});
+        var current = ratings[kinopoiskId];
 
         let items = [
-            { title: '10', selected: kinopoiskRating === '10' },
-            { title: '9', selected: kinopoiskRating === '9' },
-            { title: '8', selected: kinopoiskRating === '8' },
-            { title: '7', selected: kinopoiskRating === '7' },
-            { title: '6', selected: kinopoiskRating === '6' },
-            { title: '5', selected: kinopoiskRating === '5' },
-            { title: '4', selected: kinopoiskRating === '4' },
-            { title: '3', selected: kinopoiskRating === '3' },
-            { title: '2', selected: kinopoiskRating === '2' },
-            { title: '1', selected: kinopoiskRating === '1' }
+            { title: '10', selected: current === '10' },
+            { title: '9', selected: current === '9' },
+            { title: '8', selected: current === '8' },
+            { title: '7', selected: current === '7' },
+            { title: '6', selected: current === '6' },
+            { title: '5', selected: current === '5' },
+            { title: '4', selected: current === '4' },
+            { title: '3', selected: current === '3' },
+            { title: '2', selected: current === '2' },
+            { title: '1', selected: current === '1' }
         ];
 
-        if (kinopoiskRating) {
-            items.push({ title: 'Удалить оценку', delete: true });
-        }
+        if (current) items.push({ title: 'Удалить оценку', delete: true });
 
         Lampa.Select.show({
             title: 'Оценка на Кинопоиске',
@@ -274,26 +342,22 @@
                     Lampa.Noty.show('Авторизуйтесь в настройках Кинопоиска');
                     return;
                 }
-                if (a.delete) {
-                    removeRating(oauth, kinopoiskId);
-                } else {
-                    setRating(oauth, kinopoiskId, a.title, false);
-                }
+                if (a.delete) removeRating(oauth, kinopoiskId);
+                else setRating(oauth, kinopoiskId, a.title, false);
             },
             onBack: () => Lampa.Controller.toggle('full_start')
         });
     }
 
     function addRatingButton(e, kinopoiskId) {
-        var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
-        var rate = kinopoiskRatings[kinopoiskId];
+        var ratings = Lampa.Storage.get('kinopoisk_my_ratings', {});
+        var rate = ratings[kinopoiskId];
 
         $('.button--kinopoisk_rating').remove();
 
         $('.full-start-new__buttons')
             .append('<div class="full-start__button selector button--kinopoisk_rating">' +
-                getButtonIcon(rate) +
-                '<span>Кинопоиск</span></div>');
+                getButtonIcon(rate) + '<span>Кинопоиск</span></div>');
 
         $('.button--kinopoisk_rating').off('hover:enter').on('hover:enter', function () {
             var oauth = Lampa.Storage.get('kinopoisk_access_token');
@@ -313,18 +377,19 @@
         checkAndRefreshToken();
 
         // Отложенные оценки
-        var ratings_postponed = Lampa.Storage.get('kinopoisk_my_ratings_postponed', {});
+        var postponed = Lampa.Storage.get('kinopoisk_my_ratings_postponed', {});
         var delay = 1000;
-        Object.keys(ratings_postponed).forEach(function (key) {
-            setTimeout(setRating, delay, Lampa.Storage.get('kinopoisk_access_token'), key, ratings_postponed[key], true);
+        Object.keys(postponed).forEach(function (key) {
+            setTimeout(setRating, delay,
+                Lampa.Storage.get('kinopoisk_access_token'), key, postponed[key], true);
             delay += 1000;
         });
 
-        // Обновляем оценки при старте
+        // Обновление первых 15 оценок при старте (быстро)
         var oauth = Lampa.Storage.get('kinopoisk_access_token');
         if (oauth) getKinopoiskRatings(0, true, false);
 
-        // Хук на открытие карточки
+        // Хук на карточку фильма
         Lampa.Listener.follow('full', function (e) {
             if (e.type !== 'complite') return;
 
@@ -401,14 +466,14 @@
         Lampa.SettingsApi.addParam({
             component: 'kinopoisk',
             param: { type: 'button' },
-            field: { name: 'Импортировать оценки с Кинопоиска' },
+            field: { name: 'Импортировать все оценки' },
             onChange: () => {
                 var oauth = Lampa.Storage.get('kinopoisk_access_token');
                 if (!oauth) {
                     Lampa.Noty.show('Сначала авторизуйтесь');
                 } else {
-                    Lampa.Noty.show('Импорт запущен в фоне...');
-                    getKinopoiskRatings(0, false, true);
+                    Lampa.Noty.show('Импорт запущен в фоне (3500 оценок, ~5 минут)...');
+                    getKinopoiskRatings(0, false, true, true);
                 }
             }
         });
