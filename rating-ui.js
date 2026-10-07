@@ -28,25 +28,24 @@
 
     var imdb_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1219_60)\">\n<path d=\"M201.5 0.5V201.5H0.5V0.5H201.5ZM25.25 72.5938V129.406H41.0312V72.5938H25.25ZM47.3438 72.5938V129.406H60.7314L60.7832 91.8906L66.4189 129.406H75.9502L81.2998 91.0635L81.3389 129.406H94.6875V72.5938H74.7168L71.1846 99.1328L68.9902 84.6982C68.354 80.0746 67.7435 76.0396 67.1592 72.5938H47.3438ZM101 72.5938V129.406H125.633C131.21 129.406 135.719 124.917 135.719 119.38V82.6201C135.719 77.0757 131.203 72.5938 125.633 72.5938H101ZM142.031 72.5938V128.677H156.184L157.093 125.203C158.95 127.745 162.015 129.406 165.481 129.406H166.49C172.158 129.406 176.75 124.972 176.75 119.502V96.7227C176.75 91.2555 172.156 86.8184 166.49 86.8184H165.481C162.089 86.8185 159.083 88.4075 157.132 90.8389V72.5938H142.031ZM159.49 95.6006C160.323 95.6006 161.511 96.0322 161.809 96.7041C162.106 97.376 162.249 98.8362 162.249 101.061V114.522C162.249 117.059 162.118 118.67 161.856 119.33C161.595 119.99 160.347 120.34 159.49 120.34C158.634 120.34 157.409 119.979 157.123 119.33V96.542C157.373 95.9514 158.657 95.6007 159.49 95.6006ZM115.843 82.3174C117.585 82.3174 118.782 82.48 119.408 82.8184C120.048 83.1567 120.442 83.6834 120.619 84.4102C120.796 85.1371 120.892 86.7784 120.892 89.3467V111.375C120.892 115.159 120.62 117.465 120.089 118.317C119.558 119.182 118.142 119.595 115.843 119.595V82.3174Z\" fill=\"#F5C518\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1219_60\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
 
-    /* Оригинальный логотип Кинопоиска: оранжевый квадрат, буква K — прозрачный вырез */
+    /* Цветной Кинопоиск: оранжевый фон, буква K — прозрачный вырез */
     var kp_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
         "<path fill=\"#FF5500\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"" +
         "M45 0H157C181.853 0 202 20.1472 202 45V157C202 181.853 181.853 202 157 202H45C20.1472 202 0 181.853 0 157V45C0 20.1472 20.1472 0 45 0Z " +
         "M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\"/>" +
         "</svg>";
 
-    /* Белый вариант: белый квадрат, буква K — прозрачный вырез */
+    /* Белый Кинопоиск: белый фон, буква K — прозрачный вырез */
     var kp_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
         "<path fill=\"white\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"" +
         "M45 0H157C181.853 0 202 20.1472 202 45V157C202 181.853 181.853 202 157 202H45C20.1472 202 0 181.853 0 157V45C0 20.1472 20.1472 0 45 0Z " +
         "M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\"/>" +
         "</svg>";
 
-    /* Полупрозрачный вариант: белый с fill-opacity 0.2, буква K — прозрачный вырез */
+    /* Полупрозрачный Кинопоиск: полупрозрачный фон, БЕЛАЯ буква K */
     var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
-        "<path fill=\"white\" fill-opacity=\"0.2\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"" +
-        "M45 0H157C181.853 0 202 20.1472 202 45V157C202 181.853 181.853 202 157 202H45C20.1472 202 0 181.853 0 157V45C0 20.1472 20.1472 0 45 0Z " +
-        "M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\"/>" +
+        "<rect width=\"202\" height=\"202\" rx=\"45\" fill=\"white\" fill-opacity=\"0.2\"/>" +
+        "<path d=\"M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\" fill=\"white\"/>" +
         "</svg>";
 
     var avg_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1228_135)\">\n<path d=\"M201.5 0.5V201.5H0.5V0.5H201.5ZM81.21 77.4688H42.918L38 92.625L68.9795 115.164L57.1465 151.633L70.0215 161L101 138.461L131.979 161L144.854 151.633L133.021 115.164L164 92.625L159.082 77.4688H120.79L108.957 41H93.043L81.21 77.4688Z\" fill=\"white\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1228_135\">\n<rect width=\"202\" height=\"202\" rx=\"50\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
@@ -533,10 +532,10 @@
             year = normalizedCard.release_date.split('-')[0];
         }
 
-        if (!year) {
-            callback(null);
-            return;
-        }
+        /*
+         * Если года нет — всё равно ищем по названию.
+         * KP search-by-keyword хорошо справляется и без года.
+         */
 
         var encodedTitle = encodeURIComponent(queryTitle);
         var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodedTitle;
@@ -563,26 +562,9 @@
             var targetYear;
             var film2;
 
-            for (var j = 0; j < data.films.length; j++) {
-                film2 = data.films[j];
-                if (!film2.year) continue;
-
-                filmYear = parseInt(film2.year.substring(0, 4), 10);
-                targetYear = parseInt(year, 10);
-
-                if (isNaN(filmYear)) continue;
-                if (isNaN(targetYear)) continue;
-
-                if (filmYear === targetYear) {
-                    bestMatch = film2;
-                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP EXACT match: " + bestMatch.filmId);
-                    break;
-                }
-            }
-
-            if (!bestMatch) {
-                for (var k = 0; k < data.films.length; k++) {
-                    film2 = data.films[k];
+            if (year) {
+                for (var j = 0; j < data.films.length; j++) {
+                    film2 = data.films[j];
                     if (!film2.year) continue;
 
                     filmYear = parseInt(film2.year.substring(0, 4), 10);
@@ -591,12 +573,32 @@
                     if (isNaN(filmYear)) continue;
                     if (isNaN(targetYear)) continue;
 
-                    if (Math.abs(filmYear - targetYear) <= 1) {
+                    if (filmYear === targetYear) {
                         bestMatch = film2;
-                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP APPROXIMATE match: " + bestMatch.filmId);
                         break;
                     }
                 }
+
+                if (!bestMatch) {
+                    for (var k = 0; k < data.films.length; k++) {
+                        film2 = data.films[k];
+                        if (!film2.year) continue;
+
+                        filmYear = parseInt(film2.year.substring(0, 4), 10);
+                        targetYear = parseInt(year, 10);
+
+                        if (isNaN(filmYear)) continue;
+                        if (isNaN(targetYear)) continue;
+
+                        if (Math.abs(filmYear - targetYear) <= 1) {
+                            bestMatch = film2;
+                            break;
+                        }
+                    }
+                }
+            } else {
+                /* Без года — берём первый результат */
+                bestMatch = data.films[0];
             }
 
             if (!bestMatch || !bestMatch.filmId) {
@@ -982,7 +984,7 @@
 
             updateUI();
 
-            // Kinopoisk branch
+            /* Kinopoisk branch — запускаем всегда, если рейтинга нет в DOM */
             var cachedKpData = getKpCache(initialCacheKey);
 
             if (cachedKpData) {
@@ -999,7 +1001,6 @@
                     function (kpRatings) {
                         if (kpRatings) {
                             mergeKpData(kpRatings);
-
                             saveKpCache(
                                 initialCacheKey,
                                 {
@@ -1014,7 +1015,12 @@
                 );
             }
 
-            if (!normalizedCard.imdb_id && !imdbExists) {
+            /*
+             * IMDb fallback через TMDB.
+             * Если imdb_id неизвестен — получаем его и повторяем KP-запрос,
+             * чтобы вытащить imdb_rating из KP-XML.
+             */
+            if (!normalizedCard.imdb_id) {
                 getImdbIdFromTmdb(
                     normalizedCard.id,
                     normalizedCard.type,
@@ -1120,6 +1126,11 @@
     }
     //------------------------------------------------------------------------------------------------------------------------
 
+    /*
+     * Вставка иконок перед значениями рейтингов.
+     * Не мигает текстом: если иконка уже вставлена — выходим сразу,
+     * source--name не трогаем.
+     */
     function insertIcons(localCurrentCard, render) {
         if (!render) return;
 
@@ -1139,25 +1150,32 @@
             elements.each(function() {
                 var element = $(this);
 
-                element.children('.maxsm-rating-leading-icon').remove();
+                var shouldShowIcon = iconType === 'average' ? showAverageIcon : showIcons;
+
+                var existingIcon = element.children('.maxsm-rating-leading-icon').first();
+
+                if (!shouldShowIcon) {
+                    if (existingIcon.length) existingIcon.remove();
+                    var srcName = element.find('.source--name').first();
+                    if (!srcName.length) {
+                        var childs = element.children('div');
+                        if (childs.length >= 2) srcName = childs.eq(1);
+                    }
+                    if (srcName.length) srcName.removeClass('maxsm-source-text-hidden rate--icon');
+                    return;
+                }
+
+                if (existingIcon.length) {
+                    return;
+                }
 
                 var sourceName = element.find('.source--name').first();
-
                 if (!sourceName.length) {
                     var childDivs = element.children('div');
-
                     if (childDivs.length >= 2) {
                         sourceName = childDivs.eq(1);
                     }
                 }
-
-                if (sourceName.length) {
-                    sourceName.removeClass('maxsm-source-text-hidden rate--icon');
-                }
-
-                var shouldShowIcon = iconType === 'average' ? showAverageIcon : showIcons;
-
-                if (!shouldShowIcon) return;
 
                 if (iconType !== 'average' && sourceName.length) {
                     sourceName.addClass('maxsm-source-text-hidden');
@@ -1227,10 +1245,9 @@
 
     // Получаем IMDB id из TMDB id по API
     function getImdbIdFromTmdb(tmdbId, type, localCurrentCard, callback) {
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Get IMDb id From TMDB");
         if (!tmdbId) {
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", TMDB id is empty - aborting");
-            return callback(null);
+            callback(null);
+            return;
         }
 
         var cleanType = type === 'movie' ? 'movie' : 'tv';
@@ -1238,7 +1255,6 @@
         var cache = Lampa.Storage.get(ID_MAPPING_CACHE) || {};
 
         if (cache[cacheKey] && (Date.now() - cache[cacheKey].timestamp < CACHE_TIME)) {
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", find in cache imdb id is: " + cache[cacheKey].imdb_id);
             return callback(cache[cacheKey].imdb_id);
         }
 
@@ -1246,36 +1262,31 @@
         var mainUrl = Lampa.TMDB.api(mainPath);
 
         new Lampa.Reguest().silent(mainUrl, function(data) {
-            if (data && data.imdb_id) {
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", received IMDb id: " + data.imdb_id);
-                cache[cacheKey] = {
-                    imdb_id: data.imdb_id,
-                    timestamp: Date.now()
-                };
-                Lampa.Storage.set(ID_MAPPING_CACHE, cache);
-                callback(data.imdb_id);
-            } else {
-                if (cleanType === 'tv') {
-                    var altPath = 'tv/' + tmdbId + '?api_key=' + Lampa.TMDB.key();
-                    var altUrl = Lampa.TMDB.api(altPath);
+            var imdbId = (data && data.imdb_id) || null;
 
-                    new Lampa.Reguest().silent(altUrl, function(altData) {
-                        var imdbId = (altData && altData.external_ids && altData.external_ids.imdb_id) || null;
-                        if (imdbId) {
-                            cache[cacheKey] = {
-                                imdb_id: imdbId,
-                                timestamp: Date.now()
-                            };
-                            Lampa.Storage.set(ID_MAPPING_CACHE, cache);
-                        }
-                        callback(imdbId);
-                    }, function() {
-                        callback(null);
-                    });
-                } else {
+            /* Fallback для TV: иногда external_ids не отдаёт, но /tv/{id} отдаёт */
+            if (!imdbId && cleanType === 'tv') {
+                var altPath = 'tv/' + tmdbId + '?api_key=' + Lampa.TMDB.key();
+                var altUrl = Lampa.TMDB.api(altPath);
+
+                new Lampa.Reguest().silent(altUrl, function(altData) {
+                    var altImdb = (altData && altData.external_ids && altData.external_ids.imdb_id) || null;
+                    if (altImdb) {
+                        cache[cacheKey] = { imdb_id: altImdb, timestamp: Date.now() };
+                        Lampa.Storage.set(ID_MAPPING_CACHE, cache);
+                    }
+                    callback(altImdb);
+                }, function() {
                     callback(null);
-                }
+                });
+                return;
             }
+
+            if (imdbId) {
+                cache[cacheKey] = { imdb_id: imdbId, timestamp: Date.now() };
+                Lampa.Storage.set(ID_MAPPING_CACHE, cache);
+            }
+            callback(imdbId);
         }, function() {
             callback(null);
         });
@@ -1529,7 +1540,9 @@
                 description: ''
             },
             onChange: function(value) {
+                /* При смене стиля принудительно удаляем старые иконки, чтобы применился новый SVG */
                 var render = Lampa.Activity.active().activity.render();
+                $('.maxsm-rating-leading-icon', render).remove();
                 insertIcons(globalCurrentCard, render);
                 updateAverageSeparator(render);
             }
@@ -1619,14 +1632,6 @@
 })();
 
 /* ===== Integrated: lampa_rating_icons_toggle.js ===== */
-/*
- * Отдельная настройка во вкладке «Интерфейс» — показывать/скрывать
- * логотипы источников (IMDb, Кинопоиск, TMDB и др.) на карточках фильмов
- * и сериалов в списках (главная, подборки, поиск, страницы актёров).
- *
- * Это НЕ то же самое, что «Иконки вместо текста» во вкладке «Рейтинги».
- * Та настройка управляет логотипами внутри полной карточки фильма.
- */
 (function () {
     'use strict';
 
@@ -1654,7 +1659,6 @@
         var style = document.createElement('style');
         style.id = STYLE_ID;
         style.textContent = [
-            /* Only elements explicitly marked by this plugin are hidden. */
             '.' + HIDE_CLASS + '{',
             '  display:none!important;',
             '  visibility:hidden!important;',
@@ -1703,10 +1707,6 @@
         return el.closest ? el.closest('.card, .card--small, .card--wide, [class~="card"]') : null;
     }
 
-    /*
-     * We only inspect rating areas that live INSIDE movie/series cards.
-     * Nothing in menus, settings, buttons, player controls, posters, etc. is scanned.
-     */
     function ratingBoxes(card) {
         if (!card || !card.querySelectorAll) return [];
 
