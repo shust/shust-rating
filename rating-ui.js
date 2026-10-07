@@ -2,8 +2,9 @@
     Lampa ratings plugin — rating-only build.
 
     Rating sources:
-    - Kinopoisk: kinopoiskapiunofficial.tech
-    - TMDB / IMDb: Lampa native + Kinopoisk XML fallback
+    - Kinopoisk: kinopoiskapiunofficial.tech (XML + API)
+    - IMDb: Kinopoisk XML imdb_rating + OMDb fallback
+    - TMDB: Lampa native
 
     This build contains only rating-related functionality:
     TMDB, IMDb, Kinopoisk and average rating.
@@ -62,208 +63,87 @@
 
     Lampa.Lang.add({
         maxsm_ratings: {
-            ru: 'Рейтинги',
-            en: 'Ratings',
-            uk: 'Рейтинги',
-            be: 'Рэйтынгі',
-            pt: 'Classificações',
-            zh: '评分',
-            he: 'דירוגים',
-            cs: 'Hodnocení',
-            bg: 'Рейтинги'
+            ru: 'Рейтинги', en: 'Ratings', uk: 'Рейтинги', be: 'Рэйтынгі',
+            pt: 'Classificações', zh: '评分', he: 'דירוגים', cs: 'Hodnocení', bg: 'Рейтинги'
         },
         maxsm_ratings_cc: {
-            ru: 'Очистить локальный кеш',
-            en: 'Clear local cache',
-            uk: 'Очистити локальний кеш',
-            be: 'Ачысціць лакальны кэш',
-            pt: 'Limpar cache local',
-            zh: '清除本地缓存',
-            he: 'נקה מטמון מקומי',
-            cs: 'Vymazat místní mezipaměť',
-            bg: 'Изчистване на локалния кеш'
+            ru: 'Очистить локальный кеш', en: 'Clear local cache', uk: 'Очистити локальний кеш',
+            be: 'Ачысціць лакальны кэш', pt: 'Limpar cache local', zh: '清除本地缓存',
+            he: 'נקה מטמון מקומי', cs: 'Vymazat místní mezipaměť', bg: 'Изчистване на локалния кеш'
         },
         maxsm_ratings_mode: {
-            ru: 'Средний рейтинг',
-            en: 'Average rating',
-            uk: 'Середній рейтинг',
-            be: 'Сярэдні рэйтынг',
-            pt: 'Classificação média',
-            zh: '平均评分',
-            he: 'דירוג ממוצע',
-            cs: 'Průměrné hodnocení',
-            bg: 'Среден рейтинг'
+            ru: 'Средний рейтинг', en: 'Average rating', uk: 'Середній рейтинг',
+            be: 'Сярэдні рэйтынг', pt: 'Classificação média', zh: '平均评分',
+            he: 'דירוג ממוצע', cs: 'Průměrné hodnocení', bg: 'Среден рейтинг'
         },
         maxsm_ratings_icons: {
-            ru: 'Иконки вместо текста',
-            en: 'Icons instead of text',
-            uk: 'Іконки замість тексту',
-            be: 'Іконкі замест тэксту',
-            pt: 'Ícones em vez de texto',
-            zh: '使用图标代替文字',
-            he: 'סמלים במקום טקסט',
-            cs: 'Ikony místo textu',
-            bg: 'Икони вместо текст'
+            ru: 'Иконки вместо текста', en: 'Icons instead of text', uk: 'Іконки замість тексту',
+            be: 'Іконкі замест тэксту', pt: 'Ícones em vez de texto', zh: '使用图标代替文字',
+            he: 'סמלים במקום טקסט', cs: 'Ikony místo textu', bg: 'Икони вместо текст'
         },
         maxsm_ratings_avg_icon: {
-            ru: 'Иконка среднего рейтинга',
-            en: 'Average rating icon',
-            uk: 'Іконка середнього рейтингу',
-            be: 'Іконка сярэдняга рэйтынгу',
-            pt: 'Ícone da classificação média',
-            zh: '平均评分图标',
-            he: 'סמל דירוג ממוצע',
-            cs: 'Ikona průměrného hodnocení',
-            bg: 'Икона на средния рейтинг'
+            ru: 'Иконка среднего рейтинга', en: 'Average rating icon', uk: 'Іконка середнього рейтингу',
+            be: 'Іконка сярэдняга рэйтынгу', pt: 'Ícone da classificação média', zh: '平均评分图标',
+            he: 'סמל דירוג ממוצע', cs: 'Ikona průměrného hodnocení', bg: 'Икона на средния рейтинг'
         },
         maxsm_ratings_icon_style: {
-            ru: 'Вид иконок рейтинга',
-            en: 'Rating icon style',
-            uk: 'Вигляд іконок рейтингу',
-            be: 'Выгляд іконак рэйтынгу',
-            pt: 'Estilo dos ícones de classificação',
-            zh: '评分图标样式',
-            he: 'סגנון אייקוני הדירוג',
-            cs: 'Styl ikon hodnocení',
-            bg: 'Вид на иконите за рейтинг'
+            ru: 'Вид иконок рейтинга', en: 'Rating icon style', uk: 'Вигляд іконок рейтингу',
+            be: 'Выгляд іконак рэйтынгу', pt: 'Estilo dos ícones de classificação', zh: '评分图标样式',
+            he: 'סגנון אייקוני הדירוג', cs: 'Styl ikon hodnocení', bg: 'Вид на иконите за рейтинг'
         },
         maxsm_ratings_icon_style_color: {
-            ru: 'Цветные',
-            en: 'Colored',
-            uk: 'Кольорові',
-            be: 'Каляровыя',
-            pt: 'Coloridos',
-            zh: '彩色',
-            he: 'צבעוניים',
-            cs: 'Barevné',
-            bg: 'Цветни'
+            ru: 'Цветные', en: 'Colored', uk: 'Кольорові', be: 'Каляровыя',
+            pt: 'Coloridos', zh: '彩色', he: 'צבעוניים', cs: 'Barevné', bg: 'Цветни'
         },
         maxsm_ratings_icon_style_white: {
-            ru: 'Белые',
-            en: 'White',
-            uk: 'Білі',
-            be: 'Белыя',
-            pt: 'Brancos',
-            zh: '白色',
-            he: 'לבנים',
-            cs: 'Bílé',
-            bg: 'Бели'
+            ru: 'Белые', en: 'White', uk: 'Білі', be: 'Белыя',
+            pt: 'Brancos', zh: '白色', he: 'לבנים', cs: 'Bílé', bg: 'Бели'
         },
         maxsm_ratings_icon_style_translucent: {
-            ru: 'Полупрозрачные',
-            en: 'Translucent',
-            uk: 'Напівпрозорі',
-            be: 'Паўпразрыстыя',
-            pt: 'Semitransparentes',
-            zh: '半透明',
-            he: 'חצי-שקופים',
-            cs: 'Poloprůhledné',
-            bg: 'Полупрозрачни'
+            ru: 'Полупрозрачные', en: 'Translucent', uk: 'Напівпрозорі', be: 'Паўпразрыстыя',
+            pt: 'Semitransparentes', zh: '半透明', he: 'חצי-שקופים', cs: 'Poloprůhledné', bg: 'Полупрозрачни'
         },
         maxsm_ratings_font_weight: {
-            ru: 'Толщина шрифта рейтинга',
-            en: 'Rating font weight',
-            uk: 'Товщина шрифту рейтингу',
-            be: 'Таўшчыня шрыфту рэйтынгу',
-            pt: 'Espessura da fonte da classificação',
-            zh: '评分字体粗细',
-            he: 'עובי גופן הדירוג',
-            cs: 'Tloušťka písma hodnocení',
-            bg: 'Дебелина на шрифта на рейтинга'
+            ru: 'Толщина шрифта рейтинга', en: 'Rating font weight', uk: 'Товщина шрифту рейтингу',
+            be: 'Таўшчыня шрыфту рэйтынгу', pt: 'Espessura da fonte da classificação', zh: '评分字体粗细',
+            he: 'עובי גופן הדירוג', cs: 'Tloušťka písma hodnocení', bg: 'Дебелина на шрифта на рейтинга'
         },
         maxsm_ratings_avg_separator: {
-            ru: 'Разделительная полоса после среднего рейтинга',
-            en: 'Separator after average rating',
-            uk: 'Розділювальна смуга після середнього рейтингу',
-            be: 'Раздзяляльная паласа пасля сярэдняга рэйтынгу',
-            pt: 'Separador após a classificação média',
-            zh: '平均评分后的分隔线',
-            he: 'מפריד אחרי הדירוג הממוצע',
-            cs: 'Oddělovač za průměrným hodnocením',
-            bg: 'Разделител след средния рейтинг'
+            ru: 'Разделительная полоса после среднего рейтинга', en: 'Separator after average rating',
+            uk: 'Розділювальна смуга після середнього рейтингу', be: 'Раздзяляльная паласа пасля сярэдняга рэйтынгу',
+            pt: 'Separador após a classificação média', zh: '平均评分后的分隔线',
+            he: 'מפריד אחרי הדירוג הממוצע', cs: 'Oddělovač za průměrným hodnocením', bg: 'Разделител след средния рейтинг'
         },
         maxsm_ratings_source_kp: {
-            ru: 'Кинопоиск',
-            en: 'Kinopoisk',
-            uk: 'Кінопошук',
-            be: 'Кінапошук',
-            pt: 'Kinopoisk',
-            zh: 'Kinopoisk',
-            he: 'Kinopoisk',
-            cs: 'Kinopoisk',
-            bg: 'Kinopoisk'
+            ru: 'Кинопоиск', en: 'Kinopoisk', uk: 'Кінопошук', be: 'Кінапошук',
+            pt: 'Kinopoisk', zh: 'Kinopoisk', he: 'Kinopoisk', cs: 'Kinopoisk', bg: 'Kinopoisk'
         },
         maxsm_ratings_source_tmdb: {
-            ru: 'TMDB',
-            en: 'TMDB',
-            uk: 'TMDB',
-            be: 'TMDB',
-            pt: 'TMDB',
-            zh: 'TMDB',
-            he: 'TMDB',
-            cs: 'TMDB',
-            bg: 'TMDB'
+            ru: 'TMDB', en: 'TMDB', uk: 'TMDB', be: 'TMDB',
+            pt: 'TMDB', zh: 'TMDB', he: 'TMDB', cs: 'TMDB', bg: 'TMDB'
         },
         maxsm_ratings_source_imdb: {
-            ru: 'IMDb',
-            en: 'IMDb',
-            uk: 'IMDb',
-            be: 'IMDb',
-            pt: 'IMDb',
-            zh: 'IMDb',
-            he: 'IMDb',
-            cs: 'IMDb',
-            bg: 'IMDb'
+            ru: 'IMDb', en: 'IMDb', uk: 'IMDb', be: 'IMDb',
+            pt: 'IMDb', zh: 'IMDb', he: 'IMDb', cs: 'IMDb', bg: 'IMDb'
         },
         maxsm_ratings_colors: {
-            ru: 'Цвета',
-            en: 'Colors',
-            uk: 'Кольори',
-            be: 'Колеры',
-            pt: 'Cores',
-            zh: '颜色',
-            he: 'צבעים',
-            cs: 'Barvy',
-            bg: 'Цветове'
+            ru: 'Цвета', en: 'Colors', uk: 'Кольори', be: 'Колеры',
+            pt: 'Cores', zh: '颜色', he: 'צבעים', cs: 'Barvy', bg: 'Цветове'
         },
         maxsm_ratings_avg: {
-            ru: 'ИТОГ',
-            en: 'TOTAL',
-            uk: 'ПІДСУМОК',
-            be: 'ВЫНІК',
-            pt: 'TOTAL',
-            zh: '总评',
-            he: 'סה"כ',
-            cs: 'VÝSLEDEK',
-            bg: 'РЕЗУЛТАТ'
+            ru: 'ИТОГ', en: 'TOTAL', uk: 'ПІДСУМОК', be: 'ВЫНІК',
+            pt: 'TOTAL', zh: '总评', he: 'סה"כ', cs: 'VÝSLEDEK', bg: 'РЕЗУЛТАТ'
         },
         maxsm_ratings_avg_simple: {
-            ru: 'Оценка',
-            en: 'Rating',
-            uk: 'Оцінка',
-            be: 'Ацэнка',
-            pt: 'Avaliação',
-            zh: '评分',
-            he: 'דירוג',
-            cs: 'Hodnocení',
-            bg: 'Оценка'
+            ru: 'Оценка', en: 'Rating', uk: 'Оцінка', be: 'Ацэнка',
+            pt: 'Avaliação', zh: '评分', he: 'דירוג', cs: 'Hodnocení', bg: 'Оценка'
         }
     });
 
-    // Стили модального окна
     var modalStyle = "<style id=\"maxsm_ratings_modal\">" +
-        ".maxsm-modal-ratings {" +
-        "    padding: 1.25em;" +
-        "    font-size: 1.4em;" +
-        "    line-height: 1.6;" +
-        "}" +
-        ".maxsm-modal-rating-line {" +
-        "    padding: 0.5em 0;" +
-        "    border-bottom: 0.0625em solid rgba(255, 255, 255, 0.1);" +
-        "}" +
-        ".maxsm-modal-rating-line:last-child {" +
-        "    border-bottom: none;" +
-        "}" +
+        ".maxsm-modal-ratings { padding: 1.25em; font-size: 1.4em; line-height: 1.6; }" +
+        ".maxsm-modal-rating-line { padding: 0.5em 0; border-bottom: 0.0625em solid rgba(255, 255, 255, 0.1); }" +
+        ".maxsm-modal-rating-line:last-child { border-bottom: none; }" +
         ".maxsm-modal-imdb { color: #f5c518; }" +
         ".maxsm-modal-kp { color: #4CAF50; }" +
         ".maxsm-modal-tmdb { color: #01b4e4; }" +
@@ -273,35 +153,11 @@
     $('body').append(Lampa.Template.get('maxsm_ratings_modal', {}, true));
 
     var style = "<style id=\"maxsm_ratings\">" +
-        ".full-start-new__rate-line {" +
-        "visibility: visible;" +
-        "flex-wrap: wrap;" +
-        "gap: 0.4em 0;" +
-        "padding-left: 0 !important;" +
-        "margin-left: 0 !important;" +
-        "left: 0 !important;" +
-        "padding-right: 1em !important;" +
-        "box-sizing: border-box;" +
-        "}" +
-        ".full-start-new__rate-line > :first-child {" +
-        "margin-left: 0 !important;" +
-        "}" +
-        ".full-start-new__rate-line > * {" +
-        "margin-right: 0.55em !important;" +
-        "}" +
-        ".full-start-new__rate-line > .full-start__pg {" +
-        "margin-left: 0.55em !important;" +
-        "}" +
-        ".full-start__rate.rate--avg.maxsm-has-separator::after {" +
-        "content: '';" +
-        "display: block;" +
-        "width: 1px;" +
-        "height: 1.45em;" +
-        "margin-left: 0.55em;" +
-        "background: rgba(255,255,255,0.28);" +
-        "border-radius: 1px;" +
-        "pointer-events: none;" +
-        "}" +
+        ".full-start-new__rate-line { visibility: visible; flex-wrap: wrap; gap: 0.4em 0; padding-left: 0 !important; margin-left: 0 !important; left: 0 !important; padding-right: 1em !important; box-sizing: border-box; }" +
+        ".full-start-new__rate-line > :first-child { margin-left: 0 !important; }" +
+        ".full-start-new__rate-line > * { margin-right: 0.55em !important; }" +
+        ".full-start-new__rate-line > .full-start__pg { margin-left: 0.55em !important; }" +
+        ".full-start__rate.rate--avg.maxsm-has-separator::after { content: ''; display: block; width: 1px; height: 1.45em; margin-left: 0.55em; background: rgba(255,255,255,0.28); border-radius: 1px; pointer-events: none; }" +
         ".rate--blue   { color: #03A9F4; }" +
         ".rate--green  { color: #4caf50; }" +
         ".rate--lime   { color: #cddc39; }" +
@@ -312,147 +168,47 @@
         ".full-start__rate > div:last-child { padding: 0 !important; }" +
         ".jr { min-width: 5.0em; }" +
         ".rutor { min-width: 7.0em; }" +
-        ".maxsm-icon-container {" +
-        "display: inline-flex;" +
-        "align-items: center;" +
-        "justify-content: center;" +
-        "width: 1.288em;" +
-        "height: 1.288em;" +
-        "padding: 0 !important;" +
-        "margin: 0 !important;" +
-        "overflow: hidden;" +
-        "vertical-align: middle;" +
-        "line-height: 0;" +
-        "background: transparent !important;" +
-        "box-shadow: none !important;" +
-        "}" +
-        ".maxsm-icon-container svg {" +
-        "display: block;" +
-        "width: 100%;" +
-        "height: 100%;" +
-        "object-fit: contain;" +
-        "}" +
-        ".maxsm-source-text-hidden {" +
-        "display: none !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-rating-leading-icon {" +
-        "display: inline-flex !important;" +
-        "align-items: center;" +
-        "justify-content: center;" +
-        "flex: 0 0 auto;" +
-        "width: 1.288em !important;" +
-        "height: 1.288em !important;" +
-        "padding: 0 !important;" +
-        "margin: 0 0.30em 0 !important;" +
-        "overflow: hidden;" +
-        "background: transparent !important;" +
-        "background-color: transparent !important;" +
-        "box-shadow: none !important;" +
-        "border: 0 !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-rating-leading-icon svg {" +
-        "display: block;" +
-        "width: 100%;" +
-        "height: 100%;" +
-        "}" +
-        ".full-start__rate > .maxsm-source-icon {" +
-        "border-radius: 30% !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-source-icon svg {" +
-        "border-radius: 30% !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-average-icon {" +
-        "border-radius: 30% !important;" +
-        "color: inherit !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-average-icon svg {" +
-        "border-radius: 30% !important;" +
-        "}" +
-        ".full-start__rate > .maxsm-average-icon.maxsm-average-rating-color svg path {" +
-        "fill: currentColor !important;" +
-        "}" +
-        ".rate--icon {" +
-        "display: inline-flex;" +
-        "align-items: center;" +
-        "justify-content: center;" +
-        "padding: 0 !important;" +
-        "margin: 0 !important;" +
-        "background: transparent !important;" +
-        "background-color: transparent !important;" +
-        "box-shadow: none !important;" +
-        "border: 0 !important;" +
-        "}" +
-        ".full-start__rate {" +
-        "display: flex;" +
-        "align-items: center;" +
-        "font-family: 'Inter', sans-serif !important;" +
-        "padding: 0 !important;" +
-        "background: transparent !important;" +
-        "background-color: transparent !important;" +
-        "box-shadow: none !important;" +
-        "border: 0 !important;" +
-        "}" +
-        ".full-start__rate > div, .full-start__rate > span {" +
-        "padding: 0 !important;" +
-        "margin: 0 !important;" +
-        "background: transparent !important;" +
-        "background-color: transparent !important;" +
-        "box-shadow: none !important;" +
-        "border: 0 !important;" +
-        "border-radius: 0 !important;" +
-        "}" +
-        ".full-start__rate > div:first-child {" +
-        "padding: 0 !important;" +
-        "margin: 0 !important;" +
-        "background: transparent !important;" +
-        "background-color: transparent !important;" +
-        "box-shadow: none !important;" +
-        "border: 0 !important;" +
-        "border-radius: 0 !important;" +
-        "}" +
-        ".full-start-new__rate-line .full-start__rate {" +
-        "padding: 0 !important;" +
-        "min-width: 0 !important;" +
-        "min-height: 0 !important;" +
-        "width: auto !important;" +
-        "height: auto !important;" +
-        "}" +
-        ".full-start-new__rate-line .full-start__rate > div, .full-start-new__rate-line .full-start__rate > span {" +
-        "padding: 0 !important;" +
-        "min-width: 0 !important;" +
-        "min-height: 0 !important;" +
-        "}" +
-        ".maxsm-source-disabled {" +
-        "display: none !important;" +
-        "}" +
-        ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
-        "font-family: 'Inter', sans-serif !important;" +
-        "font-size: 1.04em !important;" +
-        "font-weight: var(--maxsm-rating-font-weight, 500) !important;" +
-        "letter-spacing: -0.02em !important;" +
-        "line-height: 1.1;" +
-        "}" +
+        ".maxsm-icon-container { display: inline-flex; align-items: center; justify-content: center; width: 1.288em; height: 1.288em; padding: 0 !important; margin: 0 !important; overflow: hidden; vertical-align: middle; line-height: 0; background: transparent !important; box-shadow: none !important; }" +
+        ".maxsm-icon-container svg { display: block; width: 100%; height: 100%; object-fit: contain; }" +
+        ".maxsm-source-text-hidden { display: none !important; }" +
+        ".full-start__rate > .maxsm-rating-leading-icon { display: inline-flex !important; align-items: center; justify-content: center; flex: 0 0 auto; width: 1.288em !important; height: 1.288em !important; padding: 0 !important; margin: 0 0.30em 0 !important; overflow: hidden; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
+        ".full-start__rate > .maxsm-rating-leading-icon svg { display: block; width: 100%; height: 100%; }" +
+        ".full-start__rate > .maxsm-source-icon { border-radius: 30% !important; }" +
+        ".full-start__rate > .maxsm-source-icon svg { border-radius: 30% !important; }" +
+        ".full-start__rate > .maxsm-average-icon { border-radius: 30% !important; color: inherit !important; }" +
+        ".full-start__rate > .maxsm-average-icon svg { border-radius: 30% !important; }" +
+        ".full-start__rate > .maxsm-average-icon.maxsm-average-rating-color svg path { fill: currentColor !important; }" +
+        ".rate--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
+        ".full-start__rate { display: flex; align-items: center; font-family: 'Inter', sans-serif !important; padding: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
+        ".full-start__rate > div, .full-start__rate > span { padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }" +
+        ".full-start__rate > div:first-child { padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }" +
+        ".full-start-new__rate-line .full-start__rate { padding: 0 !important; min-width: 0 !important; min-height: 0 !important; width: auto !important; height: auto !important; }" +
+        ".full-start-new__rate-line .full-start__rate > div, .full-start-new__rate-line .full-start__rate > span { padding: 0 !important; min-width: 0 !important; min-height: 0 !important; }" +
+        ".maxsm-source-disabled { display: none !important; }" +
+        ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type { font-family: 'Inter', sans-serif !important; font-size: 1.04em !important; font-weight: var(--maxsm-rating-font-weight, 500) !important; letter-spacing: -0.02em !important; line-height: 1.1; }" +
+        /* Скрываем текст источника через CSS по умолчанию — чтобы не мигал до вставки иконки */
+        ".full-start__rate > .source--name { display: none !important; }" +
+        ".full-start__rate > .maxsm-show-source-text { display: block !important; }" +
         "</style>";
 
     Lampa.Template.add('maxsm_ratings_css', style);
     $('body').append(Lampa.Template.get('maxsm_ratings_css', {}, true));
 
-    // Глобальная переменная текущей карточки
     var globalCurrentCard = null;
 
-    // Переменные настройки
     var C_LOGGING = false;
     var CACHE_TIME = 3 * 24 * 60 * 60 * 1000;
     var KP_CACHE = 'maxsm_ratings_kp_cache';
     var ID_MAPPING_CACHE = 'maxsm_ratings_id_mapping_cache';
+    var OMDB_CACHE = 'maxsm_ratings_omdb_cache';
     var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['5178ab83-699c-4422-937e-f8a759f872ef'];
+    var OMDB_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.OMDB_API_KEYS) || ['73ff4450', '4a3b71a1', 'b9a5e69d'];
     var PROXY_TIMEOUT = 5000;
     var PROXY_LIST = [
         'https://cors.bwa.workers.dev/',
         'https://api.allorigins.win/raw?url='
     ];
 
-    // Весовые коэффициенты для источников рейтингов
     var WEIGHTS = {
         imdb: 0.35,
         tmdb: 0.15,
@@ -464,7 +220,6 @@
         return arr[Math.floor(Math.random() * arr.length)];
     }
 
-    // Получение данных через прокси
     function fetchWithProxy(url, localCurrentCard, callback) {
         var callbackCalled = false;
         var pending = PROXY_LIST.length;
@@ -501,33 +256,25 @@
 
             fetch(proxyUrl)
                 .then(function(response) {
-                    if (!response.ok) {
-                        throw new Error('Proxy error: ' + response.status);
-                    }
+                    if (!response.ok) throw new Error('Proxy error: ' + response.status);
                     return response.text();
                 })
                 .then(function(data) {
-                    if (!callbackCalled) {
-                        finish(null, data);
-                    }
+                    if (!callbackCalled) finish(null, data);
                 })
                 .catch(function() {
-                    if (!callbackCalled) {
-                        failed();
-                    }
+                    if (!callbackCalled) failed();
                 });
         });
     }
 
     //-----------------------------------------------------get---kinopoisk-------------------------------------
     function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
-        /* Если есть kinopoisk_id — сразу к XML */
         if (normalizedCard.kinopoisk_id) {
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP by id: " + normalizedCard.kinopoisk_id);
             return fetchRatings(normalizedCard.kinopoisk_id, localCurrentCard);
         }
 
-        /* Если kinopoisk_id нет — ищем через search-by-keyword */
         var queryTitle = (normalizedCard.original_title || normalizedCard.title || '').replace(/[:\-–—]/g, ' ').trim();
         if (!queryTitle) {
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP: empty title, skip");
@@ -543,7 +290,7 @@
         var encodedTitle = encodeURIComponent(queryTitle);
         var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodedTitle;
 
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search by title: " + queryTitle + " / year: " + year);
+        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search: " + queryTitle + " / " + year);
 
         fetch(searchUrl, {
             method: 'GET',
@@ -558,15 +305,11 @@
             return response.json();
         })
         .then(function(data) {
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search got films: " + (data && data.films ? data.films.length : 0));
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP films: " + (data && data.films ? data.films.length : 0));
 
-            if (!data.films || !data.films.length) {
-                callback(null);
-                return;
-            }
+            if (!data.films || !data.films.length) { callback(null); return; }
 
-            var bestMatch = null;
-            var filmYear, targetYear, film;
+            var bestMatch = null, filmYear, targetYear, film;
 
             if (year) {
                 for (var j = 0; j < data.films.length; j++) {
@@ -575,12 +318,8 @@
                     filmYear = parseInt(film.year.substring(0, 4), 10);
                     targetYear = parseInt(year, 10);
                     if (isNaN(filmYear) || isNaN(targetYear)) continue;
-                    if (filmYear === targetYear) {
-                        bestMatch = film;
-                        break;
-                    }
+                    if (filmYear === targetYear) { bestMatch = film; break; }
                 }
-
                 if (!bestMatch) {
                     for (var k = 0; k < data.films.length; k++) {
                         film = data.films[k];
@@ -588,21 +327,13 @@
                         filmYear = parseInt(film.year.substring(0, 4), 10);
                         targetYear = parseInt(year, 10);
                         if (isNaN(filmYear) || isNaN(targetYear)) continue;
-                        if (Math.abs(filmYear - targetYear) <= 1) {
-                            bestMatch = film;
-                            break;
-                        }
+                        if (Math.abs(filmYear - targetYear) <= 1) { bestMatch = film; break; }
                     }
                 }
             }
 
             if (!bestMatch) bestMatch = data.films[0];
-
-            if (!bestMatch || !bestMatch.filmId) {
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP: no match");
-                callback(null);
-                return;
-            }
+            if (!bestMatch || !bestMatch.filmId) { callback(null); return; }
 
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP matched filmId: " + bestMatch.filmId);
 
@@ -615,9 +346,8 @@
 
         function fetchRatings(filmId, localCurrentCard) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML request: " + xmlUrl);
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML: " + xmlUrl);
 
-            /* Сначала пробуем напрямую */
             fetch(xmlUrl)
                 .then(function(response) {
                     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -645,10 +375,8 @@
                     var xmlDoc = parser.parseFromString(xmlText, "text/xml");
                     var kpNode = xmlDoc.getElementsByTagName("kp_rating")[0];
                     var imdbNode = xmlDoc.getElementsByTagName("imdb_rating")[0];
-
                     var kpRating = kpNode ? parseFloat(kpNode.textContent) : null;
                     var imdbRating = imdbNode ? parseFloat(imdbNode.textContent) : null;
-
                     var hasKp = !isNaN(kpRating) && kpRating > 0;
                     var hasImdb = !isNaN(imdbRating) && imdbRating > 0;
 
@@ -664,7 +392,6 @@
                 } catch (e) {
                     if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", XML parse error: " + e.message);
                 }
-
                 tryApi(filmId, localCurrentCard);
             }
 
@@ -678,7 +405,7 @@
                         return response.json();
                     })
                     .then(function(data) {
-                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP API got: kp=" + data.ratingKinopoisk + ", imdb=" + data.ratingImdb);
+                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP API: kp=" + data.ratingKinopoisk + ", imdb=" + data.ratingImdb);
                         callback({
                             kinopoisk: data.ratingKinopoisk || null,
                             imdb: data.ratingImdb || null
@@ -694,47 +421,29 @@
     //-------------------------------------------------end---get---kinopoisk-----------------------------------
 
     function getCardType(card) {
-        var type = card.media_type || card.type;
-        if (type === 'movie' || type === 'tv') return type;
-        return card.name || card.original_name ? 'tv' : 'movie';
+        if (card.media_type === 'movie' || card.media_type === 'tv') return card.media_type;
+        if (card.type === 'movie' || card.type === 'tv') return card.type;
+        if (card.first_air_date || card.name || card.original_name || card.number_of_seasons) return 'tv';
+        if (card.release_date || card.title || card.original_title) return 'movie';
+        return 'movie';
     }
 
     function updateAverageSeparator(render) {
         if (!render) return;
-
         var rateLine = $('.full-start-new__rate-line', render);
         if (!rateLine.length) return;
-
         $('.rate--avg', rateLine).removeClass('maxsm-has-separator');
-
         var showSeparator = localStorage.getItem('maxsm_ratings_avg_separator') !== 'false';
-
         if (!showSeparator) return;
-
         var avgElement = $('.rate--avg:not(.hide):not(.maxsm-source-disabled)', rateLine).first();
         if (!avgElement.length) return;
-
-        var otherRatings = $('.full-start__rate', rateLine)
-            .not('.rate--avg')
-            .not('.hide')
-            .not('.maxsm-source-disabled');
-
-        if (otherRatings.length) {
-            avgElement.addClass('maxsm-has-separator');
-        }
+        var otherRatings = $('.full-start__rate', rateLine).not('.rate--avg').not('.hide').not('.maxsm-source-disabled');
+        if (otherRatings.length) avgElement.addClass('maxsm-has-separator');
     }
 
     function applyRatingFontWeight(value) {
-        var weight = String(
-            value !== undefined && value !== null
-                ? value
-                : (localStorage.getItem('maxsm_ratings_font_weight') || '500')
-        );
-
-        if (['400', '500', '600', '700'].indexOf(weight) === -1) {
-            weight = '500';
-        }
-
+        var weight = String(value !== undefined && value !== null ? value : (localStorage.getItem('maxsm_ratings_font_weight') || '500'));
+        if (['400', '500', '600', '700'].indexOf(weight) === -1) weight = '500';
         document.documentElement.style.setProperty('--maxsm-rating-font-weight', weight);
     }
 
@@ -747,7 +456,6 @@
 
     function getAverageRatingClass(rating) {
         rating = parseFloat(rating) || 0;
-
         if (rating >= 8.5) return 'rate--blue';
         if (rating >= 8.0) return 'rate--green';
         if (rating >= 7.0) return 'rate--lime';
@@ -756,11 +464,7 @@
     }
 
     function isRatingSourceEnabled(source) {
-        var keyMap = {
-            kp: 'maxsm_ratings_source_kp',
-            tmdb: 'maxsm_ratings_source_tmdb',
-            imdb: 'maxsm_ratings_source_imdb'
-        };
+        var keyMap = { kp: 'maxsm_ratings_source_kp', tmdb: 'maxsm_ratings_source_tmdb', imdb: 'maxsm_ratings_source_imdb' };
         var key = keyMap[source];
         return !key || localStorage.getItem(key) !== 'false';
     }
@@ -771,31 +475,21 @@
 
     function hasRatingValue(element) {
         if (!element || !element.length) return false;
-
-        var value = parseFloat(
-            element.find('> div').eq(0).text().replace(',', '.')
-        );
-
+        var value = parseFloat(element.find('> div').eq(0).text().replace(',', '.'));
         return !isNaN(value) && value > 0;
     }
 
     function applyRatingSourceVisibility(render) {
         if (!render) return;
-
         var kpElement = $('.rate--kp', render);
         var imdbElement = $('.rate--imdb', render);
         var tmdbElement = $('.rate--tmdb', render);
-
         var kpEnabled = isRatingSourceEnabled('kp');
         var imdbEnabled = isRatingSourceEnabled('imdb');
-
         var kpHasRating = hasRatingValue(kpElement);
         var imdbHasRating = hasRatingValue(imdbElement);
-
         var noPrimaryRating = !kpHasRating && !imdbHasRating;
-
         var tmdbEnabled = isRatingSourceEnabled('tmdb') || noPrimaryRating;
-
         kpElement.toggleClass('maxsm-source-disabled', !kpEnabled);
         imdbElement.toggleClass('maxsm-source-disabled', !imdbEnabled);
         tmdbElement.toggleClass('maxsm-source-disabled', !tmdbEnabled);
@@ -807,29 +501,22 @@
             if (!active || !active.activity) return;
             var render = active.activity.render();
             if (!render) return;
-
             applyRatingSourceVisibility(render);
             calculateAverageRating(globalCurrentCard, render);
             insertIcons(globalCurrentCard, render);
             updateAverageSeparator(render);
         } catch (e) {
-            if (C_LOGGING) console.warn('MAXSM-RATINGS', 'Unable to refresh source visibility', e);
+            if (C_LOGGING) console.warn('MAXSM-RATINGS', 'refresh failed', e);
         }
     }
 
     /*
-     * Догружает недостающие внешние ID (imdb_id, kinopoisk_id) через TMDB API.
+     * enrichCardFromTmdb — всегда дозапрашивает полный объект через TMDB.
+     * Это чинит source=tmdb, где Lampa отдаёт урезанный объект
+     * без original_title, release_date, imdb_id.
      */
     function enrichCardFromTmdb(card, localCurrentCard, callback) {
-        if (!card || !card.id) {
-            callback(card);
-            return;
-        }
-
-        if (card.imdb_id && card.kinopoisk_id) {
-            callback(card);
-            return;
-        }
+        if (!card || !card.id) { callback(card); return; }
 
         var type = getCardType(card);
         var cleanType = type === 'movie' ? 'movie' : 'tv';
@@ -839,73 +526,99 @@
 
         if (cache[cacheKey] && (Date.now() - cache[cacheKey].timestamp < CACHE_TIME)) {
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich from cache");
-            card.imdb_id = card.imdb_id || cache[cacheKey].imdb_id;
-            card.kinopoisk_id = card.kinopoisk_id || cache[cacheKey].kinopoisk_id;
+            var cached = cache[cacheKey];
+            if (cached.imdb_id) card.imdb_id = card.imdb_id || cached.imdb_id;
+            if (cached.kinopoisk_id) card.kinopoisk_id = card.kinopoisk_id || cached.kinopoisk_id;
+            if (cached.original_title) card.original_title = card.original_title || cached.original_title;
+            if (cached.release_date) card.release_date = card.release_date || cached.release_date;
+            if (cached.title) card.title = card.title || cached.title;
+            if (cached.media_type) card.media_type = card.media_type || cached.media_type;
             callback(card);
             return;
         }
 
-        var externalPath = cleanType + '/' + card.id + '/external_ids?api_key=' + Lampa.TMDB.key();
-        var externalUrl = Lampa.TMDB.api(externalPath);
+        var detailsPath = cleanType + '/' + card.id + '?api_key=' + Lampa.TMDB.key() + '&append_to_response=external_ids';
+        var detailsUrl = Lampa.TMDB.api(detailsPath);
 
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich: request external_ids");
+        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich request: " + detailsUrl);
 
-        new Lampa.Reguest().silent(externalUrl, function (data) {
-            var imdbId = (data && data.imdb_id) || null;
-            var kpId = (data && data.kinopoisk_id) || null;
-
-            if (!kpId) {
-                var altPath = cleanType + '/' + card.id + '/alternative_titles?api_key=' + Lampa.TMDB.key();
-                var altUrl = Lampa.TMDB.api(altPath);
-
-                new Lampa.Reguest().silent(altUrl, function (altData) {
-                    if (altData && Array.isArray(altData.titles)) {
-                        for (var i = 0; i < altData.titles.length; i++) {
-                            var t = altData.titles[i];
-                            if (t && t.iso_3166_1 === 'RU' && t.title && t.kinopoisk_id) {
-                                kpId = t.kinopoisk_id;
-                                break;
-                            }
-                        }
-                    }
-                    finishEnrich(imdbId, kpId);
-                }, function () {
-                    finishEnrich(imdbId, kpId);
-                });
-            } else {
-                finishEnrich(imdbId, kpId);
-            }
-
-            function finishEnrich(imdbId, kpId) {
-                if (imdbId) card.imdb_id = card.imdb_id || imdbId;
-                if (kpId) card.kinopoisk_id = card.kinopoisk_id || kpId;
-
-                cache[cacheKey] = {
-                    imdb_id: imdbId || null,
-                    kinopoisk_id: kpId || null,
-                    timestamp: Date.now()
-                };
-                Lampa.Storage.set(ID_MAPPING_CACHE, cache);
-
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich done, imdb: " + card.imdb_id + ", kp: " + card.kinopoisk_id);
-
+        new Lampa.Reguest().silent(detailsUrl, function (data) {
+            if (!data) {
+                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich no data");
                 callback(card);
+                return;
             }
+
+            if (!card.title) card.title = data.title || data.name || '';
+            if (!card.name) card.name = data.name || data.title || '';
+            if (!card.original_title) card.original_title = data.original_title || data.original_name || '';
+            if (!card.original_name) card.original_name = data.original_name || data.original_title || '';
+            if (!card.release_date) card.release_date = data.release_date || data.first_air_date || '';
+            if (!card.first_air_date) card.first_air_date = data.first_air_date || data.release_date || '';
+            if (!card.media_type) card.media_type = cleanType;
+            if (!card.vote_average && data.vote_average) card.vote_average = data.vote_average;
+
+            var imdbId = (data.external_ids && data.external_ids.imdb_id) || data.imdb_id || null;
+            if (imdbId && !card.imdb_id) card.imdb_id = imdbId;
+
+            var kpId = (data.external_ids && data.external_ids.kinopoisk_id) || data.kinopoisk_id || null;
+            if (kpId && !card.kinopoisk_id) card.kinopoisk_id = kpId;
+
+            cache[cacheKey] = {
+                imdb_id: imdbId || null,
+                kinopoisk_id: kpId || null,
+                title: card.title || null,
+                original_title: card.original_title || null,
+                release_date: card.release_date || null,
+                media_type: cleanType,
+                timestamp: Date.now()
+            };
+            Lampa.Storage.set(ID_MAPPING_CACHE, cache);
+
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich done: imdb=" + card.imdb_id + ", title=" + card.title + ", orig=" + card.original_title + ", date=" + card.release_date);
+
+            callback(card);
         }, function () {
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", enrich failed");
             callback(card);
         });
     }
 
-    // Основная функция
+    /*
+     * Независимый IMDb через OMDb — на случай, если KP недоступен.
+     */
+    function fetchImdbRatingFromOmdb(imdbId, localCurrentCard, callback) {
+        if (!imdbId) { callback(null); return; }
+
+        var cache = Lampa.Storage.get(OMDB_CACHE) || {};
+        if (cache[imdbId] && (Date.now() - cache[imdbId].timestamp < CACHE_TIME)) {
+            if (C_LOGGING) console.log('MAXSM-RATINGS', 'OMDb IMDb from cache:', cache[imdbId].imdb);
+            callback(cache[imdbId].imdb);
+            return;
+        }
+
+        var key = getRandomToken(OMDB_API_KEYS);
+        var url = 'https://www.omdbapi.com/?apikey=' + key + '&i=' + imdbId;
+
+        new Lampa.Reguest().silent(url, function(data) {
+            if (data && data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A') {
+                var imdb = parseFloat(data.imdbRating);
+                if (!isNaN(imdb) && imdb > 0) {
+                    cache[imdbId] = { imdb: imdb, timestamp: Date.now() };
+                    Lampa.Storage.set(OMDB_CACHE, cache);
+                    callback(imdb);
+                    return;
+                }
+            }
+            callback(null);
+        }, function() { callback(null); });
+    }
+
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
-
         var localCurrentCard = card.id;
 
-        if (C_LOGGING) {
-            console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Start - card data: ", card);
-        }
+        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", START");
 
         enrichCardFromTmdb(card, localCurrentCard, function (enrichedCard) {
 
@@ -920,17 +633,7 @@
                 release_date: enrichedCard.release_date || enrichedCard.first_air_date || ''
             };
 
-            if (C_LOGGING) {
-                console.log(
-                    "MAXSM-RATINGS",
-                    "card: " + localCurrentCard + ", imdb id: " + normalizedCard.imdb_id +
-                    " kp id: " + normalizedCard.kinopoisk_id +
-                    " title: " + normalizedCard.title +
-                    " orig: " + normalizedCard.original_title +
-                    " type: " + normalizedCard.type +
-                    " date: " + normalizedCard.release_date
-                );
-            }
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", normalized:", normalizedCard);
 
             var rateLine = $('.full-start-new__rate-line', render);
             if (rateLine.length) {
@@ -957,26 +660,18 @@
 
             function updateUI() {
                 if (!render) return;
-
                 updateHiddenElements(ratingsData, localCurrentCard, render);
                 calculateAverageRating(localCurrentCard, render);
                 insertIcons(localCurrentCard, render);
                 applyRatingSourceVisibility(render);
                 updateAverageSeparator(render);
-
                 rateLine.css('visibility', 'visible');
 
                 var rateElement = $('.full-start__rate', render);
-                rateElement
-                    .off('click.ratings-modal')
-                    .on('click.ratings-modal', function (e) {
-                        e.stopPropagation();
-                        showRatingsModal(localCurrentCard, render);
-                    });
-
-                if (C_LOGGING) {
-                    console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", RATE UI UPDATED");
-                }
+                rateElement.off('click.ratings-modal').on('click.ratings-modal', function (e) {
+                    e.stopPropagation();
+                    showRatingsModal(localCurrentCard, render);
+                });
             }
 
             function scheduleUI() {
@@ -995,66 +690,52 @@
 
             updateUI();
 
-            /* Kinopoisk branch — запускаем всегда, если рейтинга нет в DOM */
             var cachedKpData = getKpCache(initialCacheKey);
 
             if (cachedKpData) {
-                mergeKpData({
-                    kinopoisk: cachedKpData.kp,
-                    imdb: cachedKpData.imdb
-                });
+                mergeKpData({ kinopoisk: cachedKpData.kp, imdb: cachedKpData.imdb });
                 scheduleUI();
             } else if (!kpExists || !imdbExists) {
-                getKPRatings(
-                    normalizedCard,
-                    getRandomToken(KP_API_KEYS),
-                    localCurrentCard,
-                    function (kpRatings) {
-                        if (kpRatings) {
-                            mergeKpData(kpRatings);
-                            saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
-                        }
-                        scheduleUI();
+                getKPRatings(normalizedCard, getRandomToken(KP_API_KEYS), localCurrentCard, function (kpRatings) {
+                    if (kpRatings) {
+                        mergeKpData(kpRatings);
+                        saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
                     }
-                );
+                    scheduleUI();
+                });
             }
 
-            /* Если после KP imdb всё ещё нет — пробуем получить imdb_id через TMDB и запросить KP-XML повторно */
             if (!normalizedCard.imdb_id && !imdbExists && !ratingsData.imdb) {
-                getImdbIdFromTmdb(
-                    normalizedCard.id,
-                    normalizedCard.type,
-                    localCurrentCard,
-                    function (newImdbId) {
-                        if (newImdbId) {
-                            normalizedCard.imdb_id = newImdbId;
-                            card.imdb_id = newImdbId;
-                            getKPRatings(
-                                normalizedCard,
-                                getRandomToken(KP_API_KEYS),
-                                localCurrentCard,
-                                function (kpRatings) {
-                                    if (kpRatings) {
-                                        mergeKpData(kpRatings);
-                                        saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
-                                    }
-                                    scheduleUI();
-                                }
-                            );
-                        }
+                getImdbIdFromTmdb(normalizedCard.id, normalizedCard.type, localCurrentCard, function (newImdbId) {
+                    if (newImdbId) {
+                        normalizedCard.imdb_id = newImdbId;
+                        card.imdb_id = newImdbId;
+
+                        fetchImdbRatingFromOmdb(newImdbId, localCurrentCard, function(imdbRating) {
+                            if (imdbRating) {
+                                ratingsData.imdb = imdbRating;
+                                scheduleUI();
+                            }
+                        });
+
+                        getKPRatings(normalizedCard, getRandomToken(KP_API_KEYS), localCurrentCard, function (kpRatings) {
+                            if (kpRatings) {
+                                mergeKpData(kpRatings);
+                                saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
+                            }
+                            scheduleUI();
+                        });
+                    } else {
                         scheduleUI();
                     }
-                );
+                });
             }
         });
     }
 
-    //-------------------------------------------MODALKA---------------------------------------------------------
     function showRatingsModal(cardId, render) {
         var showColors = localStorage.getItem('maxsm_ratings_colors') === 'true';
-
         var modalContent = $('<div class="maxsm-modal-ratings"></div>');
-
         var rateLine = $('.full-start-new__rate-line', render);
         if (!rateLine.length) return;
 
@@ -1065,7 +746,6 @@
             if (element.length) {
                 var value = element.children('div').eq(0).text().trim();
                 var numericValue = parseFloat(value);
-
                 var label = '';
                 switch(className) {
                     case 'rate--avg': label = ''; break;
@@ -1073,7 +753,6 @@
                     case 'rate--imdb': label = 'IMDb'; break;
                     case 'rate--kp': label = 'Кинопоиск'; break;
                 }
-
                 var item = $('<div class="maxsm-modal-rating-line"></div>');
                 if (showColors) {
                     var colorClass;
@@ -1101,18 +780,12 @@
             }
         });
     }
-    //------------------------------------------------------------------------------------------------------------------------
 
     /*
-     * Вставка иконок перед значениями рейтингов.
-     * Если иконка уже вставлена — ничего не делаем (нет мигания текстом).
+     * Вставка иконок. source--name скрыт через CSS, чтобы не мигал.
      */
     function insertIcons(localCurrentCard, render) {
         if (!render) return;
-
-        if (C_LOGGING) {
-            console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Insert icons");
-        }
 
         var showIcons = localStorage.getItem('maxsm_ratings_icons') === 'true';
         var showAverageIcon = localStorage.getItem('maxsm_ratings_avg_icon') !== 'false';
@@ -1125,25 +798,8 @@
 
             elements.each(function() {
                 var element = $(this);
-
                 var shouldShowIcon = iconType === 'average' ? showAverageIcon : showIcons;
-
                 var existingIcon = element.children('.maxsm-rating-leading-icon').first();
-
-                if (!shouldShowIcon) {
-                    if (existingIcon.length) existingIcon.remove();
-                    var srcName = element.find('.source--name').first();
-                    if (!srcName.length) {
-                        var childs = element.children('div');
-                        if (childs.length >= 2) srcName = childs.eq(1);
-                    }
-                    if (srcName.length) srcName.removeClass('maxsm-source-text-hidden rate--icon');
-                    return;
-                }
-
-                if (existingIcon.length) {
-                    return;
-                }
 
                 var sourceName = element.find('.source--name').first();
                 if (!sourceName.length) {
@@ -1151,42 +807,37 @@
                     if (childDivs.length >= 2) sourceName = childDivs.eq(1);
                 }
 
+                if (!shouldShowIcon) {
+                    if (existingIcon.length) existingIcon.remove();
+                    if (iconType !== 'average' && sourceName.length) {
+                        sourceName.addClass('maxsm-show-source-text');
+                    }
+                    return;
+                }
+
+                if (existingIcon.length) {
+                    if (iconType !== 'average' && sourceName.length) {
+                        sourceName.removeClass('maxsm-show-source-text');
+                    }
+                    return;
+                }
+
                 if (iconType !== 'average' && sourceName.length) {
-                    sourceName.addClass('maxsm-source-text-hidden');
+                    sourceName.removeClass('maxsm-show-source-text');
                 }
 
                 var ratingValue = element.children('div').first();
-
                 var extraClass = iconType === 'average' ? 'maxsm-average-icon' : 'maxsm-source-icon';
-
                 var styleClass = iconStyle === '1'
                     ? 'maxsm-icon-style-white'
-                    : (iconStyle === '2'
-                        ? 'maxsm-icon-style-translucent'
-                        : 'maxsm-icon-style-color');
+                    : (iconStyle === '2' ? 'maxsm-icon-style-translucent' : 'maxsm-icon-style-color');
+                var colorClass = iconType === 'average' && colorizeAverageIcon ? ' maxsm-average-rating-color' : '';
 
-                var colorClass = iconType === 'average' && colorizeAverageIcon
-                    ? ' maxsm-average-rating-color'
-                    : '';
+                var iconWrap = $('<span class="maxsm-rating-leading-icon maxsm-icon-container ' + extraClass + ' ' + styleClass + colorClass + '"></span>');
+                iconWrap.html(iconStyle === '1' ? whiteSvg : (iconStyle === '2' ? translucentSvg : coloredSvg));
 
-                var iconWrap = $(
-                    '<span class="maxsm-rating-leading-icon maxsm-icon-container ' +
-                    extraClass + ' ' + styleClass + colorClass + '"></span>'
-                );
-
-                iconWrap.html(
-                    iconStyle === '1'
-                        ? whiteSvg
-                        : (iconStyle === '2'
-                            ? translucentSvg
-                            : coloredSvg)
-                );
-
-                if (ratingValue.length) {
-                    iconWrap.insertBefore(ratingValue);
-                } else {
-                    element.prepend(iconWrap);
-                }
+                if (ratingValue.length) iconWrap.insertBefore(ratingValue);
+                else element.prepend(iconWrap);
             });
         }
 
@@ -1196,7 +847,6 @@
         replaceIcon('rate--tmdb', tmdb_svg, tmdb_white_svg, tmdb_translucent_svg, 'source');
     }
 
-    // Кеш Кинопоиска
     function getKpCache(key) {
         var cache = Lampa.Storage.get(KP_CACHE) || {};
         var item = cache[key];
@@ -1204,25 +854,13 @@
     }
 
     function saveKpCache(key, data, localCurrentCard) {
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Save KP cache");
-
         var cache = Lampa.Storage.get(KP_CACHE) || {};
-
-        cache[key] = {
-            kp: data.kp || null,
-            imdb: data.imdb || null,
-            timestamp: Date.now()
-        };
-
+        cache[key] = { kp: data.kp || null, imdb: data.imdb || null, timestamp: Date.now() };
         Lampa.Storage.set(KP_CACHE, cache);
     }
 
-    // Получаем IMDB id из TMDB id по API
     function getImdbIdFromTmdb(tmdbId, type, localCurrentCard, callback) {
-        if (!tmdbId) {
-            callback(null);
-            return;
-        }
+        if (!tmdbId) { callback(null); return; }
 
         var cleanType = type === 'movie' ? 'movie' : 'tv';
         var cacheKey = cleanType + '_' + tmdbId;
@@ -1241,7 +879,6 @@
             if (!imdbId && cleanType === 'tv') {
                 var altPath = 'tv/' + tmdbId + '?api_key=' + Lampa.TMDB.key();
                 var altUrl = Lampa.TMDB.api(altPath);
-
                 new Lampa.Reguest().silent(altUrl, function(altData) {
                     var altImdb = (altData && altData.external_ids && altData.external_ids.imdb_id) || null;
                     if (altImdb) {
@@ -1249,9 +886,7 @@
                         Lampa.Storage.set(ID_MAPPING_CACHE, cache);
                     }
                     callback(altImdb);
-                }, function() {
-                    callback(null);
-                });
+                }, function() { callback(null); });
                 return;
             }
 
@@ -1260,14 +895,11 @@
                 Lampa.Storage.set(ID_MAPPING_CACHE, cache);
             }
             callback(imdbId);
-        }, function() {
-            callback(null);
-        });
+        }, function() { callback(null); });
     }
 
     function updateHiddenElements(ratings, localCurrentCard, render) {
         if (!render) return;
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Update hidden elements");
 
         var imdbElement = $('.rate--imdb', render);
         if (imdbElement.length) {
@@ -1290,8 +922,6 @@
 
     function calculateAverageRating(localCurrentCard, render) {
         if (!render) return;
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Calculate average rating");
-
         var rateLine = $('.full-start-new__rate-line', render);
         if (!rateLine.length) return;
 
@@ -1301,10 +931,7 @@
             kp: parseFloat($('.rate--kp div:first', rateLine).text()) || 0
         };
 
-        var totalWeight = 0;
-        var weightedSum = 0;
-        var ratingsCount = 0;
-
+        var totalWeight = 0, weightedSum = 0, ratingsCount = 0;
         for (var key in ratings) {
             if (ratings.hasOwnProperty(key) && !isNaN(ratings[key]) && ratings[key] > 0) {
                 weightedSum += ratings[key] * WEIGHTS[key];
@@ -1314,17 +941,11 @@
         }
 
         $('.rate--avg', rateLine).remove();
-
-        if (!isAverageRatingEnabled()) {
-            updateAverageSeparator(render);
-            return;
-        }
+        if (!isAverageRatingEnabled()) { updateAverageSeparator(render); return; }
 
         if (totalWeight > 0 && ratingsCount > 1) {
             var averageRating = (weightedSum / totalWeight).toFixed(1);
             var colorClass = getAverageRatingClass(averageRating);
-
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Average rating: " + averageRating);
 
             var avgElement = $(
                 '<div class="full-start__rate rate--avg ' + colorClass + '">' +
@@ -1334,88 +955,82 @@
             );
 
             var showColors = localStorage.getItem('maxsm_ratings_colors') === 'true';
-
-            if (!showColors) {
-                avgElement.removeClass(colorClass);
-            }
+            if (!showColors) avgElement.removeClass(colorClass);
 
             $('.full-start__rate:first', rateLine).before(avgElement);
         }
     }
 
     /*
-     * Универсальная попытка обработать уже отрисованную карточку,
-     * когда неизвестно, кто её отрисовал (Cardify, обычный full-start и т.п.).
+     * Перебираем все известные места, где Lampa может хранить текущий movie.
      */
+    function findCurrentMovie() {
+        var candidates = [];
+        try {
+            var active = Lampa.Activity.active();
+            if (active) {
+                candidates.push(active.movie);
+                candidates.push(active.card);
+                if (active.activity) {
+                    candidates.push(active.activity.movie);
+                    candidates.push(active.activity.card);
+                    if (active.activity.activity) {
+                        candidates.push(active.activity.activity.movie);
+                        candidates.push(active.activity.activity.card);
+                    }
+                }
+            }
+        } catch (e) {}
+
+        for (var i = 0; i < candidates.length; i++) {
+            var c = candidates[i];
+            if (!c) continue;
+            if (c.id || c.tmdb_id || c.movie_id) {
+                if (!c.id && c.tmdb_id) c.id = c.tmdb_id;
+                if (!c.id && c.movie_id) c.id = c.movie_id;
+                if (!c.title && c.name) c.title = c.name;
+                if (!c.release_date && c.first_air_date) c.release_date = c.first_air_date;
+                return c;
+            }
+        }
+
+        return null;
+    }
+
     function tryProcessCardInDom() {
         var rateLine = $('.full-start-new__rate-line').first();
         if (!rateLine.length) return;
-
         if (rateLine.data('maxsm-processed') === true) return;
 
         var render = rateLine.closest('.activity__body');
         if (!render.length) render = $(document);
 
-        var active = Lampa.Activity.active();
-        var movie = active && active.movie ? active.movie : null;
-
+        var movie = findCurrentMovie();
         if (!movie || !movie.id) {
-            try {
-                var activeActivity = active && active.activity ? active.activity : null;
-                if (activeActivity && activeActivity.activity && activeActivity.activity.movie) {
-                    movie = activeActivity.activity.movie;
-                }
-            } catch (err) {}
-        }
-
-        if (!movie || !movie.id) {
-            if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: no movie in active activity');
+            if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: no movie');
             return;
         }
 
         rateLine.data('maxsm-processed', true);
         globalCurrentCard = movie.id;
 
-        if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: process card id=' + movie.id);
+        if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: id=' + movie.id);
 
         fetchAdditionalRatings(movie, render);
     }
 
-    // Инициализация плагина
     function startPlugin() {
-        if (C_LOGGING) console.log("MAXSM-RATINGS", " Hello!");
         window.maxsmRatingsPlugin = true;
 
-        if (!localStorage.getItem('maxsm_ratings_colors')) {
-            localStorage.setItem('maxsm_ratings_colors', 'false');
-        }
-        if (localStorage.getItem('maxsm_ratings_source_kp') === null) {
-            localStorage.setItem('maxsm_ratings_source_kp', 'true');
-        }
-        if (localStorage.getItem('maxsm_ratings_source_tmdb') === null) {
-            localStorage.setItem('maxsm_ratings_source_tmdb', 'false');
-        }
-        if (localStorage.getItem('maxsm_ratings_source_imdb') === null) {
-            localStorage.setItem('maxsm_ratings_source_imdb', 'true');
-        }
-
-        if (!localStorage.getItem('maxsm_ratings_icons')) {
-            localStorage.setItem('maxsm_ratings_icons', 'false');
-        }
-        if (localStorage.getItem('maxsm_ratings_avg_icon') === null) {
-            localStorage.setItem('maxsm_ratings_avg_icon', 'true');
-        }
-        if (localStorage.getItem('maxsm_ratings_icon_style') === null) {
-            localStorage.setItem('maxsm_ratings_icon_style', '2');
-        }
-
-        if (localStorage.getItem('maxsm_ratings_show_average') === null) {
-            localStorage.setItem('maxsm_ratings_show_average', 'true');
-        }
-
-        if (localStorage.getItem('maxsm_ratings_font_weight') === null) {
-            localStorage.setItem('maxsm_ratings_font_weight', '500');
-        }
+        if (!localStorage.getItem('maxsm_ratings_colors')) localStorage.setItem('maxsm_ratings_colors', 'false');
+        if (localStorage.getItem('maxsm_ratings_source_kp') === null) localStorage.setItem('maxsm_ratings_source_kp', 'true');
+        if (localStorage.getItem('maxsm_ratings_source_tmdb') === null) localStorage.setItem('maxsm_ratings_source_tmdb', 'false');
+        if (localStorage.getItem('maxsm_ratings_source_imdb') === null) localStorage.setItem('maxsm_ratings_source_imdb', 'true');
+        if (!localStorage.getItem('maxsm_ratings_icons')) localStorage.setItem('maxsm_ratings_icons', 'false');
+        if (localStorage.getItem('maxsm_ratings_avg_icon') === null) localStorage.setItem('maxsm_ratings_avg_icon', 'true');
+        if (localStorage.getItem('maxsm_ratings_icon_style') === null) localStorage.setItem('maxsm_ratings_icon_style', '2');
+        if (localStorage.getItem('maxsm_ratings_show_average') === null) localStorage.setItem('maxsm_ratings_show_average', 'true');
+        if (localStorage.getItem('maxsm_ratings_font_weight') === null) localStorage.setItem('maxsm_ratings_font_weight', '500');
 
         applyRatingFontWeight();
 
@@ -1430,108 +1045,52 @@
         iconStyleValue[1] = Lampa.Lang.translate("maxsm_ratings_icon_style_white");
         iconStyleValue[2] = Lampa.Lang.translate("maxsm_ratings_icon_style_translucent");
 
-        var fontWeightValue = {};
-        fontWeightValue[400] = '400';
-        fontWeightValue[500] = '500';
-        fontWeightValue[600] = '600';
-        fontWeightValue[700] = '700';
+        var fontWeightValue = { 400: '400', 500: '500', 600: '600', 700: '700' };
 
-        // ===== 1. Средний рейтинг =====
+        // 1. Средний рейтинг
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_show_average",
-                type: "trigger",
-                default: true
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_mode"),
-                description: ''
-            },
-            onChange: function(value) {
-                refreshRatingSourceSettings();
-            }
+            param: { name: "maxsm_ratings_show_average", type: "trigger", default: true },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_mode"), description: '' },
+            onChange: function() { refreshRatingSourceSettings(); }
         });
 
-        // ===== 2. Источники =====
+        // 2. Источники
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_source_kp",
-                type: "trigger",
-                default: true
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_source_kp"),
-                description: ''
-            },
-            onChange: function(value) {
-                refreshRatingSourceSettings();
-            }
+            param: { name: "maxsm_ratings_source_kp", type: "trigger", default: true },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_source_kp"), description: '' },
+            onChange: function() { refreshRatingSourceSettings(); }
         });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_source_imdb",
-                type: "trigger",
-                default: true
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_source_imdb"),
-                description: ''
-            },
-            onChange: function(value) {
-                refreshRatingSourceSettings();
-            }
+            param: { name: "maxsm_ratings_source_imdb", type: "trigger", default: true },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_source_imdb"), description: '' },
+            onChange: function() { refreshRatingSourceSettings(); }
         });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_source_tmdb",
-                type: "trigger",
-                default: false
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_source_tmdb"),
-                description: ''
-            },
-            onChange: function(value) {
-                refreshRatingSourceSettings();
-            }
+            param: { name: "maxsm_ratings_source_tmdb", type: "trigger", default: false },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_source_tmdb"), description: '' },
+            onChange: function() { refreshRatingSourceSettings(); }
         });
 
-        // ===== 3. Цвета =====
+        // 3. Цвета
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_colors",
-                type: "trigger",
-                default: false
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_colors"),
-                description: ''
-            },
-            onChange: function(value) {
-                refreshRatingSourceSettings();
-            }
+            param: { name: "maxsm_ratings_colors", type: "trigger", default: false },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_colors"), description: '' },
+            onChange: function() { refreshRatingSourceSettings(); }
         });
 
-        // ===== 4. Иконки =====
+        // 4. Иконки
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_icons",
-                type: "trigger",
-                default: false
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_icons"),
-                description: ''
-            },
-            onChange: function(value) {
+            param: { name: "maxsm_ratings_icons", type: "trigger", default: false },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_icons"), description: '' },
+            onChange: function() {
                 var render = Lampa.Activity.active().activity.render();
                 insertIcons(globalCurrentCard, render);
                 updateAverageSeparator(render);
@@ -1540,18 +1099,9 @@
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_icon_style",
-                type: "select",
-                values: iconStyleValue,
-                default: 2
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_icon_style"),
-                description: ''
-            },
-            onChange: function(value) {
-                /* При смене стиля принудительно удаляем старые иконки */
+            param: { name: "maxsm_ratings_icon_style", type: "select", values: iconStyleValue, default: 2 },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_icon_style"), description: '' },
+            onChange: function() {
                 var render = Lampa.Activity.active().activity.render();
                 $('.maxsm-rating-leading-icon', render).remove();
                 insertIcons(globalCurrentCard, render);
@@ -1561,79 +1111,47 @@
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_avg_icon",
-                type: "trigger",
-                default: true
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_avg_icon"),
-                description: ''
-            },
-            onChange: function(value) {
+            param: { name: "maxsm_ratings_avg_icon", type: "trigger", default: true },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_avg_icon"), description: '' },
+            onChange: function() {
                 var render = Lampa.Activity.active().activity.render();
                 insertIcons(globalCurrentCard, render);
                 updateAverageSeparator(render);
             }
         });
 
-        // ===== 5. Внешний вид =====
+        // 5. Внешний вид
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_font_weight",
-                type: "select",
-                values: fontWeightValue,
-                default: 500
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_font_weight"),
-                description: ''
-            },
-            onChange: function(value) {
-                applyRatingFontWeight(value);
-            }
+            param: { name: "maxsm_ratings_font_weight", type: "select", values: fontWeightValue, default: 500 },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_font_weight"), description: '' },
+            onChange: function(value) { applyRatingFontWeight(value); }
         });
 
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: {
-                name: "maxsm_ratings_avg_separator",
-                type: "trigger",
-                default: true
-            },
-            field: {
-                name: Lampa.Lang.translate("maxsm_ratings_avg_separator"),
-                description: ''
-            },
-            onChange: function(value) {
+            param: { name: "maxsm_ratings_avg_separator", type: "trigger", default: true },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_avg_separator"), description: '' },
+            onChange: function() {
                 var render = Lampa.Activity.active().activity.render();
                 updateAverageSeparator(render);
             }
         });
 
-        // ===== 6. Очистка кеша =====
+        // 6. Очистка кеша
         Lampa.SettingsApi.addParam({
             component: 'maxsm_ratings',
-            param: {
-                name: 'maxsm_ratings_cc',
-                type: 'button'
-            },
-            field: {
-                name: Lampa.Lang.translate('maxsm_ratings_cc')
-            },
+            param: { name: 'maxsm_ratings_cc', type: 'button' },
+            field: { name: Lampa.Lang.translate('maxsm_ratings_cc') },
             onChange: function() {
                 localStorage.removeItem(KP_CACHE);
                 localStorage.removeItem(ID_MAPPING_CACHE);
+                localStorage.removeItem(OMDB_CACHE);
                 window.location.reload();
             }
         });
 
-        /*
-         * Рейтинги внутри карточки.
-         * Основной путь — full/complite (обычная карточка).
-         * Дополнительный — activity/render + tryProcessCardInDom (Cardify и др.).
-         */
+        /* Основной триггер — событие full/complite */
         Lampa.Listener.follow('full', function (e) {
             if (e.type === 'complite' && e.data && e.data.movie) {
                 var render = e.object.activity.render();
@@ -1642,30 +1160,40 @@
             }
         });
 
+        /* Резервный триггер — activity/render */
         Lampa.Listener.follow('activity', function (e) {
             if (e.type !== 'render' && e.type !== 'start') return;
-            setTimeout(function () {
-                tryProcessCardInDom();
-            }, 300);
+            setTimeout(tryProcessCardInDom, 300);
         });
+
+        /* MutationObserver — ловит появление карточки в DOM */
+        var domObserver = new MutationObserver(function(mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes || [];
+                for (var j = 0; j < nodes.length; j++) {
+                    var node = nodes[j];
+                    if (!node || node.nodeType !== 1) continue;
+                    if ($(node).is('.full-start-new__rate-line') || $(node).find('.full-start-new__rate-line').length) {
+                        setTimeout(tryProcessCardInDom, 100);
+                        return;
+                    }
+                }
+            }
+        });
+
+        domObserver.observe(document.body, { childList: true, subtree: true });
+
+        /* И один раз сразу — на случай, если карточка уже в DOM */
+        setTimeout(tryProcessCardInDom, 500);
     }
 
     if (!window.maxsmRatingsPlugin) startPlugin();
 })();
 
 /* ===== Integrated: lampa_rating_icons_toggle.js ===== */
-/*
- * Отдельная настройка во вкладке «Интерфейс» — показывать/скрывать
- * логотипы источников (IMDb, Кинопоиск, TMDB и др.) на карточках фильмов
- * и сериалов в списках (главная, подборки, поиск, страницы актёров).
- *
- * Это НЕ то же самое, что «Иконки вместо текста» во вкладке «Рейтинги».
- * Та настройка управляет логотипами внутри полной карточки фильма.
- */
 (function () {
     'use strict';
 
-    var PLUGIN_ID = 'rating_icons_toggle';
     var SETTING = 'rating_icons_show';
     var STYLE_ID = 'lampa-rating-icons-toggle-style';
     var HIDE_CLASS = 'lampa-rating-provider-icon-hidden';
@@ -1685,41 +1213,20 @@
 
     function addStyles() {
         if (document.getElementById(STYLE_ID)) return;
-
         var style = document.createElement('style');
         style.id = STYLE_ID;
-        style.textContent = [
-            '.' + HIDE_CLASS + '{',
-            '  display:none!important;',
-            '  visibility:hidden!important;',
-            '  width:0!important;',
-            '  min-width:0!important;',
-            '  max-width:0!important;',
-            '  height:0!important;',
-            '  min-height:0!important;',
-            '  max-height:0!important;',
-            '  margin:0!important;',
-            '  padding:0!important;',
-            '  border:0!important;',
-            '}'
-        ].join('\n');
+        style.textContent = '.' + HIDE_CLASS + '{display:none!important;visibility:hidden!important;width:0!important;min-width:0!important;max-width:0!important;height:0!important;min-height:0!important;max-height:0!important;margin:0!important;padding:0!important;border:0!important;}';
         document.head.appendChild(style);
     }
 
     function providerHint(el) {
         if (!el || el.nodeType !== 1) return false;
-
         var attrs = [
-            el.className || '',
-            el.id || '',
-            el.getAttribute('alt') || '',
-            el.getAttribute('title') || '',
-            el.getAttribute('aria-label') || '',
-            el.getAttribute('data-source') || '',
-            el.getAttribute('data-provider') || '',
-            el.getAttribute('src') || ''
+            el.className || '', el.id || '',
+            el.getAttribute('alt') || '', el.getAttribute('title') || '',
+            el.getAttribute('aria-label') || '', el.getAttribute('data-source') || '',
+            el.getAttribute('data-provider') || '', el.getAttribute('src') || ''
         ].join(' ').toLowerCase();
-
         return /(imdb|kinopoisk|kinopoisk|кинопоиск|kp[_-]?(?:logo|rate|rating)|tmdb|rottentomatoes|rotten[_-]?tomatoes|metacritic|letterboxd|trakt|mdblist|shikimori|myshows|rating[_-]?logo|rate[_-]?logo)/i.test(attrs);
     }
 
@@ -1739,19 +1246,7 @@
 
     function ratingBoxes(card) {
         if (!card || !card.querySelectorAll) return [];
-
-        var selectors = [
-            '.card__rate',
-            '.card__rating',
-            '.card__vote',
-            '.card__vote-rate',
-            '.card__vote-number',
-            '[class^="card__rate-"]',
-            '[class*=" card__rate-"]',
-            '[class^="card__rating-"]',
-            '[class*=" card__rating-"]'
-        ].join(',');
-
+        var selectors = ['.card__rate','.card__rating','.card__vote','.card__vote-rate','.card__vote-number','[class^="card__rate-"]','[class*=" card__rate-"]','[class^="card__rating-"]','[class*=" card__rating-"]'].join(',');
         return Array.prototype.slice.call(card.querySelectorAll(selectors));
     }
 
@@ -1761,10 +1256,8 @@
         var graphics = box.querySelectorAll('img,svg,picture');
         for (var i = 0; i < graphics.length; i++) {
             var graphic = graphics[i];
-
             var rect = null;
             try { rect = graphic.getBoundingClientRect(); } catch (e) {}
-
             var smallGraphic = !rect || ((rect.width || 0) <= 80 && (rect.height || 0) <= 80);
             if (providerHint(graphic) || smallGraphic) graphic.classList.add(HIDE_CLASS);
         }
@@ -1773,20 +1266,12 @@
         for (var j = 0; j < children.length; j++) {
             var child = children[j];
             if (hasNumericRating(child.textContent)) continue;
-
-            if (providerHint(child)) {
-                child.classList.add(HIDE_CLASS);
-                continue;
-            }
-
+            if (providerHint(child)) { child.classList.add(HIDE_CLASS); continue; }
             try {
                 var cs = window.getComputedStyle(child);
                 var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
                 var rect2 = child.getBoundingClientRect();
-
-                if (bg !== 'none' && rect2.width <= 80 && rect2.height <= 80) {
-                    child.classList.add(HIDE_CLASS);
-                }
+                if (bg !== 'none' && rect2.width <= 80 && rect2.height <= 80) child.classList.add(HIDE_CLASS);
             } catch (e2) {}
         }
     }
@@ -1799,10 +1284,8 @@
 
     function scan(root) {
         if (iconsEnabled() || !root || !root.querySelectorAll) return;
-
         var ownCard = closestCard(root);
         if (ownCard) scanCard(ownCard);
-
         var cards = root.querySelectorAll('.card, .card--small, .card--wide, [class~="card"]');
         for (var i = 0; i < cards.length; i++) scanCard(cards[i]);
     }
@@ -1820,10 +1303,8 @@
 
     function observeDom() {
         if (observer || typeof MutationObserver === 'undefined' || !document.body) return;
-
         observer = new MutationObserver(function (mutations) {
             if (iconsEnabled()) return;
-
             for (var i = 0; i < mutations.length; i++) {
                 var nodes = mutations[i].addedNodes || [];
                 for (var j = 0; j < nodes.length; j++) {
@@ -1831,7 +1312,6 @@
                 }
             }
         });
-
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
@@ -1841,10 +1321,7 @@
         rescanTimer = setInterval(function () {
             if (!iconsEnabled()) scan(document.body);
             n++;
-            if (n >= 10) {
-                clearInterval(rescanTimer);
-                rescanTimer = null;
-            }
+            if (n >= 10) { clearInterval(rescanTimer); rescanTimer = null; }
         }, 500);
     }
 
@@ -1854,21 +1331,12 @@
 
         Lampa.SettingsApi.addParam({
             component: 'interface',
-            param: {
-                name: SETTING,
-                type: 'trigger',
-                'default': true
-            },
+            param: { name: SETTING, type: 'trigger', 'default': true },
             field: {
                 name: 'Иконки возле рейтинга',
                 description: 'Показывать логотипы IMDb, Кинопоиска и других источников только на карточках фильмов и сериалов'
             },
-            onChange: function () {
-                setTimeout(function () {
-                    applySetting();
-                    rescanBurst();
-                }, 50);
-            }
+            onChange: function () { setTimeout(function () { applySetting(); rescanBurst(); }, 50); }
         });
 
         if (Lampa.Storage && Lampa.Storage.listener && Lampa.Storage.listener.follow) {
@@ -1889,11 +1357,6 @@
         rescanBurst();
     }
 
-    if (window.appready) {
-        startPlugin();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') startPlugin();
-        });
-    }
+    if (window.appready) startPlugin();
+    else Lampa.Listener.follow('app', function (e) { if (e.type === 'ready') startPlugin(); });
 })();
