@@ -4,16 +4,44 @@
     var network = new Lampa.Reguest();
     var CORS_PROXY = 'https://script.google.com/macros/s/AKfycbyW-G0Kicxj6N_cqb-yCzYNXFL4uxKSRi7B51qrNYsVa1wmuVr4adZ8tOHpGvNXtoWS/exec';
 
-    var buttonIcon = '<svg class="button--kinopoisk_rating_icon" width="24" height="23" viewBox="0 0 24 23" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.6162 7.10981L15.8464 7.55198L16.3381 7.63428L22.2841 8.62965C22.8678 8.72736 23.0999 9.44167 22.6851 9.86381L18.4598 14.1641L18.1104 14.5196L18.184 15.0127L19.0748 20.9752C19.1622 21.5606 18.5546 22.002 18.025 21.738L12.6295 19.0483L12.1833 18.8259L11.7372 19.0483L6.34171 21.738C5.81206 22.002 5.20443 21.5606 5.29187 20.9752L6.18264 15.0127L6.25629 14.5196L5.9069 14.1641L1.68155 9.86381C1.26677 9.44167 1.49886 8.72736 2.08255 8.62965L8.02855 7.63428L8.52022 7.55198L8.75043 7.10981L11.5345 1.76241C11.8078 1.23748 12.5589 1.23748 12.8322 1.76241L15.6162 7.10981Z" stroke="currentColor" stroke-width="2.2"></path></svg>';
+    // ======================= ИКОНКИ =======================
 
+    // Пустая звезда — обычная белая (наследует currentColor)
+    var starIconEmpty = '<svg class="button--kinopoisk_rating_icon" width="24" height="23" viewBox="0 0 24 23" fill="none" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M15.6162 7.10981L15.8464 7.55198L16.3381 7.63428L22.2841 8.62965C22.8678 8.72736 23.0999 9.44167 22.6851 9.86381L18.4598 14.1641L18.1104 14.5196L18.184 15.0127L19.0748 20.9752C19.1622 21.5606 18.5546 22.002 18.025 21.738L12.6295 19.0483L12.1833 18.8259L11.7372 19.0483L6.34171 21.738C5.81206 22.002 5.20443 21.5606 5.29187 20.9752L6.18264 15.0127L6.25629 14.5196L5.9069 14.1641L1.68155 9.86381C1.26677 9.44167 1.49886 8.72736 2.08255 8.62965L8.02855 7.63428L8.52022 7.55198L8.75043 7.10981L11.5345 1.76241C11.8078 1.23748 12.5589 1.23748 12.8322 1.76241L15.6162 7.10981Z" stroke="currentColor" stroke-width="2.2"></path>' +
+        '</svg>';
+
+    // Лоадер
     var buttonLoader = '<svg class="button--kinopoisk_rating_icon" xmlns="http://www.w3.org/2000/svg" style="margin:auto;background:none;display:block;shape-rendering:auto;" width="24px" height="24px" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid"><circle cx="50" cy="50" fill="none" stroke="#ffffff" stroke-width="5" r="35" stroke-dasharray="164.93361431346415 56.97787143782138"><animateTransform attributeName="transform" type="rotate" repeatCount="indefinite" dur="1s" values="0 50 50;360 50 50" keyTimes="0;1"></animateTransform></circle></svg>';
 
-    // ======================= AUTH (из kinopoisk.js) =======================
+    /**
+     * Белый круг с цифрой оценки внутри.
+     * Без окраски — просто белый круг и тёмная цифра.
+     */
+    function makeRatingIcon(rating) {
+        var fontSize = String(rating).length > 1 ? 10 : 13;
+
+        return '<svg class="button--kinopoisk_rating_icon" width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+            '<circle cx="12" cy="12" r="11" fill="#ffffff"/>' +
+            '<text x="12" y="12" text-anchor="middle" dominant-baseline="central" ' +
+            'fill="#1a1a1a" font-size="' + fontSize + '" font-weight="700" ' +
+            'font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif" ' +
+            'style="user-select:none">' + rating + '</text>' +
+            '</svg>';
+    }
+
+    /**
+     * Возвращает нужную иконку: звезда если нет оценки, круг с цифрой если есть.
+     */
+    function getButtonIcon(rating) {
+        return rating ? makeRatingIcon(rating) : starIconEmpty;
+    }
+
+    // ======================= AUTH =======================
 
     function getToken(device_code, refresh) {
         var client_id = 'b8b9c7a09b79452094e12f6990009934';
         var token_data;
-
         if (!refresh) {
             token_data = {
                 grant_type: 'device_code',
@@ -90,8 +118,6 @@
             if (data.default_email) {
                 Lampa.Storage.set('kinopoisk_email', data.default_email);
                 $('div[data-name="kinopoisk_auth"]').find('.settings-param__name').text(data.default_email);
-            } else {
-                console.log('Kinopoisk Ratings', 'Failed to get user email', data.error);
             }
         }, function (data) {
             console.log('Kinopoisk Ratings', 'Failed to get user email', data);
@@ -110,14 +136,7 @@
         }
     }
 
-    // ======================= RATINGS (из kinopoisk_rating.js) =======================
-
-    function getColorBasedOnRate(rate) {
-        if (rate >= 1 && rate <= 4) return '#EA4E4E';
-        if (rate >= 5 && rate <= 7) return '#999';
-        if (rate > 7) return '#79D29E';
-        return 'currentColor';
-    }
+    // ======================= RATINGS =======================
 
     function getKinopoiskRatings(offset, limit, showResult) {
         offset = offset || 0;
@@ -173,14 +192,12 @@
                     Lampa.Storage.set('kinopoisk_my_ratings', kinopoiskRatings);
 
                     if (!background) {
-                        $('.button--kinopoisk_rating_icon').replaceWith(buttonIcon);
-                        var color = getColorBasedOnRate(Number(rating));
-                        $('.button--kinopoisk_rating svg path').attr('stroke', color);
+                        $('.button--kinopoisk_rating_icon').replaceWith(getButtonIcon(rating));
                         Lampa.Noty.show('Оценка ' + rating + ' установлена на Кинопоиске');
                     }
                 } else {
                     if (!background) {
-                        $('.button--kinopoisk_rating_icon').replaceWith(buttonIcon);
+                        $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
                         Lampa.Noty.show('Не удалось обновить оценку');
                     }
                     console.log('Kinopoisk Ratings', 'Error setting rating', data);
@@ -188,7 +205,7 @@
             },
             function (data) {
                 console.log('Kinopoisk Ratings', 'Error setting rating', data);
-                if (!background) $('.button--kinopoisk_rating_icon').replaceWith(buttonIcon);
+                if (!background) $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
 
                 if (data.statusText && data.statusText === 'timeout') {
                     Lampa.Noty.show('Таймаут, попробуем позже');
@@ -203,19 +220,22 @@
     }
 
     function removeRating(oauth, kinopoiskId) {
+        $('.button--kinopoisk_rating_icon').replaceWith(buttonLoader);
         network.silent(CORS_PROXY + '?method=removeVote&oauth=' + oauth + '&movie=' + String(kinopoiskId),
             function (data) {
                 if (data && data.data && data.data.movie && data.data.movie.vote && data.data.movie.vote.remove && data.data.movie.vote.remove.status === 'SUCCESS') {
                     var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
                     delete kinopoiskRatings[kinopoiskId];
                     Lampa.Storage.set('kinopoisk_my_ratings', kinopoiskRatings);
-                    $('.button--kinopoisk_rating svg path').attr('stroke', 'currentColor');
+                    $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
                     Lampa.Noty.show('Оценка удалена');
                 } else {
+                    $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
                     Lampa.Noty.show('Не удалось удалить оценку');
                 }
             },
             function (data) {
+                $('.button--kinopoisk_rating_icon').replaceWith(starIconEmpty);
                 Lampa.Noty.show('Не удалось удалить оценку');
                 console.log('Kinopoisk Ratings', 'Error removing rating', data);
             }
@@ -254,7 +274,6 @@
                     Lampa.Noty.show('Авторизуйтесь в настройках Кинопоиска');
                     return;
                 }
-
                 if (a.delete) {
                     removeRating(oauth, kinopoiskId);
                 } else {
@@ -266,15 +285,15 @@
     }
 
     function addRatingButton(e, kinopoiskId) {
-        if ($('.button--kinopoisk_rating').length === 0) {
-            $('.full-start-new__buttons')
-                .append('<div class="full-start__button selector button--kinopoisk_rating">' + buttonIcon + '<span>Оценить на Кинопоиске</span></div>');
-        }
-
         var kinopoiskRatings = Lampa.Storage.get('kinopoisk_my_ratings', {});
         var rate = kinopoiskRatings[kinopoiskId];
-        var color = getColorBasedOnRate(Number(rate));
-        $('.button--kinopoisk_rating svg path').attr('stroke', color);
+
+        $('.button--kinopoisk_rating').remove();
+
+        $('.full-start-new__buttons')
+            .append('<div class="full-start__button selector button--kinopoisk_rating">' +
+                getButtonIcon(rate) +
+                '<span>Кинопоиск</span></div>');
 
         $('.button--kinopoisk_rating').off('hover:enter').on('hover:enter', function () {
             var oauth = Lampa.Storage.get('kinopoisk_access_token');
@@ -293,7 +312,7 @@
 
         checkAndRefreshToken();
 
-        // Обработка отложенных оценок
+        // Отложенные оценки
         var ratings_postponed = Lampa.Storage.get('kinopoisk_my_ratings_postponed', {});
         var delay = 1000;
         Object.keys(ratings_postponed).forEach(function (key) {
@@ -301,11 +320,11 @@
             delay += 1000;
         });
 
-        // Обновление оценок при старте
+        // Обновляем оценки при старте
         var oauth = Lampa.Storage.get('kinopoisk_access_token');
         if (oauth) getKinopoiskRatings(0, true, false);
 
-        // Hook на открытие карточки фильма
+        // Хук на открытие карточки
         Lampa.Listener.follow('full', function (e) {
             if (e.type !== 'complite') return;
 
@@ -328,7 +347,8 @@
             }
         });
 
-        // Настройки
+        // ============= НАСТРОЙКИ =============
+
         if (!window.lampa_settings.kinopoisk) {
             Lampa.SettingsApi.addComponent({
                 component: 'kinopoisk',
