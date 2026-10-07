@@ -1249,6 +1249,91 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
         }
     }
 
+    /*
+     * ===== ПАТЧ: правильный поиск movie в Lampa =====
+     *
+     * В вашей сборке Lampa структура активной activity такая:
+     *   active.id     — TMDB id (строка)
+     *   active.card   — объект movie целиком
+     *   active.method — 'movie' или 'tv' (media_type)
+     *   active.source — 'tmdb' или 'cub'
+     *
+     * Ни active.movie, ни active.activity.movie не существует.
+     */
+    function findCurrentMovie() {
+        try {
+            var active = Lampa.Activity.active();
+            if (!active) return null;
+
+            // Основной путь: active.card — объект movie
+            var card = active.card;
+            if (card && (card.id || active.id)) {
+                if (!card.id && active.id) card.id = active.id;
+                if (!card.media_type && active.method) card.media_type = active.method;
+                if (!card.title && card.name) card.title = card.name;
+                if (!card.release_date && card.first_air_date) card.release_date = card.first_air_date;
+
+                if (C_LOGGING) console.log('MAXSM-RATINGS', 'findCurrentMovie: card', card);
+                return card;
+            }
+
+            // Резерв: синтезируем объект из active.id + active.method
+            if (active.id) {
+                var synth = {
+                    id: active.id,
+                    media_type: active.method || 'movie'
+                };
+                if (C_LOGGING) console.log('MAXSM-RATINGS', 'findCurrentMovie: synth', synth);
+                return synth;
+            }
+
+            // Совсем резервные пути — на случай других сборок Lampa
+            var fallbacks = [
+                active.movie,
+                active.activity && active.activity.movie,
+                active.activity && active.activity.card,
+                active.activity && active.activity.activity && active.activity.activity.movie
+            ];
+            for (var i = 0; i < fallbacks.length; i++) {
+                var c = fallbacks[i];
+                if (!c) continue;
+                if (c.id || c.tmdb_id || c.movie_id) {
+                    if (!c.id && c.tmdb_id) c.id = c.tmdb_id;
+                    if (!c.id && c.movie_id) c.id = c.movie_id;
+                    if (!c.title && c.name) c.title = c.name;
+                    if (!c.release_date && c.first_air_date) c.release_date = c.first_air_date;
+                    if (!c.media_type && active.method) c.media_type = active.method;
+                    return c;
+                }
+            }
+        } catch (e) {
+            if (C_LOGGING) console.log('MAXSM-RATINGS', 'findCurrentMovie error', e);
+        }
+        return null;
+    }
+
+    function tryProcessCardInDom() {
+        var rateLine = $('.full-start-new__rate-line').first();
+        if (!rateLine.length) return;
+        if (rateLine.data('maxsm-processed') === true) return;
+
+        var render = rateLine.closest('.activity__body');
+        if (!render.length) render = $(document);
+
+        var movie = findCurrentMovie();
+        if (!movie || !movie.id) {
+            if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: no movie');
+            return;
+        }
+
+        rateLine.data('maxsm-processed', true);
+        globalCurrentCard = movie.id;
+
+        if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: id=' + movie.id);
+
+        fetchAdditionalRatings(movie, render);
+    }
+
     // Инициализация плагина
     function startPlugin() {
         if (C_LOGGING) console.log("MAXSM-RATINGS", " Hello!");
@@ -1495,7 +1580,7 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
             }
         });
 
-        // Рейтинги внутри карточки
+        // Рейтинги внутри карточки — основной путь
         Lampa.Listener.follow('full', function(e) {
             if (e.type == 'complite') {
                 var render = e.object.activity.render();
@@ -1503,6 +1588,38 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
                 fetchAdditionalRatings(e.data.movie, render);
             }
         });
+
+        /*
+         * ===== ПАТЧ: резервные триггеры для карточек,
+         * которые не эмитят full/complite (например, source=tmdb).
+         */
+
+        // Триггер по смене активности
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type !== 'render' && e.type !== 'start') return;
+            setTimeout(tryProcessCardInDom, 300);
+        });
+
+        // MutationObserver — ловит появление .full-start-new__rate-line в DOM
+        var domObserver = new MutationObserver(function(mutations) {
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes || [];
+                for (var j = 0; j < nodes.length; j++) {
+                    var node = nodes[j];
+                    if (!node || node.nodeType !== 1) continue;
+                    if ($(node).is('.full-start-new__rate-line') ||
+                        $(node).find('.full-start-new__rate-line').length) {
+                        setTimeout(tryProcessCardInDom, 100);
+                        return;
+                    }
+                }
+            }
+        });
+
+        domObserver.observe(document.body, { childList: true, subtree: true });
+
+        // Один раз сразу — на случай, если карточка уже открыта
+        setTimeout(tryProcessCardInDom, 500);
     }
 
     if (!window.maxsmRatingsPlugin) startPlugin();
@@ -1536,7 +1653,6 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
         var style = document.createElement('style');
         style.id = STYLE_ID;
         style.textContent = [
-            /* Only elements explicitly marked by this plugin are hidden. */
             '.' + HIDE_CLASS + '{',
             '  display:none!important;',
             '  visibility:hidden!important;',
@@ -1585,10 +1701,6 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
         return el.closest ? el.closest('.card, .card--small, .card--wide, [class~="card"]') : null;
     }
 
-    /*
-     * IMPORTANT: We only inspect rating areas that live INSIDE movie/series cards.
-     * Nothing in menus, settings, buttons, player controls, posters, etc. is scanned.
-     */
     function ratingBoxes(card) {
         if (!card || !card.querySelectorAll) return [];
 
@@ -1610,12 +1722,10 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
     function markProviderIconsInBox(box) {
         if (!box || !box.querySelectorAll) return;
 
-        /* Provider logos rendered as images/SVGs inside the rating badge. */
         var graphics = box.querySelectorAll('img,svg,picture');
         for (var i = 0; i < graphics.length; i++) {
             var graphic = graphics[i];
 
-            /* In card rating boxes, small graphics are provider icons. Never touch poster images. */
             var rect = null;
             try { rect = graphic.getBoundingClientRect(); } catch (e) {}
 
@@ -1623,7 +1733,6 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
             if (providerHint(graphic) || smallGraphic) graphic.classList.add(HIDE_CLASS);
         }
 
-        /* Provider logos may be spans/divs with background-image or pseudo-element. */
         var children = box.querySelectorAll('span,i,b,em,div');
         for (var j = 0; j < children.length; j++) {
             var child = children[j];
@@ -1639,7 +1748,6 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
                 var bg = cs && cs.backgroundImage ? cs.backgroundImage : 'none';
                 var rect2 = child.getBoundingClientRect();
 
-                /* Only tiny background-image elements inside a known card rating box. */
                 if (bg !== 'none' && rect2.width <= 80 && rect2.height <= 80) {
                     child.classList.add(HIDE_CLASS);
                 }
