@@ -521,25 +521,30 @@
 
     //-----------------------------------------------------get---kinopoisk-------------------------------------
     function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
+        /* Если есть kinopoisk_id — сразу к XML */
         if (normalizedCard.kinopoisk_id) {
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Using provided kinopoisk_id: " + normalizedCard.kinopoisk_id);
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP by id: " + normalizedCard.kinopoisk_id);
             return fetchRatings(normalizedCard.kinopoisk_id, localCurrentCard);
         }
 
+        /* Если kinopoisk_id нет — ищем через search-by-keyword */
         var queryTitle = (normalizedCard.original_title || normalizedCard.title || '').replace(/[:\-–—]/g, ' ').trim();
+        if (!queryTitle) {
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP: empty title, skip");
+            callback(null);
+            return;
+        }
+
         var year = '';
         if (normalizedCard.release_date && typeof normalizedCard.release_date === 'string') {
             year = normalizedCard.release_date.split('-')[0];
         }
 
-        /*
-         * Если года нет — всё равно ищем по названию.
-         * KP search-by-keyword хорошо справляется и без года.
-         */
-
         var encodedTitle = encodeURIComponent(queryTitle);
         var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodedTitle;
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Find information in KP by title and year");
+
+        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search by title: " + queryTitle + " / year: " + year);
+
         fetch(searchUrl, {
             method: 'GET',
             headers: {
@@ -548,120 +553,142 @@
             }
         })
         .then(function(response) {
-            if (!response.ok) throw new Error('HTTP error: ' + response.status);
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search HTTP: " + response.status);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
             return response.json();
         })
         .then(function(data) {
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search got films: " + (data && data.films ? data.films.length : 0));
+
             if (!data.films || !data.films.length) {
                 callback(null);
                 return;
             }
 
             var bestMatch = null;
-            var filmYear;
-            var targetYear;
-            var film2;
+            var filmYear, targetYear, film;
 
             if (year) {
                 for (var j = 0; j < data.films.length; j++) {
-                    film2 = data.films[j];
-                    if (!film2.year) continue;
-
-                    filmYear = parseInt(film2.year.substring(0, 4), 10);
+                    film = data.films[j];
+                    if (!film.year) continue;
+                    filmYear = parseInt(film.year.substring(0, 4), 10);
                     targetYear = parseInt(year, 10);
-
-                    if (isNaN(filmYear)) continue;
-                    if (isNaN(targetYear)) continue;
-
+                    if (isNaN(filmYear) || isNaN(targetYear)) continue;
                     if (filmYear === targetYear) {
-                        bestMatch = film2;
+                        bestMatch = film;
                         break;
                     }
                 }
 
                 if (!bestMatch) {
                     for (var k = 0; k < data.films.length; k++) {
-                        film2 = data.films[k];
-                        if (!film2.year) continue;
-
-                        filmYear = parseInt(film2.year.substring(0, 4), 10);
+                        film = data.films[k];
+                        if (!film.year) continue;
+                        filmYear = parseInt(film.year.substring(0, 4), 10);
                         targetYear = parseInt(year, 10);
-
-                        if (isNaN(filmYear)) continue;
-                        if (isNaN(targetYear)) continue;
-
+                        if (isNaN(filmYear) || isNaN(targetYear)) continue;
                         if (Math.abs(filmYear - targetYear) <= 1) {
-                            bestMatch = film2;
+                            bestMatch = film;
                             break;
                         }
                     }
                 }
-            } else {
-                /* Без года — берём первый результат */
-                bestMatch = data.films[0];
             }
 
+            if (!bestMatch) bestMatch = data.films[0];
+
             if (!bestMatch || !bestMatch.filmId) {
+                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP: no match");
                 callback(null);
                 return;
             }
 
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP matched filmId: " + bestMatch.filmId);
+
             fetchRatings(bestMatch.filmId, localCurrentCard);
         })
-        .catch(function() {
-            console.warn("MAXSM-RATINGS", "card: " + localCurrentCard + "Kinopoisk API request failed");
+        .catch(function(err) {
+            console.warn("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search failed: " + err.message);
             callback(null);
         });
 
         function fetchRatings(filmId, localCurrentCard) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML request: " + xmlUrl);
 
-            fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Try to get KP ratings from XML");
-                if (!error && xmlText) {
-                    try {
-                        var parser = new DOMParser();
-                        var xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                        var kpRatingNode = xmlDoc.getElementsByTagName("kp_rating")[0];
-                        var imdbRatingNode = xmlDoc.getElementsByTagName("imdb_rating")[0];
-
-                        var kpRating = kpRatingNode ? parseFloat(kpRatingNode.textContent) : null;
-                        var imdbRating = imdbRatingNode ? parseFloat(imdbRatingNode.textContent) : null;
-
-                        var hasValidKp = !isNaN(kpRating) && kpRating > 0;
-                        var hasValidImdb = !isNaN(imdbRating) && imdbRating > 0;
-
-                        if (hasValidKp || hasValidImdb) {
-                            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Got KP ratings from XML");
-                            return callback({
-                                kinopoisk: hasValidKp ? kpRating : null,
-                                imdb: hasValidImdb ? imdbRating : null
-                            });
+            /* Сначала пробуем напрямую */
+            fetch(xmlUrl)
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.text();
+                })
+                .then(function(xmlText) {
+                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML direct OK");
+                    parseXml(xmlText, localCurrentCard, filmId);
+                })
+                .catch(function() {
+                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML direct failed, try proxy");
+                    fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
+                        if (error || !xmlText) {
+                            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML proxy failed, try API");
+                            tryApi(filmId, localCurrentCard);
+                            return;
                         }
-                    } catch (e) {
-                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", XML parse error, fallback to API");
+                        parseXml(xmlText, localCurrentCard, filmId);
+                    });
+                });
+
+            function parseXml(xmlText, localCurrentCard, filmId) {
+                try {
+                    var parser = new DOMParser();
+                    var xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                    var kpNode = xmlDoc.getElementsByTagName("kp_rating")[0];
+                    var imdbNode = xmlDoc.getElementsByTagName("imdb_rating")[0];
+
+                    var kpRating = kpNode ? parseFloat(kpNode.textContent) : null;
+                    var imdbRating = imdbNode ? parseFloat(imdbNode.textContent) : null;
+
+                    var hasKp = !isNaN(kpRating) && kpRating > 0;
+                    var hasImdb = !isNaN(imdbRating) && imdbRating > 0;
+
+                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML parsed: kp=" + kpRating + ", imdb=" + imdbRating);
+
+                    if (hasKp || hasImdb) {
+                        callback({
+                            kinopoisk: hasKp ? kpRating : null,
+                            imdb: hasImdb ? imdbRating : null
+                        });
+                        return;
                     }
+                } catch (e) {
+                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", XML parse error: " + e.message);
                 }
 
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Try to get KP ratings from API");
+                tryApi(filmId, localCurrentCard);
+            }
+
+            function tryApi(filmId, localCurrentCard) {
+                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP API fallback");
                 fetch('https://kinopoiskapiunofficial.tech/api/v2.2/films/' + filmId, {
                     headers: { 'X-API-KEY': apiKey }
                 })
                     .then(function(response) {
-                        if (!response.ok) throw new Error('API error');
+                        if (!response.ok) throw new Error('API ' + response.status);
                         return response.json();
                     })
                     .then(function(data) {
-                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Got KP ratings from API");
+                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP API got: kp=" + data.ratingKinopoisk + ", imdb=" + data.ratingImdb);
                         callback({
                             kinopoisk: data.ratingKinopoisk || null,
                             imdb: data.ratingImdb || null
                         });
                     })
-                    .catch(function() {
+                    .catch(function(err) {
+                        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP API failed: " + err.message);
                         callback(null);
                     });
-            });
+            }
         }
     }
     //-------------------------------------------------end---get---kinopoisk-----------------------------------
@@ -792,8 +819,6 @@
 
     /*
      * Догружает недостающие внешние ID (imdb_id, kinopoisk_id) через TMDB API.
-     * Нужно, потому что при открытии карточки из категории, со страницы актёра
-     * или из поиска объект movie приходит без этих полей.
      */
     function enrichCardFromTmdb(card, localCurrentCard, callback) {
         if (!card || !card.id) {
@@ -913,7 +938,7 @@
                 rateLine.addClass('done');
             }
 
-            var initialCacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.id);
+            var initialCacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.kinopoisk_id || normalizedCard.id);
             var ratingsData = {};
 
             var kpElement = $('.rate--kp:not(.hide)', render);
@@ -925,13 +950,8 @@
             var kpExists = kpText && !isNaN(parseFloat(kpText));
             var imdbExists = imdbText && !isNaN(parseFloat(imdbText));
 
-            if (kpExists) {
-                ratingsData.kp = parseFloat(kpText);
-            }
-
-            if (imdbExists) {
-                ratingsData.imdb = parseFloat(imdbText);
-            }
+            if (kpExists) ratingsData.kp = parseFloat(kpText);
+            if (imdbExists) ratingsData.imdb = parseFloat(imdbText);
 
             var uiTimer = null;
 
@@ -960,25 +980,16 @@
             }
 
             function scheduleUI() {
-                if (uiTimer) {
-                    clearTimeout(uiTimer);
-                }
+                if (uiTimer) clearTimeout(uiTimer);
                 uiTimer = setTimeout(updateUI, 16);
             }
 
             function mergeKpData(kpRatings) {
                 if (!kpRatings) return;
-
-                if (kpRatings.kinopoisk !== undefined && kpRatings.kinopoisk !== null) {
-                    ratingsData.kp = kpRatings.kinopoisk;
-                }
-
-                if (kpRatings.imdb !== undefined && kpRatings.imdb !== null) {
+                if (kpRatings.kinopoisk != null) ratingsData.kp = kpRatings.kinopoisk;
+                if (kpRatings.imdb != null) {
                     ratingsData.imdb_kp = kpRatings.imdb;
-
-                    if (!ratingsData.imdb) {
-                        ratingsData.imdb = kpRatings.imdb;
-                    }
+                    if (!ratingsData.imdb) ratingsData.imdb = kpRatings.imdb;
                 }
             }
 
@@ -993,7 +1004,7 @@
                     imdb: cachedKpData.imdb
                 });
                 scheduleUI();
-            } else if (!kpExists) {
+            } else if (!kpExists || !imdbExists) {
                 getKPRatings(
                     normalizedCard,
                     getRandomToken(KP_API_KEYS),
@@ -1001,26 +1012,15 @@
                     function (kpRatings) {
                         if (kpRatings) {
                             mergeKpData(kpRatings);
-                            saveKpCache(
-                                initialCacheKey,
-                                {
-                                    kp: kpRatings.kinopoisk,
-                                    imdb: kpRatings.imdb
-                                },
-                                localCurrentCard
-                            );
+                            saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
                         }
                         scheduleUI();
                     }
                 );
             }
 
-            /*
-             * IMDb fallback через TMDB.
-             * Если imdb_id неизвестен — получаем его и повторяем KP-запрос,
-             * чтобы вытащить imdb_rating из KP-XML.
-             */
-            if (!normalizedCard.imdb_id) {
+            /* Если после KP imdb всё ещё нет — пробуем получить imdb_id через TMDB и запросить KP-XML повторно */
+            if (!normalizedCard.imdb_id && !imdbExists && !ratingsData.imdb) {
                 getImdbIdFromTmdb(
                     normalizedCard.id,
                     normalizedCard.type,
@@ -1029,7 +1029,6 @@
                         if (newImdbId) {
                             normalizedCard.imdb_id = newImdbId;
                             card.imdb_id = newImdbId;
-
                             getKPRatings(
                                 normalizedCard,
                                 getRandomToken(KP_API_KEYS),
@@ -1037,14 +1036,7 @@
                                 function (kpRatings) {
                                     if (kpRatings) {
                                         mergeKpData(kpRatings);
-                                        saveKpCache(
-                                            initialCacheKey,
-                                            {
-                                                kp: kpRatings.kinopoisk,
-                                                imdb: kpRatings.imdb
-                                            },
-                                            localCurrentCard
-                                        );
+                                        saveKpCache(initialCacheKey, { kp: kpRatings.kinopoisk, imdb: kpRatings.imdb }, localCurrentCard);
                                     }
                                     scheduleUI();
                                 }
@@ -1066,12 +1058,7 @@
         var rateLine = $('.full-start-new__rate-line', render);
         if (!rateLine.length) return;
 
-        var ratingOrder = [
-            'rate--avg',
-            'rate--tmdb',
-            'rate--imdb',
-            'rate--kp'
-        ];
+        var ratingOrder = ['rate--avg', 'rate--tmdb', 'rate--imdb', 'rate--kp'];
 
         ratingOrder.forEach(function(className) {
             var element = $('.' + className, rateLine).not('.maxsm-source-disabled');
@@ -1081,18 +1068,10 @@
 
                 var label = '';
                 switch(className) {
-                    case 'rate--avg':
-                        label = '';
-                        break;
-                    case 'rate--tmdb':
-                        label = 'TMDB';
-                        break;
-                    case 'rate--imdb':
-                        label = 'IMDb';
-                        break;
-                    case 'rate--kp':
-                        label = 'Кинопоиск';
-                        break;
+                    case 'rate--avg': label = ''; break;
+                    case 'rate--tmdb': label = 'TMDB'; break;
+                    case 'rate--imdb': label = 'IMDb'; break;
+                    case 'rate--kp': label = 'Кинопоиск'; break;
                 }
 
                 var item = $('<div class="maxsm-modal-rating-line"></div>');
@@ -1100,9 +1079,7 @@
                     var colorClass;
                     if (className === 'rate--avg') {
                         colorClass = getAverageRatingClass(numericValue);
-                        if (colorClass) {
-                            item.addClass(colorClass);
-                        }
+                        if (colorClass) item.addClass(colorClass);
                     } else {
                         colorClass = 'maxsm-modal-' + className.replace('rate--', '');
                         item.addClass(colorClass);
@@ -1128,8 +1105,7 @@
 
     /*
      * Вставка иконок перед значениями рейтингов.
-     * Не мигает текстом: если иконка уже вставлена — выходим сразу,
-     * source--name не трогаем.
+     * Если иконка уже вставлена — ничего не делаем (нет мигания текстом).
      */
     function insertIcons(localCurrentCard, render) {
         if (!render) return;
@@ -1172,9 +1148,7 @@
                 var sourceName = element.find('.source--name').first();
                 if (!sourceName.length) {
                     var childDivs = element.children('div');
-                    if (childDivs.length >= 2) {
-                        sourceName = childDivs.eq(1);
-                    }
+                    if (childDivs.length >= 2) sourceName = childDivs.eq(1);
                 }
 
                 if (iconType !== 'average' && sourceName.length) {
@@ -1264,7 +1238,6 @@
         new Lampa.Reguest().silent(mainUrl, function(data) {
             var imdbId = (data && data.imdb_id) || null;
 
-            /* Fallback для TV: иногда external_ids не отдаёт, но /tv/{id} отдаёт */
             if (!imdbId && cleanType === 'tv') {
                 var altPath = 'tv/' + tmdbId + '?api_key=' + Lampa.TMDB.key();
                 var altUrl = Lampa.TMDB.api(altPath);
@@ -1368,6 +1341,44 @@
 
             $('.full-start__rate:first', rateLine).before(avgElement);
         }
+    }
+
+    /*
+     * Универсальная попытка обработать уже отрисованную карточку,
+     * когда неизвестно, кто её отрисовал (Cardify, обычный full-start и т.п.).
+     */
+    function tryProcessCardInDom() {
+        var rateLine = $('.full-start-new__rate-line').first();
+        if (!rateLine.length) return;
+
+        if (rateLine.data('maxsm-processed') === true) return;
+
+        var render = rateLine.closest('.activity__body');
+        if (!render.length) render = $(document);
+
+        var active = Lampa.Activity.active();
+        var movie = active && active.movie ? active.movie : null;
+
+        if (!movie || !movie.id) {
+            try {
+                var activeActivity = active && active.activity ? active.activity : null;
+                if (activeActivity && activeActivity.activity && activeActivity.activity.movie) {
+                    movie = activeActivity.activity.movie;
+                }
+            } catch (err) {}
+        }
+
+        if (!movie || !movie.id) {
+            if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: no movie in active activity');
+            return;
+        }
+
+        rateLine.data('maxsm-processed', true);
+        globalCurrentCard = movie.id;
+
+        if (C_LOGGING) console.log('MAXSM-RATINGS', 'tryProcessCardInDom: process card id=' + movie.id);
+
+        fetchAdditionalRatings(movie, render);
     }
 
     // Инициализация плагина
@@ -1540,7 +1551,7 @@
                 description: ''
             },
             onChange: function(value) {
-                /* При смене стиля принудительно удаляем старые иконки, чтобы применился новый SVG */
+                /* При смене стиля принудительно удаляем старые иконки */
                 var render = Lampa.Activity.active().activity.render();
                 $('.maxsm-rating-leading-icon', render).remove();
                 insertIcons(globalCurrentCard, render);
@@ -1618,13 +1629,24 @@
             }
         });
 
-        // Рейтинги внутри карточки
-        Lampa.Listener.follow('full', function(e) {
-            if (e.type == 'complite') {
+        /*
+         * Рейтинги внутри карточки.
+         * Основной путь — full/complite (обычная карточка).
+         * Дополнительный — activity/render + tryProcessCardInDom (Cardify и др.).
+         */
+        Lampa.Listener.follow('full', function (e) {
+            if (e.type === 'complite' && e.data && e.data.movie) {
                 var render = e.object.activity.render();
                 globalCurrentCard = e.data.movie.id;
                 fetchAdditionalRatings(e.data.movie, render);
             }
+        });
+
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type !== 'render' && e.type !== 'start') return;
+            setTimeout(function () {
+                tryProcessCardInDom();
+            }, 300);
         });
     }
 
@@ -1632,6 +1654,14 @@
 })();
 
 /* ===== Integrated: lampa_rating_icons_toggle.js ===== */
+/*
+ * Отдельная настройка во вкладке «Интерфейс» — показывать/скрывать
+ * логотипы источников (IMDb, Кинопоиск, TMDB и др.) на карточках фильмов
+ * и сериалов в списках (главная, подборки, поиск, страницы актёров).
+ *
+ * Это НЕ то же самое, что «Иконки вместо текста» во вкладке «Рейтинги».
+ * Та настройка управляет логотипами внутри полной карточки фильма.
+ */
 (function () {
     'use strict';
 
