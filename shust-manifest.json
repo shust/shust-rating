@@ -1,9 +1,0 @@
-[
-  {
-    "name": "Название вашего плагина",
-    "version": "1.0.0",
-    "description": "Краткое описание того, что делает плагин",
-    "url": "https://raw.githubusercontent.com/ВАШ_НИК/ИМЯ_РЕПОЗИТОРИЯ/main/plugin.js",
-    "author": "Ваш Ник"
-  }
-]
