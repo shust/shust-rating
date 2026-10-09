@@ -750,9 +750,92 @@
         $container.append($newBtn);
     }
 
-    // ======================= МАССОВАЯ ИСТОРИЯ ПРОСМОТРОВ =======================
+    // ======================= ВСПОМОГАТЕЛЬНОЕ ДЛЯ ИСТОРИИ =======================
 
-    function markAllAsHistoryLocal(onProgress, onComplete) {
+    function normalizeCard(card, isTv) {
+        return {
+            id: card.id,
+            title: card.title || card.name,
+            name: card.name || card.title,
+            original_title: card.original_title || card.original_name,
+            original_name: card.original_name || card.original_title,
+            release_date: card.release_date || card.first_air_date,
+            first_air_date: card.first_air_date || card.release_date,
+            poster_path: card.poster_path,
+            backdrop_path: card.backdrop_path,
+            vote_average: card.vote_average,
+            media_type: card.media_type || (isTv ? 'tv' : 'movie'),
+            source: 'tmdb'
+        };
+    }
+
+    function extractResults(arr) {
+        if (!arr) return [];
+        if (Array.isArray(arr)) {
+            if (arr.length && arr[0] && Array.isArray(arr[0].results)) {
+                var out = [];
+                arr.forEach(function (part) {
+                    if (part && Array.isArray(part.results)) {
+                        out = out.concat(part.results);
+                    }
+                });
+                return out;
+            }
+            return arr.filter(function (c) { return c && c.id; });
+        }
+        if (arr.results && Array.isArray(arr.results)) return arr.results;
+        return [];
+    }
+
+    function searchCard(title, year, originalTitle, onFound) {
+        var finished = false;
+        var pending = 2;
+        var candidates = [];
+
+        function finish() {
+            pending--;
+            if (pending > 0 || finished) return;
+            finished = true;
+            var best = pickBestMatch(candidates, title, year, originalTitle);
+            onFound(best);
+        }
+
+        function runSearch(isTv) {
+            Lampa.Api.sources.tmdb.search({ query: title }, function (arr) {
+                try {
+                    var results = extractResults(arr);
+                    results.forEach(function (c) {
+                        if (!c.media_type) c.media_type = isTv ? 'tv' : 'movie';
+                    });
+                    candidates = candidates.concat(results);
+                    finish();
+                } catch (e) {
+                    console.log('Kinopoisk History', 'search parse error', e);
+                    finish();
+                }
+            }, function () { finish(); });
+        }
+
+        runSearch(false);
+        runSearch(true);
+    }
+
+    function parseKeyForHistory(key) {
+        var m = key.match(/^(.+)_(\d{4})$/);
+        if (!m) return null;
+        return {
+            title: m[1].replace(/_/g, ' ').trim(),
+            originalTitle: null,
+            year: parseInt(m[2], 10),
+            key: key
+        };
+    }
+
+    // ======================= ПЕРЕЗАПИСЬ ИСТОРИИ (ВАРИАНТ А) =======================
+
+    // Полностью очищает favorite.history и наполняет её заново из оценок.
+    // Категории bookmarks / like / wath / scheduled / continued — НЕ ТРОГАЕТ.
+    function rewriteAllHistory(onProgress, onComplete) {
         var ratingsByKey = Lampa.Storage.get('kinopoisk_ratings_by_key', {});
         var keys = Object.keys(ratingsByKey);
 
@@ -761,11 +844,34 @@
             return;
         }
 
+        // ===== ШАГ 1. Полная очистка ТОЛЬКО history =====
+        var fav = Lampa.Storage.get('favorite', {});
+        var oldHistory = Array.isArray(fav.history) ? fav.history : [];
+        console.log('Kinopoisk Rewrite', 'Было в history:', oldHistory.length, '— очищаю');
+
+        // Пытаемся удалить через Favorite.remove — чтобы CUB узнал
+        var removedViaApi = 0;
+        if (Lampa.Favorite && typeof Lampa.Favorite.remove === 'function') {
+            oldHistory.forEach(function (card) {
+                try {
+                    Lampa.Favorite.remove('history', card);
+                    removedViaApi++;
+                } catch (e) {}
+            });
+        }
+
+        // Локально чистим ТОЛЬКО history, остальные категории остаются как есть
+        var favNow = Lampa.Storage.get('favorite', {});
+        favNow.history = [];
+        Lampa.Storage.set('favorite', favNow);
+
+        console.log('Kinopoisk Rewrite', 'Очищено через API:', removedViaApi);
+
+        // ===== ШАГ 2. Наполняем history заново =====
         var total = keys.length;
         var processed = 0;
         var okCount = 0;
         var failCount = 0;
-        var skipCount = 0;
         var failDetails = [];
         var addedEntries = [];
         var BATCH = 2;
@@ -773,87 +879,8 @@
 
         var queue = keys.slice();
 
-        function parseKey(key) {
-            var m = key.match(/^(.+)_(\d{4})$/);
-            if (!m) return null;
-            return {
-                title: m[1].replace(/_/g, ' ').trim(),
-                originalTitle: null,
-                year: parseInt(m[2], 10),
-                key: key
-            };
-        }
-
-        function normalizeCard(card, isTv) {
-            return {
-                id: card.id,
-                title: card.title || card.name,
-                name: card.name || card.title,
-                original_title: card.original_title || card.original_name,
-                original_name: card.original_name || card.original_title,
-                release_date: card.release_date || card.first_air_date,
-                first_air_date: card.first_air_date || card.release_date,
-                poster_path: card.poster_path,
-                backdrop_path: card.backdrop_path,
-                vote_average: card.vote_average,
-                media_type: card.media_type || (isTv ? 'tv' : 'movie'),
-                source: 'tmdb'
-            };
-        }
-
-        function extractResults(arr) {
-            if (!arr) return [];
-            if (Array.isArray(arr)) {
-                if (arr.length && arr[0] && Array.isArray(arr[0].results)) {
-                    var out = [];
-                    arr.forEach(function (part) {
-                        if (part && Array.isArray(part.results)) {
-                            out = out.concat(part.results);
-                        }
-                    });
-                    return out;
-                }
-                return arr.filter(function (c) { return c && c.id; });
-            }
-            if (arr.results && Array.isArray(arr.results)) return arr.results;
-            return [];
-        }
-
-        function searchCard(title, year, originalTitle, onFound) {
-            var finished = false;
-            var pending = 2;
-            var candidates = [];
-
-            function finish() {
-                pending--;
-                if (pending > 0 || finished) return;
-                finished = true;
-                var best = pickBestMatch(candidates, title, year, originalTitle);
-                onFound(best);
-            }
-
-            function runSearch(isTv) {
-                Lampa.Api.sources.tmdb.search({ query: title }, function (arr) {
-                    try {
-                        var results = extractResults(arr);
-                        results.forEach(function (c) {
-                            if (!c.media_type) c.media_type = isTv ? 'tv' : 'movie';
-                        });
-                        candidates = candidates.concat(results);
-                        finish();
-                    } catch (e) {
-                        console.log('Kinopoisk History', 'search parse error', e);
-                        finish();
-                    }
-                }, function () { finish(); });
-            }
-
-            runSearch(false);
-            runSearch(true);
-        }
-
         function processKey(key, onDone) {
-            var parsed = parseKey(key);
+            var parsed = parseKeyForHistory(key);
             if (!parsed) {
                 onDone('fail', 'bad key');
                 return;
@@ -864,17 +891,6 @@
                     onDone('fail', 'no match');
                     return;
                 }
-
-                // Проверяем, нет ли уже в истории (по id)
-                try {
-                    var fav = Lampa.Storage.get('favorite', {});
-                    var history = fav.history || [];
-                    var already = history.some(function (c) { return c && c.id === card.id; });
-                    if (already) {
-                        onDone('skip', 'already');
-                        return;
-                    }
-                } catch (e) {}
 
                 var normalized = normalizeCard(card, card.media_type === 'tv');
                 try {
@@ -887,7 +903,7 @@
                     });
                     onDone('ok');
                 } catch (e) {
-                    console.log('Kinopoisk History', 'Favorite.add error', e);
+                    console.log('Kinopoisk Rewrite', 'Favorite.add error', e);
                     onDone('fail', 'add error');
                 }
             });
@@ -900,8 +916,9 @@
                     total: total,
                     ok: okCount,
                     fail: failCount,
-                    skip: skipCount,
                     failDetails: failDetails,
+                    cleared: oldHistory.length,
+                    removedViaApi: removedViaApi,
                     addedCount: addedEntries.length
                 });
                 return;
@@ -913,7 +930,6 @@
             batch.forEach(function (key) {
                 processKey(key, function (status, reason) {
                     if (status === 'ok') okCount++;
-                    else if (status === 'skip') skipCount++;
                     else {
                         failCount++;
                         if (failDetails.length < 30) {
@@ -933,28 +949,42 @@
         next();
     }
 
-    function showHistoryDialog() {
+    function showRewriteDialog() {
         var ratingsByKey = Lampa.Storage.get('kinopoisk_ratings_by_key', {});
         var total = Object.keys(ratingsByKey).length;
+
+        var fav = Lampa.Storage.get('favorite', {});
+        var currentHistory = (fav.history || []).length;
+        // Считаем остальные категории, чтобы показать пользователю, что их не тронем
+        var otherCategories = Object.keys(fav).filter(function (k) { return k !== 'history'; });
+        var otherSummary = otherCategories.map(function (k) {
+            var v = fav[k];
+            var len = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? Object.keys(v).length : 0);
+            return k + ': ' + len;
+        }).join(', ');
 
         var modal = $(
             '<div style="padding: 15px;">' +
             '  <div class="about" style="margin-bottom: 12px; font-size: 13px; line-height: 1.6;">' +
-            '    Пройдёт по всем импортированным оценкам (<b>' + total + '</b>) и добавит каждый фильм/сериал в <b>«История просмотров»</b>.<br>' +
+            '    <b style="color: #f39c12;">ПЕРЕЗАПИСЬ ИСТОРИИ ПРОСМОТРОВ</b><br>' +
             '    <br>' +
-            '    Поиск идёт через встроенный TMDB Lampa — без внешних API и прокси.<br>' +
-            '    <span style="color:#79D29E;">История синхронизируется с CUB автоматически.</span><br>' +
-            '    <span style="color:#f39c12;">' + total + ' записей — займёт примерно ' + Math.ceil(total / 300) + '-30 минут. Не закрывай приложение.</span><br>' +
+            '    Текущая история (<b>' + currentHistory + '</b> записей) будет <b>полностью очищена</b>.<br>' +
+            '    Вместо неё будут добавлены <b>' + total + '</b> карточек из импортированных оценок.<br>' +
             '    <br>' +
-            '    <span style="color:#888;">Если что-то пойдёт не так — в настройках есть кнопки отката.</span>' +
+            '    <span style="color: #79D29E;">Остальные категории избранного НЕ трогаются:</span><br>' +
+            '    <span style="color: #888; font-size: 12px;">' + (otherSummary || 'нет других категорий') + '</span><br>' +
+            '    <br>' +
+            '    <span style="color:#c0392b;">Настоящая история просмотров будет потеряна.</span><br>' +
+            '    <span style="color:#79D29E;">Всё синхронизируется с CUB автоматически.</span><br>' +
+            '    <span style="color:#f39c12;">' + total + ' записей — займёт ~15-30 минут.</span>' +
             '  </div>' +
-            '  <div id="hist-status" style="margin-top:10px;font-size:13px;color:#aaa;min-height:60px;"></div>' +
-            '  <div id="hist-actions" style="margin-top:10px;"></div>' +
+            '  <div id="rw-status" style="margin-top:10px;font-size:13px;color:#aaa;min-height:60px;"></div>' +
+            '  <div id="rw-actions" style="margin-top:10px;"></div>' +
             '</div>'
         );
 
         Lampa.Modal.open({
-            title: 'Добавление в «История просмотров»',
+            title: 'Перезапись «История просмотров»',
             html: modal,
             size: 'large',
             onBack: function () { Lampa.Modal.close(); },
@@ -962,201 +992,55 @@
         });
 
         setTimeout(function () {
-            var btn = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 24px;background:#4c6ef5;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Запустить</div>');
-            $('#hist-actions').append(btn);
+            var btn = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 24px;background:#c0392b;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Перезаписать историю</div>');
+            $('#rw-actions').append(btn);
 
             btn.on('hover:enter click', function () {
                 if (!Lampa.Favorite || !Lampa.Favorite.add) {
-                    $('#hist-status').text('Lampa.Favorite недоступен').css('color', '#e74c3c');
+                    $('#rw-status').text('Lampa.Favorite недоступен').css('color', '#e74c3c');
                     return;
                 }
 
                 btn.css('opacity', '0.5').css('pointer-events', 'none');
-                $('#hist-status').text('Начинаю...').css('color', '#f39c12');
-
-                markAllAsHistoryLocal(
-                    function (processed, total, key, status) {
-                        var pct = Math.floor(processed / total * 100);
-                        var statusText = status === 'ok' ? '✅' : (status === 'skip' ? '⏭ уже' : '❌');
-                        $('#hist-status').html(
-                            'Обработано: <b>' + processed + '</b> / ' + total +
-                            ' (' + pct + '%)<br>' +
-                            'Последний: ' + key + ' — ' + statusText
-                        ).css('color', '#f39c12');
-                    },
-                    function (result) {
-                        if (result.error) {
-                            $('#hist-status').text('Ошибка: ' + result.error).css('color', '#e74c3c');
-                            btn.css('opacity', '1').css('pointer-events', 'auto');
-                            return;
-                        }
-
-                        var html =
-                            '<b style="color:#79D29E;font-size:15px;">Готово ✓</b><br><br>' +
-                            'Всего: <b>' + result.total + '</b><br>' +
-                            'Добавлено: <b style="color:#79D29E;">' + result.ok + '</b><br>' +
-                            'Пропущено (уже в истории): <b>' + result.skip + '</b><br>' +
-                            'Не найдено: <b style="color:#f39c12;">' + result.fail + '</b><br><br>' +
-                            'История синхронизируется с CUB автоматически.<br>' +
-                            '<span style="color:#888;font-size:12px;">Если нужно — откати в настройках.</span>';
-
-                        if (result.failDetails && result.failDetails.length > 0) {
-                            html += '<br><b>Примеры ошибок:</b><br>';
-                            result.failDetails.slice(0, 5).forEach(function (d) {
-                                html += '<span style="color:#888;font-size:12px;">• ' + d.title + ' — ' + d.reason + '</span><br>';
-                            });
-                        }
-
-                        $('#hist-status').html(html).css('color', '#ddd');
-                        Lampa.Noty.show('История: +' + result.ok + ', пропущено ' + result.skip + ', ошибок ' + result.fail);
-                    }
-                );
-            });
-        }, 200);
-    }
-
-    // ======================= ОТКАТ ИСТОРИИ =======================
-
-    // Универсальная функция отката. mode: 'hour' | 'all'
-    function rollbackHistory(mode, onDone) {
-        var log = getSyncLog();
-        if (!log.length) {
-            onDone({ error: 'Журнал пуст — нечего откатывать' });
-            return;
-        }
-
-        var now = Date.now();
-        var oneHourAgo = now - 60 * 60 * 1000;
-
-        // Отбираем записи для удаления
-        var toRemove = [];
-        if (mode === 'hour') {
-            log.forEach(function (entry) {
-                if (entry && entry.time && entry.time >= oneHourAgo) {
-                    toRemove.push(entry);
-                }
-            });
-        } else {
-            toRemove = log.slice();
-        }
-
-        if (!toRemove.length) {
-            onDone({ removed: 0, message: 'Нечего удалять (за этот период ничего не добавлялось)' });
-            return;
-        }
-
-        // Множество ID для удаления
-        var removeSet = {};
-        toRemove.forEach(function (entry) { if (entry && entry.id) removeSet[entry.id] = true; });
-
-        // 1) Локально: чистим favorite.history
-        var fav = Lampa.Storage.get('favorite', {});
-        var history = fav.history || [];
-        var before = history.length;
-
-        var filtered = history.filter(function (card) {
-            return !(card && removeSet[card.id]);
-        });
-
-        fav.history = filtered;
-        Lampa.Storage.set('favorite', fav);
-
-        // 2) Пытаемся через Favorite.remove — чтобы ушло в CUB
-        var removedViaApi = 0;
-        if (Lampa.Favorite && typeof Lampa.Favorite.remove === 'function') {
-            toRemove.forEach(function (entry) {
-                try {
-                    Lampa.Favorite.remove('history', { id: entry.id });
-                    removedViaApi++;
-                } catch (e) {
-                    console.log('Kinopoisk', 'Favorite.remove error for id=' + entry.id, e);
-                }
-            });
-        }
-
-        // 3) Обновляем журнал — убираем удалённые записи
-        var remaining = log.filter(function (entry) {
-            return !(entry && removeSet[entry.id]);
-        });
-        Lampa.Storage.set(SYNC_LOG_KEY, remaining);
-
-        onDone({
-            removed: before - filtered.length,
-            removedViaApi: removedViaApi,
-            before: before,
-            after: filtered.length,
-            logRemaining: remaining.length
-        });
-    }
-
-    function showRollbackDialog() {
-        var log = getSyncLog();
-        var now = Date.now();
-        var oneHourAgo = now - 60 * 60 * 1000;
-        var lastHour = log.filter(function (e) { return e && e.time && e.time >= oneHourAgo; }).length;
-
-        var modal = $(
-            '<div style="padding: 15px;">' +
-            '  <div class="about" style="margin-bottom: 12px; font-size: 13px; line-height: 1.6;">' +
-            '    Журнал синхронизации:<br>' +
-            '    Всего записей: <b>' + log.length + '</b><br>' +
-            '    За последний час: <b>' + lastHour + '</b><br>' +
-            '    <br>' +
-            '    <span style="color:#f39c12;">Откат удалит карточки из истории Lampa и синхронизирует удаление с CUB.</span>' +
-            '  </div>' +
-            '  <div id="rb-actions" style="display:flex;gap:10px;flex-wrap:wrap;"></div>' +
-            '  <div id="rb-status" style="margin-top:12px;font-size:13px;color:#aaa;min-height:40px;"></div>' +
-            '</div>'
-        );
-
-        Lampa.Modal.open({
-            title: 'Откат добавления в историю',
-            html: modal,
-            size: 'large',
-            onBack: function () { Lampa.Modal.close(); },
-            onSelect: function () {}
-        });
-
-        setTimeout(function () {
-            var btnHour = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 20px;background:#e67e22;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Откатить за час (' + lastHour + ')</div>');
-            var btnAll = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 20px;background:#c0392b;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Откатить всё (' + log.length + ')</div>');
-
-            if (lastHour === 0) btnHour.css('opacity', '0.5');
-            if (log.length === 0) btnAll.css('opacity', '0.5');
-
-            $('#rb-actions').append(btnHour).append(btnAll);
-
-            function runRollback(mode, btn) {
-                btn.css('opacity', '0.5').css('pointer-events', 'none');
-                $('#rb-status').text('Удаляю...').css('color', '#f39c12');
+                $('#rw-status').text('Очищаю историю...').css('color', '#f39c12');
 
                 setTimeout(function () {
-                    rollbackHistory(mode, function (result) {
-                        if (result.error) {
-                            $('#rb-status').text(result.error).css('color', '#e74c3c');
-                            return;
+                    rewriteAllHistory(
+                        function (processed, total, key, status) {
+                            var pct = Math.floor(processed / total * 100);
+                            var statusText = status === 'ok' ? '✅' : '❌';
+                            $('#rw-status').html(
+                                'Добавлено: <b>' + processed + '</b> / ' + total +
+                                ' (' + pct + '%)<br>' +
+                                'Последний: ' + key + ' — ' + statusText
+                            ).css('color', '#f39c12');
+                        },
+                        function (result) {
+                            if (result.error) {
+                                $('#rw-status').text('Ошибка: ' + result.error).css('color', '#e74c3c');
+                                return;
+                            }
+
+                            var html =
+                                '<b style="color:#79D29E;font-size:15px;">Готово ✓</b><br><br>' +
+                                'Очищено старой истории: <b>' + result.cleared + '</b><br>' +
+                                'Удалено через CUB API: <b>' + result.removedViaApi + '</b><br>' +
+                                'Добавлено: <b style="color:#79D29E;">' + result.ok + '</b><br>' +
+                                'Не найдено: <b style="color:#f39c12;">' + result.fail + '</b><br><br>' +
+                                'История полностью перезаписана и синхронизируется с CUB.';
+
+                            if (result.failDetails && result.failDetails.length > 0) {
+                                html += '<br><b>Примеры ошибок:</b><br>';
+                                result.failDetails.slice(0, 5).forEach(function (d) {
+                                    html += '<span style="color:#888;font-size:12px;">• ' + d.title + ' — ' + d.reason + '</span><br>';
+                                });
+                            }
+
+                            $('#rw-status').html(html).css('color', '#ddd');
+                            Lampa.Noty.show('История перезаписана: ' + result.ok + ' записей');
                         }
-
-                        var html = '<b style="color:#79D29E;">Откат завершён ✓</b><br><br>' +
-                            'Удалено из истории: <b>' + result.removed + '</b><br>' +
-                            'Отправлено в CUB (remove): <b>' + (result.removedViaApi || 0) + '</b><br>' +
-                            'Было: ' + result.before + ' → Стало: ' + result.after + '<br>' +
-                            'Осталось в журнале: <b>' + result.logRemaining + '</b>';
-
-                        $('#rb-status').html(html).css('color', '#ddd');
-                        Lampa.Noty.show('Откат: -' + result.removed);
-                    });
-                }, 200);
-            }
-
-            btnHour.on('hover:enter click', function () {
-                if (lastHour === 0) return;
-                runRollback('hour', btnHour);
-            });
-
-            btnAll.on('hover:enter click', function () {
-                if (log.length === 0) return;
-                runRollback('all', btnAll);
+                    );
+                }, 300);
             });
         }, 200);
     }
@@ -1237,27 +1121,14 @@
 
         Lampa.SettingsApi.addParam({
             component: 'kinopoisk',
-            param: { type: 'button', name: 'kinopoisk_mark_history' },
+            param: { type: 'button', name: 'kinopoisk_rewrite_history' },
             field: {
-                name: 'Добавить всё в «История просмотров»',
-                description: 'Помечает все оценённые фильмы и сериалы в историю (синхронизируется с CUB)'
+                name: 'Перезаписать историю (очистить и залить заново)',
+                description: 'Удаляет всю историю и формирует новую из оценок. Избранное не трогает.'
             },
             onChange: function () {
                 Lampa.Controller.toContent();
-                showHistoryDialog();
-            }
-        });
-
-        Lampa.SettingsApi.addParam({
-            component: 'kinopoisk',
-            param: { type: 'button', name: 'kinopoisk_rollback_history' },
-            field: {
-                name: 'Откатить добавление в историю',
-                description: 'Удаляет карточки, добавленные плагином (за час или все)'
-            },
-            onChange: function () {
-                Lampa.Controller.toContent();
-                showRollbackDialog();
+                showRewriteDialog();
             }
         });
 
@@ -1277,11 +1148,18 @@
                 }
 
                 var log = getSyncLog();
+                var fav = Lampa.Storage.get('favorite', {});
+                var favSummary = Object.keys(fav).map(function (cat) {
+                    var v = fav[cat];
+                    var len = Array.isArray(v) ? v.length : (v && typeof v === 'object' ? Object.keys(v).length : 0);
+                    return cat + ': ' + len;
+                }).join('<br>');
 
                 var html = '<div style="padding: 20px; font-size: 14px; font-family: monospace;">';
                 html += '<b>По ключу "название_год":</b> ' + total + '<br>';
                 html += '<b>По backup_id:</b> ' + Object.keys(byId).length + '<br>';
                 html += '<b>В журнале синхронизации:</b> ' + log.length + '<br><br>';
+                html += '<b>Избранное:</b><br>' + favSummary + '<br><br>';
                 html += '<b>Распределение оценок:</b><br>';
 
                 for (var i = 10; i >= 1; i--) {
