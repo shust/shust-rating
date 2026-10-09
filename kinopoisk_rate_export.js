@@ -3,6 +3,7 @@
 
     var network = new Lampa.Reguest();
     var CORS_PROXY = 'https://kinopoisk-proxy.shust-blr.workers.dev';
+    var SYNC_LOG_KEY = 'kinopoisk_history_sync_log';
 
     // ======================= УТИЛИТЫ =======================
 
@@ -58,6 +59,54 @@
         return rows;
     }
 
+    function isSameFilm(card, title, year, originalTitle) {
+        var cardYear = extractYear(card.release_date || card.first_air_date);
+        if (year && cardYear) {
+            if (Math.abs(cardYear - year) > 1) return false;
+        }
+
+        var normInput = normalizeTitle(title);
+        var normInputOrig = normalizeTitle(originalTitle);
+        var normCardTitle = normalizeTitle(card.title || card.name);
+        var normCardOrig = normalizeTitle(card.original_title || card.original_name);
+
+        if (!normInput) return false;
+
+        function match(a, b) {
+            if (!a || !b) return false;
+            if (a === b) return true;
+            if (a.indexOf(b) === 0 || b.indexOf(a) === 0) return true;
+            var aShort = a.split(' ').slice(0, 4).join(' ');
+            var bShort = b.split(' ').slice(0, 4).join(' ');
+            return aShort === bShort;
+        }
+
+        if (match(normInput, normCardTitle)) return true;
+        if (normInputOrig && match(normInputOrig, normCardOrig)) return true;
+        if (normInputOrig && match(normInputOrig, normCardTitle)) return true;
+        if (match(normInput, normCardOrig)) return true;
+
+        return false;
+    }
+
+    function pickBestMatch(results, title, year, originalTitle) {
+        if (!results || !results.length) return null;
+
+        for (var i = 0; i < results.length; i++) {
+            if (isSameFilm(results[i], title, year, originalTitle)) {
+                return results[i];
+            }
+        }
+
+        for (var j = 0; j < results.length; j++) {
+            if (isSameFilm(results[j], title, 0, originalTitle)) {
+                return results[j];
+            }
+        }
+
+        return null;
+    }
+
     // ======================= ИКОНКИ =======================
 
     function makeRatingIcon(rating) {
@@ -77,6 +126,23 @@
 
     function getButtonIcon(rating) {
         return rating ? makeRatingIcon(rating) : starIconEmpty;
+    }
+
+    // ======================= ЖУРНАЛ СИНХРОНИЗАЦИИ =======================
+
+    function getSyncLog() {
+        var log = Lampa.Storage.get(SYNC_LOG_KEY, []);
+        return Array.isArray(log) ? log : [];
+    }
+
+    function appendSyncLog(entries) {
+        var log = getSyncLog();
+        log = log.concat(entries);
+        Lampa.Storage.set(SYNC_LOG_KEY, log);
+    }
+
+    function clearSyncLog() {
+        Lampa.Storage.set(SYNC_LOG_KEY, []);
     }
 
     // ======================= AUTH =======================
@@ -684,7 +750,7 @@
         $container.append($newBtn);
     }
 
-    // ======================= МАССОВАЯ ИСТОРИЯ ПРОСМОТРОВ (ЛОКАЛЬНО) =======================
+    // ======================= МАССОВАЯ ИСТОРИЯ ПРОСМОТРОВ =======================
 
     function markAllAsHistoryLocal(onProgress, onComplete) {
         var ratingsByKey = Lampa.Storage.get('kinopoisk_ratings_by_key', {});
@@ -699,7 +765,9 @@
         var processed = 0;
         var okCount = 0;
         var failCount = 0;
+        var skipCount = 0;
         var failDetails = [];
+        var addedEntries = [];
         var BATCH = 2;
         var DELAY = 400;
 
@@ -710,6 +778,7 @@
             if (!m) return null;
             return {
                 title: m[1].replace(/_/g, ' ').trim(),
+                originalTitle: null,
                 year: parseInt(m[2], 10),
                 key: key
             };
@@ -732,12 +801,10 @@
             };
         }
 
-        // Возвращает массив карточек (парсит формат [{results: [...]}])
         function extractResults(arr) {
             if (!arr) return [];
             if (Array.isArray(arr)) {
                 if (arr.length && arr[0] && Array.isArray(arr[0].results)) {
-                    // Собираем из всех частей (movie + tv обычно приходят раздельно)
                     var out = [];
                     arr.forEach(function (part) {
                         if (part && Array.isArray(part.results)) {
@@ -746,47 +813,33 @@
                     });
                     return out;
                 }
-                // Может быть сразу массив карточек
                 return arr.filter(function (c) { return c && c.id; });
             }
             if (arr.results && Array.isArray(arr.results)) return arr.results;
             return [];
         }
 
-        // Ищем и как фильм, и как сериал, берём первый найденный
-        function searchCard(title, year, onFound) {
+        function searchCard(title, year, originalTitle, onFound) {
             var finished = false;
-            var best = null;
             var pending = 2;
+            var candidates = [];
 
             function finish() {
                 pending--;
                 if (pending > 0 || finished) return;
                 finished = true;
+                var best = pickBestMatch(candidates, title, year, originalTitle);
                 onFound(best);
             }
 
             function runSearch(isTv) {
-                var params = { query: title };
-                if (year) params.year = year;
-
-                Lampa.Api.sources.tmdb.search(params, function (arr) {
+                Lampa.Api.sources.tmdb.search({ query: title }, function (arr) {
                     try {
                         var results = extractResults(arr);
-                        if (results.length && !best) {
-                            best = normalizeCard(results[0], isTv);
-                        }
-                        if (!results.length && year) {
-                            // повтор без года
-                            Lampa.Api.sources.tmdb.search({ query: title }, function (arr2) {
-                                var r2 = extractResults(arr2);
-                                if (r2.length && !best) {
-                                    best = normalizeCard(r2[0], isTv);
-                                }
-                                finish();
-                            }, function () { finish(); });
-                            return;
-                        }
+                        results.forEach(function (c) {
+                            if (!c.media_type) c.media_type = isTv ? 'tv' : 'movie';
+                        });
+                        candidates = candidates.concat(results);
                         finish();
                     } catch (e) {
                         console.log('Kinopoisk History', 'search parse error', e);
@@ -802,33 +855,54 @@
         function processKey(key, onDone) {
             var parsed = parseKey(key);
             if (!parsed) {
-                onDone(false, 'bad key');
+                onDone('fail', 'bad key');
                 return;
             }
 
-            searchCard(parsed.title, parsed.year, function (card) {
+            searchCard(parsed.title, parsed.year, parsed.originalTitle, function (card) {
                 if (!card) {
-                    onDone(false, 'not found');
+                    onDone('fail', 'no match');
                     return;
                 }
 
+                // Проверяем, нет ли уже в истории (по id)
                 try {
-                    Lampa.Favorite.add('history', card);
-                    onDone(true);
+                    var fav = Lampa.Storage.get('favorite', {});
+                    var history = fav.history || [];
+                    var already = history.some(function (c) { return c && c.id === card.id; });
+                    if (already) {
+                        onDone('skip', 'already');
+                        return;
+                    }
+                } catch (e) {}
+
+                var normalized = normalizeCard(card, card.media_type === 'tv');
+                try {
+                    Lampa.Favorite.add('history', normalized);
+                    addedEntries.push({
+                        id: card.id,
+                        title: normalized.title,
+                        time: Date.now(),
+                        key: key
+                    });
+                    onDone('ok');
                 } catch (e) {
                     console.log('Kinopoisk History', 'Favorite.add error', e);
-                    onDone(false, 'add error');
+                    onDone('fail', 'add error');
                 }
             });
         }
 
         function next() {
             if (!queue.length) {
+                appendSyncLog(addedEntries);
                 onComplete({
                     total: total,
                     ok: okCount,
                     fail: failCount,
-                    failDetails: failDetails
+                    skip: skipCount,
+                    failDetails: failDetails,
+                    addedCount: addedEntries.length
                 });
                 return;
             }
@@ -837,8 +911,9 @@
             var pending = batch.length;
 
             batch.forEach(function (key) {
-                processKey(key, function (success, reason) {
-                    if (success) okCount++;
+                processKey(key, function (status, reason) {
+                    if (status === 'ok') okCount++;
+                    else if (status === 'skip') skipCount++;
                     else {
                         failCount++;
                         if (failDetails.length < 30) {
@@ -846,7 +921,7 @@
                         }
                     }
                     processed++;
-                    if (onProgress) onProgress(processed, total, key, success ? 'ok' : (reason || 'fail'));
+                    if (onProgress) onProgress(processed, total, key, status, reason);
                     pending--;
                     if (pending === 0) {
                         setTimeout(next, DELAY);
@@ -869,7 +944,9 @@
             '    <br>' +
             '    Поиск идёт через встроенный TMDB Lampa — без внешних API и прокси.<br>' +
             '    <span style="color:#79D29E;">История синхронизируется с CUB автоматически.</span><br>' +
-            '    <span style="color:#f39c12;">' + total + ' записей — займёт примерно ' + Math.ceil(total / 300) + '-30 минут. Не закрывай приложение.</span>' +
+            '    <span style="color:#f39c12;">' + total + ' записей — займёт примерно ' + Math.ceil(total / 300) + '-30 минут. Не закрывай приложение.</span><br>' +
+            '    <br>' +
+            '    <span style="color:#888;">Если что-то пойдёт не так — в настройках есть кнопки отката.</span>' +
             '  </div>' +
             '  <div id="hist-status" style="margin-top:10px;font-size:13px;color:#aaa;min-height:60px;"></div>' +
             '  <div id="hist-actions" style="margin-top:10px;"></div>' +
@@ -900,10 +977,11 @@
                 markAllAsHistoryLocal(
                     function (processed, total, key, status) {
                         var pct = Math.floor(processed / total * 100);
+                        var statusText = status === 'ok' ? '✅' : (status === 'skip' ? '⏭ уже' : '❌');
                         $('#hist-status').html(
                             'Обработано: <b>' + processed + '</b> / ' + total +
                             ' (' + pct + '%)<br>' +
-                            'Последний: ' + key + ' — ' + status
+                            'Последний: ' + key + ' — ' + statusText
                         ).css('color', '#f39c12');
                     },
                     function (result) {
@@ -916,9 +994,11 @@
                         var html =
                             '<b style="color:#79D29E;font-size:15px;">Готово ✓</b><br><br>' +
                             'Всего: <b>' + result.total + '</b><br>' +
-                            'Успешно: <b style="color:#79D29E;">' + result.ok + '</b><br>' +
-                            'Ошибок: <b style="color:#f39c12;">' + result.fail + '</b><br><br>' +
-                            'История синхронизируется с CUB автоматически.';
+                            'Добавлено: <b style="color:#79D29E;">' + result.ok + '</b><br>' +
+                            'Пропущено (уже в истории): <b>' + result.skip + '</b><br>' +
+                            'Не найдено: <b style="color:#f39c12;">' + result.fail + '</b><br><br>' +
+                            'История синхронизируется с CUB автоматически.<br>' +
+                            '<span style="color:#888;font-size:12px;">Если нужно — откати в настройках.</span>';
 
                         if (result.failDetails && result.failDetails.length > 0) {
                             html += '<br><b>Примеры ошибок:</b><br>';
@@ -928,9 +1008,155 @@
                         }
 
                         $('#hist-status').html(html).css('color', '#ddd');
-                        Lampa.Noty.show('История: ' + result.ok + ' добавлено, ' + result.fail + ' ошибок');
+                        Lampa.Noty.show('История: +' + result.ok + ', пропущено ' + result.skip + ', ошибок ' + result.fail);
                     }
                 );
+            });
+        }, 200);
+    }
+
+    // ======================= ОТКАТ ИСТОРИИ =======================
+
+    // Универсальная функция отката. mode: 'hour' | 'all'
+    function rollbackHistory(mode, onDone) {
+        var log = getSyncLog();
+        if (!log.length) {
+            onDone({ error: 'Журнал пуст — нечего откатывать' });
+            return;
+        }
+
+        var now = Date.now();
+        var oneHourAgo = now - 60 * 60 * 1000;
+
+        // Отбираем записи для удаления
+        var toRemove = [];
+        if (mode === 'hour') {
+            log.forEach(function (entry) {
+                if (entry && entry.time && entry.time >= oneHourAgo) {
+                    toRemove.push(entry);
+                }
+            });
+        } else {
+            toRemove = log.slice();
+        }
+
+        if (!toRemove.length) {
+            onDone({ removed: 0, message: 'Нечего удалять (за этот период ничего не добавлялось)' });
+            return;
+        }
+
+        // Множество ID для удаления
+        var removeSet = {};
+        toRemove.forEach(function (entry) { if (entry && entry.id) removeSet[entry.id] = true; });
+
+        // 1) Локально: чистим favorite.history
+        var fav = Lampa.Storage.get('favorite', {});
+        var history = fav.history || [];
+        var before = history.length;
+
+        var filtered = history.filter(function (card) {
+            return !(card && removeSet[card.id]);
+        });
+
+        fav.history = filtered;
+        Lampa.Storage.set('favorite', fav);
+
+        // 2) Пытаемся через Favorite.remove — чтобы ушло в CUB
+        var removedViaApi = 0;
+        if (Lampa.Favorite && typeof Lampa.Favorite.remove === 'function') {
+            toRemove.forEach(function (entry) {
+                try {
+                    Lampa.Favorite.remove('history', { id: entry.id });
+                    removedViaApi++;
+                } catch (e) {
+                    console.log('Kinopoisk', 'Favorite.remove error for id=' + entry.id, e);
+                }
+            });
+        }
+
+        // 3) Обновляем журнал — убираем удалённые записи
+        var remaining = log.filter(function (entry) {
+            return !(entry && removeSet[entry.id]);
+        });
+        Lampa.Storage.set(SYNC_LOG_KEY, remaining);
+
+        onDone({
+            removed: before - filtered.length,
+            removedViaApi: removedViaApi,
+            before: before,
+            after: filtered.length,
+            logRemaining: remaining.length
+        });
+    }
+
+    function showRollbackDialog() {
+        var log = getSyncLog();
+        var now = Date.now();
+        var oneHourAgo = now - 60 * 60 * 1000;
+        var lastHour = log.filter(function (e) { return e && e.time && e.time >= oneHourAgo; }).length;
+
+        var modal = $(
+            '<div style="padding: 15px;">' +
+            '  <div class="about" style="margin-bottom: 12px; font-size: 13px; line-height: 1.6;">' +
+            '    Журнал синхронизации:<br>' +
+            '    Всего записей: <b>' + log.length + '</b><br>' +
+            '    За последний час: <b>' + lastHour + '</b><br>' +
+            '    <br>' +
+            '    <span style="color:#f39c12;">Откат удалит карточки из истории Lampa и синхронизирует удаление с CUB.</span>' +
+            '  </div>' +
+            '  <div id="rb-actions" style="display:flex;gap:10px;flex-wrap:wrap;"></div>' +
+            '  <div id="rb-status" style="margin-top:12px;font-size:13px;color:#aaa;min-height:40px;"></div>' +
+            '</div>'
+        );
+
+        Lampa.Modal.open({
+            title: 'Откат добавления в историю',
+            html: modal,
+            size: 'large',
+            onBack: function () { Lampa.Modal.close(); },
+            onSelect: function () {}
+        });
+
+        setTimeout(function () {
+            var btnHour = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 20px;background:#e67e22;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Откатить за час (' + lastHour + ')</div>');
+            var btnAll = $('<div class="broadcast__device selector" style="display:inline-block;padding:10px 20px;background:#c0392b;color:#fff;border-radius:6px;cursor:pointer;font-weight:600;">Откатить всё (' + log.length + ')</div>');
+
+            if (lastHour === 0) btnHour.css('opacity', '0.5');
+            if (log.length === 0) btnAll.css('opacity', '0.5');
+
+            $('#rb-actions').append(btnHour).append(btnAll);
+
+            function runRollback(mode, btn) {
+                btn.css('opacity', '0.5').css('pointer-events', 'none');
+                $('#rb-status').text('Удаляю...').css('color', '#f39c12');
+
+                setTimeout(function () {
+                    rollbackHistory(mode, function (result) {
+                        if (result.error) {
+                            $('#rb-status').text(result.error).css('color', '#e74c3c');
+                            return;
+                        }
+
+                        var html = '<b style="color:#79D29E;">Откат завершён ✓</b><br><br>' +
+                            'Удалено из истории: <b>' + result.removed + '</b><br>' +
+                            'Отправлено в CUB (remove): <b>' + (result.removedViaApi || 0) + '</b><br>' +
+                            'Было: ' + result.before + ' → Стало: ' + result.after + '<br>' +
+                            'Осталось в журнале: <b>' + result.logRemaining + '</b>';
+
+                        $('#rb-status').html(html).css('color', '#ddd');
+                        Lampa.Noty.show('Откат: -' + result.removed);
+                    });
+                }, 200);
+            }
+
+            btnHour.on('hover:enter click', function () {
+                if (lastHour === 0) return;
+                runRollback('hour', btnHour);
+            });
+
+            btnAll.on('hover:enter click', function () {
+                if (log.length === 0) return;
+                runRollback('all', btnAll);
             });
         }, 200);
     }
@@ -1002,6 +1228,13 @@
             }
         });
 
+        // --- История просмотров ---
+        Lampa.SettingsApi.addParam({
+            component: 'kinopoisk',
+            param: { type: 'title' },
+            field: { name: 'История просмотров и CUB' }
+        });
+
         Lampa.SettingsApi.addParam({
             component: 'kinopoisk',
             param: { type: 'button', name: 'kinopoisk_mark_history' },
@@ -1012,6 +1245,19 @@
             onChange: function () {
                 Lampa.Controller.toContent();
                 showHistoryDialog();
+            }
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'kinopoisk',
+            param: { type: 'button', name: 'kinopoisk_rollback_history' },
+            field: {
+                name: 'Откатить добавление в историю',
+                description: 'Удаляет карточки, добавленные плагином (за час или все)'
+            },
+            onChange: function () {
+                Lampa.Controller.toContent();
+                showRollbackDialog();
             }
         });
 
@@ -1030,9 +1276,12 @@
                     histogram[r] = (histogram[r] || 0) + 1;
                 }
 
+                var log = getSyncLog();
+
                 var html = '<div style="padding: 20px; font-size: 14px; font-family: monospace;">';
                 html += '<b>По ключу "название_год":</b> ' + total + '<br>';
-                html += '<b>По backup_id:</b> ' + Object.keys(byId).length + '<br><br>';
+                html += '<b>По backup_id:</b> ' + Object.keys(byId).length + '<br>';
+                html += '<b>В журнале синхронизации:</b> ' + log.length + '<br><br>';
                 html += '<b>Распределение оценок:</b><br>';
 
                 for (var i = 10; i >= 1; i--) {
