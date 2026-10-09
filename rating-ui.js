@@ -440,7 +440,7 @@ var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 20
     var CACHE_TIME = 3 * 24 * 60 * 60 * 1000;
     var KP_CACHE = 'maxsm_ratings_kp_cache';
     var ID_MAPPING_CACHE = 'maxsm_ratings_id_mapping_cache';
-    var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['5178ab83-699c-4422-937e-f8a759f872ef'];
+    var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['3c47e3a8-a70f-447c-80a7-8ce15d93e66e'];
     var PROXY_TIMEOUT = 5000;
     var PROXY_LIST = [
         'https://cors.bwa.workers.dev/',
