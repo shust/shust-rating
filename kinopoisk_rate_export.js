@@ -684,150 +684,142 @@
         $container.append($newBtn);
     }
 
-    // ======================= МАССОВАЯ ИСТОРИЯ ПРОСМОТРОВ =======================
+    // ======================= МАССОВАЯ ИСТОРИЯ ПРОСМОТРОВ (ЛОКАЛЬНО) =======================
 
-    var ALLOHA_TOKEN = '04941a9a3ca3ac16e2b4327347bbc1';
-    var TMDB_KEY = '4ef0d7355d9ffb5151e987764708ce96';
+    function markAllAsHistoryLocal(onProgress, onComplete) {
+        var ratingsByKey = Lampa.Storage.get('kinopoisk_ratings_by_key', {});
+        var keys = Object.keys(ratingsByKey);
 
-    function markAllAsHistory(csvText, onProgress, onComplete) {
-        var rows = parseCSV(csvText);
-        if (rows.length < 2) {
-            onComplete({ error: 'CSV пустой' });
+        if (!keys.length) {
+            onComplete({ error: 'Нет импортированных оценок' });
             return;
         }
 
-        var headers = rows[0].map(function (h) { return h.trim(); });
-        var idxRating = headers.indexOf('My rating');
-        var idxTitle = headers.indexOf('Title');
-        var idxOriginal = headers.indexOf('Original Title');
-        var idxYear = headers.indexOf('Year');
-        var idxType = headers.indexOf('Type');
-        var idxBackup = headers.indexOf('backup_id');
-        var idxKpId = headers.indexOf('kinopoisk_id');
-
-        if (idxRating === -1 || idxTitle === -1 || idxYear === -1) {
-            onComplete({ error: 'В CSV нет колонок "My rating", "Title" или "Year"' });
-            return;
-        }
-
-        // Собираем только строки с оценкой
-        var tasks = [];
-        for (var i = 1; i < rows.length; i++) {
-            var row = rows[i];
-            if (!row || row.length < 2) continue;
-
-            var rating = (row[idxRating] || '').trim();
-            if (!rating) continue;
-
-            var title = (row[idxTitle] || '').trim();
-            var originalTitle = idxOriginal !== -1 ? (row[idxOriginal] || '').trim() : '';
-            var year = extractYear(row[idxYear]);
-            var type = (row[idxType] || '').toLowerCase();
-            var isTv = type.indexOf('сериал') !== -1;
-
-            var kpId = '';
-            if (idxKpId !== -1 && row[idxKpId]) kpId = String(row[idxKpId]).trim();
-            else if (idxBackup !== -1 && row[idxBackup]) kpId = String(row[idxBackup]).trim();
-
-            tasks.push({
-                kpId: kpId,
-                title: title || originalTitle || '?',
-                year: year,
-                isTv: isTv
-            });
-        }
-
-        var total = tasks.length;
+        var total = keys.length;
         var processed = 0;
         var okCount = 0;
         var failCount = 0;
         var failDetails = [];
-        var BATCH = 3;
-        var DELAY = 100;
+        var BATCH = 2;
+        var DELAY = 400;
 
-        var queue = tasks.slice();
+        var queue = keys.slice();
 
-        function addToHistory(tmdbId, isTv, task, onDone) {
-            // Ищем карточку в локальном хранилище Lampa
-            var card = null;
-            try {
-                if (Lampa.Favorite && Lampa.Favorite.search) {
-                    card = Lampa.Favorite.search(tmdbId);
+        function parseKey(key) {
+            var m = key.match(/^(.+)_(\d{4})$/);
+            if (!m) return null;
+            return {
+                title: m[1].replace(/_/g, ' ').trim(),
+                year: parseInt(m[2], 10),
+                key: key
+            };
+        }
+
+        function normalizeCard(card, isTv) {
+            return {
+                id: card.id,
+                title: card.title || card.name,
+                name: card.name || card.title,
+                original_title: card.original_title || card.original_name,
+                original_name: card.original_name || card.original_title,
+                release_date: card.release_date || card.first_air_date,
+                first_air_date: card.first_air_date || card.release_date,
+                poster_path: card.poster_path,
+                backdrop_path: card.backdrop_path,
+                vote_average: card.vote_average,
+                media_type: card.media_type || (isTv ? 'tv' : 'movie'),
+                source: 'tmdb'
+            };
+        }
+
+        // Возвращает массив карточек (парсит формат [{results: [...]}])
+        function extractResults(arr) {
+            if (!arr) return [];
+            if (Array.isArray(arr)) {
+                if (arr.length && arr[0] && Array.isArray(arr[0].results)) {
+                    // Собираем из всех частей (movie + tv обычно приходят раздельно)
+                    var out = [];
+                    arr.forEach(function (part) {
+                        if (part && Array.isArray(part.results)) {
+                            out = out.concat(part.results);
+                        }
+                    });
+                    return out;
                 }
-            } catch (e) {
-                console.log('Kinopoisk History', 'Favorite.search error', e);
+                // Может быть сразу массив карточек
+                return arr.filter(function (c) { return c && c.id; });
+            }
+            if (arr.results && Array.isArray(arr.results)) return arr.results;
+            return [];
+        }
+
+        // Ищем и как фильм, и как сериал, берём первый найденный
+        function searchCard(title, year, onFound) {
+            var finished = false;
+            var best = null;
+            var pending = 2;
+
+            function finish() {
+                pending--;
+                if (pending > 0 || finished) return;
+                finished = true;
+                onFound(best);
             }
 
-            if (card) {
+            function runSearch(isTv) {
+                var params = { query: title };
+                if (year) params.year = year;
+
+                Lampa.Api.sources.tmdb.search(params, function (arr) {
+                    try {
+                        var results = extractResults(arr);
+                        if (results.length && !best) {
+                            best = normalizeCard(results[0], isTv);
+                        }
+                        if (!results.length && year) {
+                            // повтор без года
+                            Lampa.Api.sources.tmdb.search({ query: title }, function (arr2) {
+                                var r2 = extractResults(arr2);
+                                if (r2.length && !best) {
+                                    best = normalizeCard(r2[0], isTv);
+                                }
+                                finish();
+                            }, function () { finish(); });
+                            return;
+                        }
+                        finish();
+                    } catch (e) {
+                        console.log('Kinopoisk History', 'search parse error', e);
+                        finish();
+                    }
+                }, function () { finish(); });
+            }
+
+            runSearch(false);
+            runSearch(true);
+        }
+
+        function processKey(key, onDone) {
+            var parsed = parseKey(key);
+            if (!parsed) {
+                onDone(false, 'bad key');
+                return;
+            }
+
+            searchCard(parsed.title, parsed.year, function (card) {
+                if (!card) {
+                    onDone(false, 'not found');
+                    return;
+                }
+
                 try {
                     Lampa.Favorite.add('history', card);
                     onDone(true);
                 } catch (e) {
                     console.log('Kinopoisk History', 'Favorite.add error', e);
-                    onDone(false, 'Favorite.add error');
+                    onDone(false, 'add error');
                 }
-                return;
-            }
-
-            // Карточки нет — загружаем через TMDB и создаём
-            var url = 'https://api.themoviedb.org/3/' + (isTv ? 'tv' : 'movie') + '/' + tmdbId +
-                      '?api_key=' + TMDB_KEY + '&language=ru';
-
-            network.silent(url,
-                function (data) {
-                    if (data && data.id) {
-                        var cardData = {
-                            id: data.id,
-                            title: data.title || data.name,
-                            original_title: data.original_title || data.original_name,
-                            name: data.name || data.title,
-                            original_name: data.original_name || data.original_title,
-                            release_date: data.release_date || data.first_air_date,
-                            first_air_date: data.first_air_date || data.release_date,
-                            poster_path: data.poster_path,
-                            backdrop_path: data.backdrop_path,
-                            vote_average: data.vote_average,
-                            media_type: isTv ? 'tv' : 'movie',
-                            source: 'tmdb'
-                        };
-
-                        try {
-                            Lampa.Favorite.add('history', cardData);
-                            onDone(true);
-                        } catch (e) {
-                            console.log('Kinopoisk History', 'Favorite.add error', e);
-                            onDone(false, 'Favorite.add error');
-                        }
-                    } else {
-                        onDone(false, 'tmdb empty');
-                    }
-                },
-                function (err) {
-                    onDone(false, 'tmdb error');
-                }
-            );
-        }
-
-        function processTask(task, onDone) {
-            if (!task.kpId) {
-                onDone(false, 'no kpId');
-                return;
-            }
-
-            network.silent('https://api.alloha.tv/?token=' + ALLOHA_TOKEN + '&kp=' + task.kpId,
-                function (data) {
-                    if (data && data.data && data.data.tmdb) {
-                        var tmdbId = parseInt(data.data.tmdb, 10);
-                        if (!tmdbId) { onDone(false, 'bad tmdb'); return; }
-                        addToHistory(tmdbId, task.isTv, task, onDone);
-                    } else {
-                        onDone(false, 'no tmdb');
-                    }
-                },
-                function () {
-                    onDone(false, 'alloha error');
-                }
-            );
+            });
         }
 
         function next() {
@@ -844,18 +836,17 @@
             var batch = queue.splice(0, BATCH);
             var pending = batch.length;
 
-            batch.forEach(function (task) {
-                processTask(task, function (success, reason) {
-                    if (success) {
-                        okCount++;
-                    } else {
+            batch.forEach(function (key) {
+                processKey(key, function (success, reason) {
+                    if (success) okCount++;
+                    else {
                         failCount++;
                         if (failDetails.length < 30) {
-                            failDetails.push({ title: task.title, reason: reason || 'fail' });
+                            failDetails.push({ title: key, reason: reason || 'fail' });
                         }
                     }
                     processed++;
-                    if (onProgress) onProgress(processed, total, task.title, success ? 'ok' : (reason || 'fail'));
+                    if (onProgress) onProgress(processed, total, key, success ? 'ok' : (reason || 'fail'));
                     pending--;
                     if (pending === 0) {
                         setTimeout(next, DELAY);
@@ -868,18 +859,18 @@
     }
 
     function showHistoryDialog() {
+        var ratingsByKey = Lampa.Storage.get('kinopoisk_ratings_by_key', {});
+        var total = Object.keys(ratingsByKey).length;
+
         var modal = $(
             '<div style="padding: 15px;">' +
             '  <div class="about" style="margin-bottom: 12px; font-size: 13px; line-height: 1.6;">' +
-            '    Вставь CSV Кинориума (тот же, что для импорта).<br>' +
-            '    Для каждой оценки плагин:<br>' +
-            '    1) найдёт <b>tmdb_id</b> через alloha;<br>' +
-            '    2) добавит карточку в <b>«История просмотров»</b>.<br>' +
+            '    Пройдёт по всем импортированным оценкам (<b>' + total + '</b>) и добавит каждый фильм/сериал в <b>«История просмотров»</b>.<br>' +
             '    <br>' +
+            '    Поиск идёт через встроенный TMDB Lampa — без внешних API и прокси.<br>' +
             '    <span style="color:#79D29E;">История синхронизируется с CUB автоматически.</span><br>' +
-            '    <span style="color:#f39c12;">4200+ записей — займёт 5-15 минут.</span>' +
+            '    <span style="color:#f39c12;">' + total + ' записей — займёт примерно ' + Math.ceil(total / 300) + '-30 минут. Не закрывай приложение.</span>' +
             '  </div>' +
-            '  <textarea id="hist-csv-input" style="width:100%;height:180px;background:#1a1a1a;color:#ddd;border:1px solid #444;padding:10px;font-family:monospace;font-size:11px;resize:vertical;" placeholder="Вставь CSV..."></textarea>' +
             '  <div id="hist-status" style="margin-top:10px;font-size:13px;color:#aaa;min-height:60px;"></div>' +
             '  <div id="hist-actions" style="margin-top:10px;"></div>' +
             '</div>'
@@ -898,27 +889,21 @@
             $('#hist-actions').append(btn);
 
             btn.on('hover:enter click', function () {
-                var csv = $('#hist-csv-input').val();
-                if (!csv || csv.length < 50) {
-                    $('#hist-status').text('Вставь CSV').css('color', '#e74c3c');
-                    return;
-                }
-
                 if (!Lampa.Favorite || !Lampa.Favorite.add) {
-                    $('#hist-status').text('Модуль Lampa.Favorite недоступен').css('color', '#e74c3c');
+                    $('#hist-status').text('Lampa.Favorite недоступен').css('color', '#e74c3c');
                     return;
                 }
 
                 btn.css('opacity', '0.5').css('pointer-events', 'none');
                 $('#hist-status').text('Начинаю...').css('color', '#f39c12');
 
-                markAllAsHistory(csv,
-                    function (processed, total, title, status) {
+                markAllAsHistoryLocal(
+                    function (processed, total, key, status) {
                         var pct = Math.floor(processed / total * 100);
                         $('#hist-status').html(
                             'Обработано: <b>' + processed + '</b> / ' + total +
                             ' (' + pct + '%)<br>' +
-                            'Последний: ' + title + ' — ' + status
+                            'Последний: ' + key + ' — ' + status
                         ).css('color', '#f39c12');
                     },
                     function (result) {
