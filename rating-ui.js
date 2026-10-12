@@ -1221,3 +1221,305 @@
     if (window.appready) startPlugin();
     else Lampa.Listener.follow('app', function (e) { if (e.type === 'ready') startPlugin(); });
 })();
+
+/* ===== Integrated: date-hidden.js + UI toggle (fixed for current Lampa HTML) ===== */
+/* -------------------------------------------------------------------------
+   Integrated header date toggle
+   Based on date-hidden.js, adapted for current Lampa markup:
+   <div class="head__time">
+       <div class="head__time-now time--clock">10:09</div>
+       <div>
+           <div class="head__time-date time--full">7 Октября 2026</div>
+           <div class="head__time-week time--week">Среда</div>
+       </div>
+   </div>
+--------------------------------------------------------------------------- */
+(function () {
+    'use strict';
+
+    var SETTING = 'header_date_show';
+    var STYLE_ID = 'hide-date-style';
+    var HIDDEN_CLASS = 'rating-header-date-hidden';
+    var VISIBLE_CLASS = 'rating-header-date-visible';
+    var FALLBACK_CLASS = 'rating-header-date-fallback-hidden';
+    var observer = null;
+    var rescanTimer = null;
+
+    if (window.__rating_header_date_toggle_loaded) return;
+    window.__rating_header_date_toggle_loaded = true;
+
+    function boolValue(value, fallback) {
+        if (value === undefined || value === null) return fallback;
+        if (value === true || value === 'true' || value === 1 || value === '1') return true;
+        if (value === false || value === 'false' || value === 0 || value === '0') return false;
+        return fallback;
+    }
+
+    function dateVisible(forcedValue) {
+        if (forcedValue !== undefined) {
+            return boolValue(forcedValue, false);
+        }
+
+        return boolValue(
+            Lampa.Storage.get(SETTING, false),
+            false
+        );
+    }
+
+    function exactDateSelector() {
+        return [
+            '.head__time-date',
+            '.head__time-week',
+            '.header__date',
+            '.header__weekday',
+            '.header__date-time .header__date',
+            '.header__time .header__date',
+            '.header__clock .header__date'
+        ].join(',');
+    }
+
+    function addStyles() {
+        var current = document.getElementById(STYLE_ID);
+
+        if (current && current.getAttribute('data-rating-date-toggle') !== '1') {
+            if (current.parentNode) current.parentNode.removeChild(current);
+            current = null;
+        }
+
+        if (current) return;
+
+        var style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.type = 'text/css';
+        style.setAttribute('data-rating-date-toggle', '1');
+
+        style.textContent = [
+            'html.' + HIDDEN_CLASS + ' .head__time-date,',
+            'html.' + HIDDEN_CLASS + ' .head__time-week,',
+            'html.' + HIDDEN_CLASS + ' .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__weekday,',
+            'html.' + HIDDEN_CLASS + ' .header__date-time .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__time .header__date,',
+            'html.' + HIDDEN_CLASS + ' .header__clock .header__date,',
+            'html.' + HIDDEN_CLASS + ' .' + FALLBACK_CLASS + '{',
+            '  display:none!important;',
+            '}',
+
+            'html.' + VISIBLE_CLASS + ' .head__time-date,',
+            'html.' + VISIBLE_CLASS + ' .head__time-week{',
+            '  display:block!important;',
+            '  visibility:visible!important;',
+            '}'
+        ].join('\n');
+
+        document.head.appendChild(style);
+    }
+
+    function dateTextMatch(text) {
+        text = String(text || '').trim();
+
+        return (
+            /(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i.test(text) ||
+            /20\d{2}/.test(text) ||
+            /\d{1,2}\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/i.test(text)
+        );
+    }
+
+    function isClockElement(el) {
+        if (!el || el.nodeType !== 1) return false;
+
+        try {
+            if (el.matches('.head__time-now, .time--clock')) return true;
+            if (el.querySelector && el.querySelector('.head__time-now, .time--clock')) return true;
+        } catch (e) {}
+
+        return false;
+    }
+
+    function markFallbackDateNodes(root) {
+        root = root || document;
+        if (!root || !root.querySelectorAll) return;
+
+        var exact = root.querySelectorAll(exactDateSelector());
+        for (var i = 0; i < exact.length; i++) {
+            exact[i].classList.add(FALLBACK_CLASS);
+        }
+
+        var headerRoots = [];
+
+        try {
+            if (root.matches && root.matches('.head, .header, .head__time')) {
+                headerRoots.push(root);
+            }
+        } catch (e) {}
+
+        var roots = root.querySelectorAll('.head, .header, .head__time');
+        for (var r = 0; r < roots.length; r++) headerRoots.push(roots[r]);
+
+        for (var h = 0; h < headerRoots.length; h++) {
+            var elements = headerRoots[h].querySelectorAll('*');
+
+            for (var j = 0; j < elements.length; j++) {
+                var el = elements[j];
+                if (isClockElement(el)) continue;
+                if (!dateTextMatch(el.textContent)) continue;
+
+                var childContainsDate = false;
+                if (el.children && el.children.length) {
+                    for (var c = 0; c < el.children.length; c++) {
+                        if (dateTextMatch(el.children[c].textContent)) {
+                            childContainsDate = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!childContainsDate) el.classList.add(FALLBACK_CLASS);
+            }
+        }
+    }
+
+    function clearFallbackMarks() {
+        var marked = document.querySelectorAll('.' + FALLBACK_CLASS);
+        for (var i = 0; i < marked.length; i++) marked[i].classList.remove(FALLBACK_CLASS);
+    }
+
+    function restoreInlineDateStyles(root) {
+        root = root || document;
+        if (!root || !root.querySelectorAll) return;
+
+        var exact = root.querySelectorAll(exactDateSelector());
+        for (var i = 0; i < exact.length; i++) {
+            if (exact[i].style && exact[i].style.display === 'none') exact[i].style.display = '';
+            if (exact[i].style && exact[i].style.visibility === 'hidden') exact[i].style.visibility = '';
+        }
+
+        var headers = root.querySelectorAll('.head, .header, .head__time');
+        for (var h = 0; h < headers.length; h++) {
+            var all = headers[h].querySelectorAll('*');
+
+            for (var j = 0; j < all.length; j++) {
+                var el = all[j];
+                if (isClockElement(el)) continue;
+                if (!dateTextMatch(el.textContent)) continue;
+                if (el.style && el.style.display === 'none') el.style.display = '';
+                if (el.style && el.style.visibility === 'hidden') el.style.visibility = '';
+            }
+        }
+    }
+
+    function applySetting(forcedValue) {
+        addStyles();
+
+        var visible = dateVisible(forcedValue);
+        var html = document.documentElement;
+
+        if (!html) return;
+
+        html.classList.toggle(HIDDEN_CLASS, !visible);
+        html.classList.toggle(VISIBLE_CLASS, visible);
+
+        if (visible) {
+            clearFallbackMarks();
+            restoreInlineDateStyles(document);
+        } else {
+            markFallbackDateNodes(document);
+        }
+    }
+
+    function rescanBurst(forcedValue) {
+        if (rescanTimer) clearInterval(rescanTimer);
+
+        var count = 0;
+        rescanTimer = setInterval(function () {
+            applySetting(forcedValue);
+            count++;
+            if (count >= 8) {
+                clearInterval(rescanTimer);
+                rescanTimer = null;
+            }
+        }, 250);
+    }
+
+    function observeDom() {
+        if (observer || typeof MutationObserver === 'undefined' || !document.body) return;
+
+        observer = new MutationObserver(function (mutations) {
+            var visible = dateVisible();
+
+            for (var i = 0; i < mutations.length; i++) {
+                var nodes = mutations[i].addedNodes || [];
+
+                for (var j = 0; j < nodes.length; j++) {
+                    var node = nodes[j];
+                    if (!node || node.nodeType !== 1) continue;
+
+                    if (visible) {
+                        restoreInlineDateStyles(node);
+                    } else {
+                        try {
+                            if (node.matches && node.matches(exactDateSelector())) {
+                                node.classList.add(FALLBACK_CLASS);
+                            }
+                        } catch (e) {}
+
+                        markFallbackDateNodes(node);
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function startPlugin() {
+        window.hide_date_ready = true;
+        window.hide_date_version = '2.0.0-integrated';
+
+        Lampa.SettingsApi.addParam({
+            component: 'interface',
+            param: {
+                name: SETTING,
+                type: 'trigger',
+                'default': false
+            },
+            field: {
+                name: 'Дата в шапке',
+                description: 'Показывать дату и день недели. Время отображается всегда.'
+            },
+            onChange: function (value) {
+                applySetting(value);
+                setTimeout(function () { applySetting(value); }, 50);
+                rescanBurst(value);
+            }
+        });
+
+        if (Lampa.Storage && Lampa.Storage.listener && Lampa.Storage.listener.follow) {
+            Lampa.Storage.listener.follow('change', function (event) {
+                if (!event || event.name !== SETTING) return;
+                setTimeout(function () {
+                    applySetting();
+                    rescanBurst();
+                }, 30);
+            });
+        }
+
+        Lampa.Listener.follow('activity', function (e) {
+            if (e.type === 'start' || e.type === 'render') {
+                setTimeout(function () { applySetting(); }, 30);
+            }
+        });
+
+        addStyles();
+        applySetting();
+        observeDom();
+    }
+
+    if (window.appready) {
+        startPlugin();
+    } else {
+        Lampa.Listener.follow('app', function (e) {
+            if (e.type === 'ready') startPlugin();
+        });
+    }
+})();
