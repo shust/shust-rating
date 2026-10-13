@@ -1,7 +1,7 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
  * Зависит от lampa_continue_torrent_v2.js (читает его localStorage).
- * Версия: 1.1.0 — поддержка фильмов и сериалов, своя полка над нативной.
+ * Версия: 1.2.0 — защита от перерисовки, только на главной странице.
  */
 (function () {
     'use strict';
@@ -15,7 +15,10 @@
     var SORT_MODE = 'recent'; // 'recent' | 'series-first' | 'movies-first'
 
     var mainObserver = null;
+    var bodyObserver = null;
     var watchTimer = null;
+    var currentBody = null;
+    var lastRenderKey = '';
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
     function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
@@ -24,7 +27,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.1.0]');
+            args.unshift('[ContinueTorrent-main v1.2.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -183,7 +186,7 @@
             var record = history[key];
             if (!record) return;
             if (!record.infohash && !record.magnet) return;
-            if (!n(record.time) && !n(record.percent)) return; // не показываем то, что не начинали
+            if (!n(record.time) && !n(record.percent)) return;
 
             rows.push({
                 key: key,
@@ -208,16 +211,81 @@
         }).join('|');
     }
 
+    // === ГЛАВНАЯ ПРОВЕРКА: мы действительно на главной? ===
+    function isMainActivity() {
+        try {
+            if (!Lampa.Activity || typeof Lampa.Activity.active !== 'function') return false;
+            var active = Lampa.Activity.active();
+            if (!active) return false;
+            if (active.component === 'main') return true;
+            if (active.url === 'main') return true;
+            // Иногда component может быть вложен
+            if (active.activity && active.activity.component === 'main') return true;
+        } catch (e) {}
+        // Резервный признак: в текущем .scroll__body есть полка «Сейчас смотрят»
+        var body = $('.activity.activity--active .scroll__body').first();
+        if (body.length) {
+            var hasNowWatching = false;
+            body.find('.items-line .items-line__title').each(function () {
+                var txt = t($(this).text()).toLowerCase();
+                if (txt === 'сейчас смотрят') hasNowWatching = true;
+            });
+            return hasNowWatching;
+        }
+        return false;
+    }
+
     function findMainBody() {
+        if (!isMainActivity()) return null;
         var active = $('.activity.activity--active').first();
         if (!active.length) return null;
         var body = active.find('.scroll__body').first();
         return body.length ? body : null;
     }
 
+    // === Наблюдаем за конкретным .scroll__body ===
+    function attachBodyObserver(body) {
+        if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
+        if (!body || !body.length || typeof MutationObserver === 'undefined') return;
+
+        bodyObserver = new MutationObserver(function (mutations) {
+            // Если нашу .items-line удалили — вставим снова
+            for (var i = 0; i < mutations.length; i++) {
+                var m = mutations[i];
+                if (m.type === 'childList' && m.removedNodes && m.removedNodes.length) {
+                    for (var j = 0; j < m.removedNodes.length; j++) {
+                        var node = m.removedNodes[j];
+                        if (node && node.classList && node.classList.contains('ctv-main-line')) {
+                            debug('our line was removed, reinserting');
+                            setTimeout(render, 50);
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+
+        bodyObserver.observe(body[0], {childList: true});
+    }
+
     function render() {
+        // Не на главной — убираем свой блок, если он где-то остался
+        if (!isMainActivity()) {
+            $('.items-line.ctv-main-line').remove();
+            if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
+            currentBody = null;
+            lastRenderKey = '';
+            return;
+        }
+
         var body = findMainBody();
         if (!body || !body.length) return;
+
+        // Если body сменился — перевесим наблюдатель
+        if (!currentBody || currentBody[0] !== body[0]) {
+            currentBody = body;
+            attachBodyObserver(body);
+        }
 
         var rows = collectRecords();
         var key = renderKey(rows);
@@ -246,6 +314,7 @@
             '</div>';
 
         body.prepend(html);
+        lastRenderKey = key;
         bindCardHandlers(body);
     }
 
@@ -292,7 +361,8 @@
         });
     }
 
-    function watchMain() {
+    // === Общий наблюдатель за сменой activity ===
+    function watchWrap() {
         if (mainObserver) { mainObserver.disconnect(); mainObserver = null; }
         if (typeof MutationObserver === 'undefined') return;
 
@@ -301,7 +371,9 @@
 
         mainObserver = new MutationObserver(function () {
             if (watchTimer) clearTimeout(watchTimer);
-            watchTimer = setTimeout(render, 200);
+            watchTimer = setTimeout(function () {
+                render();
+            }, 200);
         });
         mainObserver.observe(wrap, {childList: true, subtree: true});
     }
@@ -311,24 +383,30 @@
 
         Lampa.Listener.follow('activity', function (event) {
             if (!event || event.type !== 'complite') return;
+            // Проверяем именно компонент
             var active = event.object && event.object.activity;
             if (!active) return;
             if (active.component === 'main' || active.url === 'main') {
                 debug('main activity complite');
                 scheduleRender();
-                watchMain();
+                watchWrap();
+            } else {
+                // Ушли с главной — убираем блок
+                $('.items-line.ctv-main-line').remove();
             }
         });
 
         Lampa.Listener.follow('app', function (event) {
             if (event.type === 'ready') {
                 scheduleRender();
-                watchMain();
+                watchWrap();
             }
         });
 
         if (typeof window !== 'undefined' && window.addEventListener) {
-            window.addEventListener('focus', scheduleRender);
+            window.addEventListener('focus', function () {
+                if (isMainActivity()) scheduleRender();
+            });
         }
 
         debug('ready');
