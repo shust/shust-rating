@@ -1,6 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Версия: 1.5.0 — observer на .wrap__content, следим за подменой .scroll__body
+ * Версия: 1.6.0 — вставка после первой нативной полки
  */
 (function () {
     'use strict';
@@ -11,13 +11,11 @@
     var STORAGE = 'lampa_continue_torrent_v2';
     var MAX_CARDS = 20;
     var SORT_MODE = 'recent';
-    var WATCHDOG_INTERVAL = 200;
+    var WATCHDOG_INTERVAL = 500;
 
     var watchdog = null;
-    var wrapObserver = null;
     var currentBody = null;
     var lastRenderKey = '';
-    var lastBodyEl = null;
     var pendingReinsert = false;
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
@@ -27,7 +25,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.5.0]');
+            args.unshift('[ContinueTorrent-main v1.6.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -149,7 +147,6 @@
         }).join('|');
     }
 
-    // .scroll__body главной — тот, где есть известные нативные полки.
     function findMainBody() {
         var result = null;
         $('.activity.activity--active .scroll__body').each(function () {
@@ -199,14 +196,11 @@
             if (currentBody) {
                 removeOurLineEverywhere();
                 currentBody = null;
-                lastBodyEl = null;
                 lastRenderKey = '';
             }
             return;
         }
-
         currentBody = body;
-        lastBodyEl = body[0];
 
         var rows = collectRecords();
         var key = renderKey(rows);
@@ -214,14 +208,24 @@
         var existing = body.children('.items-line.ctv-main-line');
         if (existing.length && existing.attr('data-ctv-key') === key) return;
 
+        existing.remove();
+
         if (!rows.length) {
-            existing.remove();
             lastRenderKey = key;
             return;
         }
 
-        existing.remove();
-        body.prepend(buildLineHtml(rows, key));
+        var html = buildLineHtml(rows, key);
+
+        // Вставляем сразу ПОСЛЕ первой нативной полки, а не перед ней.
+        // Иначе наша полка уезжает вверх за границу видимости при скролле.
+        var firstNative = body.children('.items-line').not('.ctv-main-line').first();
+        if (firstNative.length) {
+            firstNative.after(html);
+        } else {
+            body.prepend(html);
+        }
+
         lastRenderKey = key;
         bindCardHandlers(body);
         debug('inserted line, key=', key);
@@ -282,76 +286,59 @@
         });
     }
 
-    // Главный наблюдатель — на .wrap__content. Ловит и замену .scroll__body,
-    // и удаление нашей полки.
     function attachWrapObserver() {
-        if (wrapObserver) return;
         if (typeof MutationObserver === 'undefined') return;
-
         var wrap = document.querySelector('.wrap__content');
         if (!wrap) {
             setTimeout(attachWrapObserver, 300);
             return;
         }
 
-        wrapObserver = new MutationObserver(function (mutations) {
+        var observer = new MutationObserver(function (mutations) {
             var needReinsert = false;
-
             for (var i = 0; i < mutations.length; i++) {
                 var m = mutations[i];
                 if (m.type !== 'childList') continue;
-
-                // Наш блок удалён?
                 if (m.removedNodes && m.removedNodes.length) {
                     for (var j = 0; j < m.removedNodes.length; j++) {
                         var node = m.removedNodes[j];
                         if (!node || !node.classList) continue;
                         if (node.classList.contains('ctv-main-line') ||
-                            node.querySelector && node.querySelector('.ctv-main-line')) {
+                            (node.querySelector && node.querySelector('.ctv-main-line'))) {
                             needReinsert = true;
                             break;
                         }
                     }
                 }
-
-                // .scroll__body заменён целиком?
                 if (m.addedNodes && m.addedNodes.length) {
                     for (var k = 0; k < m.addedNodes.length; k++) {
                         var add = m.addedNodes[k];
                         if (!add || !add.classList) continue;
-                        if (add.classList.contains('scroll__body') ||
-                            add.querySelector && add.querySelector('.scroll__body')) {
+                        if (add.classList.contains('items-line') ||
+                            (add.querySelector && add.querySelector('.items-line'))) {
                             needReinsert = true;
                             break;
                         }
                     }
                 }
-
-                // Текущий body отвалился от документа?
-                if (lastBodyEl && !document.contains(lastBodyEl)) {
-                    needReinsert = true;
-                }
-
                 if (needReinsert) break;
             }
-
             if (needReinsert) scheduleInsert();
         });
 
-        wrapObserver.observe(wrap, {childList: true, subtree: true});
+        observer.observe(wrap, {childList: true, subtree: true});
         debug('wrap observer attached');
     }
 
     function startWatchdog() {
         if (watchdog) return;
-        // Watchdog как страховка на случай, если MutationObserver что-то пропустит.
         watchdog = setInterval(function () {
             try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
         }, WATCHDOG_INTERVAL);
         setTimeout(insertOurLine, 0);
-        setTimeout(insertOurLine, 50);
-        setTimeout(insertOurLine, 250);
-        setTimeout(insertOurLine, 800);
+        setTimeout(insertOurLine, 100);
+        setTimeout(insertOurLine, 400);
+        setTimeout(insertOurLine, 1200);
     }
 
     function init() {
@@ -365,12 +352,9 @@
         });
 
         Lampa.Listener.follow('activity', function () {
-            // Каждое переключение activity — заново проверяем и, если надо,
-            // вставляем нашу полку.
             setTimeout(insertOurLine, 0);
-            setTimeout(insertOurLine, 100);
-            setTimeout(insertOurLine, 400);
-            setTimeout(insertOurLine, 1000);
+            setTimeout(insertOurLine, 200);
+            setTimeout(insertOurLine, 800);
         });
 
         if (typeof window !== 'undefined' && window.addEventListener) {
