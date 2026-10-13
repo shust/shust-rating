@@ -1,6 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Версия: 1.6.0 — вставка после первой нативной полки
+ * Версия: 1.7.0 — пересборка навигации Lampa после вставки полки
  */
 (function () {
     'use strict';
@@ -16,7 +16,6 @@
     var watchdog = null;
     var currentBody = null;
     var lastRenderKey = '';
-    var pendingReinsert = false;
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
     function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
@@ -25,7 +24,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.6.0]');
+            args.unshift('[ContinueTorrent-main v1.7.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -84,7 +83,9 @@
 
         return '' +
             '<div class="card selector layer--visible layer--render card--loaded ctv-main-card' +
-                (series ? ' card--tv' : '') + '" data-ctv-key="' + escapeAttr(key) + '">' +
+                (series ? ' card--tv' : '') + '" ' +
+                'tabindex="0" ' +
+                'data-ctv-key="' + escapeAttr(key) + '">' +
                 '<div class="card__view" style="position:relative;">' +
                     '<img src="' + escapeAttr(poster) + '" class="card__img">' +
                     '<div class="card__icons"><div class="card__icons-inner"></div></div>' +
@@ -190,6 +191,26 @@
             '</div>';
     }
 
+    function refreshController() {
+        try {
+            if (Lampa.Controller && typeof Lampa.Controller.update === 'function') {
+                Lampa.Controller.update();
+                debug('controller updated');
+                return;
+            }
+            if (Lampa.Controller && typeof Lampa.Controller.collection === 'function') {
+                var collection = Lampa.Controller.collection();
+                if (collection && typeof collection.update === 'function') {
+                    collection.update();
+                    debug('collection updated');
+                    return;
+                }
+            }
+        } catch (e) {
+            debug('refreshController error', e);
+        }
+    }
+
     function insertOurLine() {
         var body = findMainBody();
         if (!body || !body.length) {
@@ -217,17 +238,17 @@
 
         var html = buildLineHtml(rows, key);
 
-        // Вставляем сразу ПОСЛЕ первой нативной полки, а не перед ней.
-        // Иначе наша полка уезжает вверх за границу видимости при скролле.
         var firstNative = body.children('.items-line').not('.ctv-main-line').first();
+        var $html = $(html);
         if (firstNative.length) {
-            firstNative.after(html);
+            firstNative.after($html);
         } else {
-            body.prepend(html);
+            body.prepend($html);
         }
 
         lastRenderKey = key;
         bindCardHandlers(body);
+        refreshController();
         debug('inserted line, key=', key);
     }
 
@@ -235,11 +256,16 @@
         var line = body.children('.items-line.ctv-main-line');
         if (!line.length) return;
 
-        line.find('.ctv-main-card').off('hover:enter.ctv').on('hover:enter.ctv', function () {
-            var key = t($(this).attr('data-ctv-key'));
-            if (!key) return;
-            openCard(key);
-        });
+        line.find('.ctv-main-card')
+            .off('hover:enter.ctv hover:focus.ctv')
+            .on('hover:enter.ctv', function () {
+                var key = t($(this).attr('data-ctv-key'));
+                if (!key) return;
+                openCard(key);
+            })
+            .on('hover:focus.ctv', function () {
+                // ничего не делаем, просто чтобы Lampa знала про селектор
+            });
     }
 
     function openCard(key) {
@@ -277,15 +303,6 @@
         if (Lampa.Noty) Lampa.Noty.show('Не удалось открыть торрент');
     }
 
-    function scheduleInsert() {
-        if (pendingReinsert) return;
-        pendingReinsert = true;
-        Promise.resolve().then(function () {
-            pendingReinsert = false;
-            try { insertOurLine(); } catch (e) { debug('insert error', e); }
-        });
-    }
-
     function attachWrapObserver() {
         if (typeof MutationObserver === 'undefined') return;
         var wrap = document.querySelector('.wrap__content');
@@ -310,20 +327,9 @@
                         }
                     }
                 }
-                if (m.addedNodes && m.addedNodes.length) {
-                    for (var k = 0; k < m.addedNodes.length; k++) {
-                        var add = m.addedNodes[k];
-                        if (!add || !add.classList) continue;
-                        if (add.classList.contains('items-line') ||
-                            (add.querySelector && add.querySelector('.items-line'))) {
-                            needReinsert = true;
-                            break;
-                        }
-                    }
-                }
                 if (needReinsert) break;
             }
-            if (needReinsert) scheduleInsert();
+            if (needReinsert) insertOurLine();
         });
 
         observer.observe(wrap, {childList: true, subtree: true});
@@ -336,9 +342,8 @@
             try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
         }, WATCHDOG_INTERVAL);
         setTimeout(insertOurLine, 0);
-        setTimeout(insertOurLine, 100);
-        setTimeout(insertOurLine, 400);
-        setTimeout(insertOurLine, 1200);
+        setTimeout(insertOurLine, 200);
+        setTimeout(insertOurLine, 800);
     }
 
     function init() {
