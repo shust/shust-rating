@@ -1,6 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Версия: 1.8.0 — обновление содержимого без пересоздания DOM (сохранение фокуса)
+ * Версия: 2.0.0 — через Lampa.ContentRows (штатный механизм Lampa)
  */
 (function () {
     'use strict';
@@ -10,12 +10,10 @@
 
     var STORAGE = 'lampa_continue_torrent_v2';
     var MAX_CARDS = 20;
-    var SORT_MODE = 'recent';
-    var WATCHDOG_INTERVAL = 500;
+    var ROW_NAME = 'ctv-main-line';
 
-    var watchdog = null;
-    var currentBody = null;
-    var lastRenderKey = '';
+    var currentRow = null;
+    var currentScreen = null;
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
     function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
@@ -24,7 +22,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.8.0]');
+            args.unshift('[ContinueTorrent-main v2.0.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -84,7 +82,6 @@
         return '' +
             '<div class="card selector layer--visible layer--render card--loaded ctv-main-card' +
                 (series ? ' card--tv' : '') + '" ' +
-                'tabindex="0" ' +
                 'data-ctv-key="' + escapeAttr(key) + '">' +
                 '<div class="card__view" style="position:relative;">' +
                     '<img src="' + escapeAttr(poster) + '" class="card__img">' +
@@ -133,155 +130,80 @@
             });
         });
 
-        rows.sort(function (a, b) {
-            if (SORT_MODE === 'series-first' && a.series !== b.series) return a.series ? -1 : 1;
-            if (SORT_MODE === 'movies-first' && a.series !== b.series) return a.series ? 1 : -1;
-            return b.updated - a.updated;
-        });
-
+        rows.sort(function (a, b) { return b.updated - a.updated; });
         return rows.slice(0, MAX_CARDS);
     }
 
-    function renderKey(rows) {
-        return rows.map(function (r) {
-            return r.key + ':' + n(r.record.time) + ':' + n(r.record.percent) + ':' + n(r.record.updated_at);
-        }).join('|');
-    }
-
-    function findMainBody() {
-        var result = null;
-        $('.activity.activity--active .scroll__body').each(function () {
-            if (result) return;
-            var hasNativeLine = false;
-            $(this).children('.items-line').each(function () {
-                if ($(this).hasClass('ctv-main-line')) return;
-                var title = t($(this).find('.items-line__title').first().text()).toLowerCase();
-                if (title === 'сейчас смотрят' ||
-                    title === 'продолжить просмотр' ||
-                    title === 'последнее добавление' ||
-                    title === 'недавние выходы эпизодов') {
-                    hasNativeLine = true;
-                }
-            });
-            if (hasNativeLine && !$(this).closest('.items-line').length) {
-                result = $(this);
-            }
-        });
-        return result;
-    }
-
-    function removeOurLineEverywhere() {
-        $('.items-line.ctv-main-line').remove();
-    }
-
-    function buildLineHtml(rows, key) {
-        var cardsHtml = rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
-        return '' +
-            '<div class="items-line layer--visible layer--render items-line--type-default ctv-main-line" data-ctv-key="' + escapeAttr(key) + '">' +
-                '<div class="items-line__head">' +
-                    '<div class="items-line__title">Продолжить торренты</div>' +
-                '</div>' +
-                '<div class="items-line__body">' +
-                    '<div class="scroll scroll--horizontal">' +
-                        '<div class="scroll__content">' +
-                            '<div class="scroll__body mapping--line">' + cardsHtml + '</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>' +
-            '</div>';
-    }
-
-    function refreshController() {
-        try {
-            if (Lampa.Controller && typeof Lampa.Controller.update === 'function') {
-                Lampa.Controller.update();
-                debug('controller updated');
-                return;
-            }
-            if (Lampa.Controller && typeof Lampa.Controller.collection === 'function') {
-                var collection = Lampa.Controller.collection();
-                if (collection && typeof collection.update === 'function') {
-                    collection.update();
-                    debug('collection updated');
-                    return;
-                }
-            }
-        } catch (e) {
-            debug('refreshController error', e);
-        }
-    }
-
-    function updateLineInPlace(line, rows, key) {
-        // Обновляем только содержимое .scroll__body внутри полки,
-        // не трогая сам узел .items-line — Lampa сохранит фокус.
-        var scrollBody = line.find('.scroll__body.mapping--line').first();
-        if (!scrollBody.length) return;
-
-        var cardsHtml = rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
-        scrollBody.html(cardsHtml);
-        line.attr('data-ctv-key', key);
-        bindCardHandlers(line.parent());
-    }
-
-    function insertOurLine() {
-        var body = findMainBody();
-        if (!body || !body.length) {
-            if (currentBody) {
-                removeOurLineEverywhere();
-                currentBody = null;
-                lastRenderKey = '';
-            }
-            return;
-        }
-        currentBody = body;
-
+    function buildScreen() {
         var rows = collectRecords();
-        var key = renderKey(rows);
-
-        var existing = body.children('.items-line.ctv-main-line');
-
-        if (existing.length) {
-            // Полка уже в DOM. Ничего не делаем, если ключ не изменился.
-            if (existing.attr('data-ctv-key') === key) return;
-            // Иначе обновляем содержимое на месте, не пересоздавая узел.
-            updateLineInPlace(existing, rows, key);
-            lastRenderKey = key;
-            debug('updated line in place, key=', key);
-            return;
-        }
-
-        if (!rows.length) {
-            lastRenderKey = key;
-            return;
-        }
-
-        var html = buildLineHtml(rows, key);
-
-        var firstNative = body.children('.items-line').not('.ctv-main-line').first();
-        var $html = $(html);
-        if (firstNative.length) {
-            firstNative.after($html);
-        } else {
-            body.prepend($html);
-        }
-
-        lastRenderKey = key;
-        bindCardHandlers(body);
-        refreshController();
-        debug('inserted line (new), key=', key);
+        if (!rows.length) return '';
+        return rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
     }
 
-    function bindCardHandlers(body) {
-        var line = body.children('.items-line.ctv-main-line');
-        if (!line.length) return;
+    function rowObject() {
+        return {
+            name: ROW_NAME,
+            title: 'Продолжить торренты',
+            screen: function () {
+                return buildScreen();
+            }
+        };
+    }
 
-        line.find('.ctv-main-card')
-            .off('hover:enter.ctv')
-            .on('hover:enter.ctv', function () {
-                var key = t($(this).attr('data-ctv-key'));
-                if (!key) return;
-                openCard(key);
-            });
+    function removeRow() {
+        if (!Lampa.ContentRows || typeof Lampa.ContentRows.remove !== 'function') return;
+        if (!currentRow) return;
+        try {
+            Lampa.ContentRows.remove(currentRow);
+            debug('content row removed');
+        } catch (e) {
+            debug('ContentRows.remove failed', e);
+        }
+        currentRow = null;
+    }
+
+    function installRow() {
+        if (!Lampa.ContentRows || typeof Lampa.ContentRows.add !== 'function') {
+            debug('ContentRows API unavailable');
+            return;
+        }
+
+        removeRow();
+
+        // Если нет записей — не добавляем пустую полку.
+        if (!collectRecords().length) {
+            debug('no records, skip content row');
+            return;
+        }
+
+        try {
+            currentRow = rowObject();
+            Lampa.ContentRows.add(currentRow);
+            debug('content row added');
+            bindCardHandlers();
+        } catch (e) {
+            debug('ContentRows.add failed', e);
+            currentRow = null;
+        }
+    }
+
+    function bindCardHandlers() {
+        // Lampa создаёт DOM позже, поэтому вешаем делегированный обработчик
+        // на весь документ один раз.
+        if (window.__ctv_main_click_bound) return;
+        window.__ctv_main_click_bound = true;
+
+        $(document).on('hover:enter', '.ctv-main-card', function () {
+            var key = t($(this).attr('data-ctv-key'));
+            if (!key) return;
+            openCard(key);
+        });
+
+        $(document).on('click', '.ctv-main-card', function () {
+            var key = t($(this).attr('data-ctv-key'));
+            if (!key) return;
+            openCard(key);
+        });
     }
 
     function openCard(key) {
@@ -293,24 +215,21 @@
         var source = parts[0] || 'tmdb';
         var id = parts[1] || '';
 
-        var card = {
-            source: source,
-            id: id,
-            title: t(record.card_title) || t(record.torrent_title) || '',
-            name: t(record.card_title) || t(record.torrent_title) || ''
-        };
-        if (source === 'tmdb') card.tmdb_id = id;
-        if (source === 'imdb') card.imdb_id = id;
-        if (source === 'kp' || source === 'kinopoisk') card.kinopoisk_id = id;
-
         try {
             if (Lampa.Activity && Lampa.Activity.push) {
+                // Передаём id и source на верхнем уровне,
+                // чтобы Lampa сама сформировала TMDB-запрос.
                 Lampa.Activity.push({
                     url: '',
                     component: 'full',
-                    card: card,
-                    movie: card,
-                    source: source
+                    id: id,
+                    source: source,
+                    card: {
+                        id: id,
+                        source: source,
+                        title: t(record.card_title) || t(record.torrent_title) || '',
+                        name: t(record.card_title) || t(record.torrent_title) || ''
+                    }
                 });
                 return;
             }
@@ -319,73 +238,27 @@
         if (Lampa.Noty) Lampa.Noty.show('Не удалось открыть торрент');
     }
 
-    function attachWrapObserver() {
-        if (typeof MutationObserver === 'undefined') return;
-        var wrap = document.querySelector('.wrap__content');
-        if (!wrap) {
-            setTimeout(attachWrapObserver, 300);
-            return;
-        }
-
-        var observer = new MutationObserver(function (mutations) {
-            var needReinsert = false;
-            for (var i = 0; i < mutations.length; i++) {
-                var m = mutations[i];
-                if (m.type !== 'childList') continue;
-                if (m.removedNodes && m.removedNodes.length) {
-                    for (var j = 0; j < m.removedNodes.length; j++) {
-                        var node = m.removedNodes[j];
-                        if (!node || !node.classList) continue;
-                        if (node.classList.contains('ctv-main-line') ||
-                            (node.querySelector && node.querySelector('.ctv-main-line'))) {
-                            needReinsert = true;
-                            break;
-                        }
-                    }
-                }
-                if (needReinsert) break;
-            }
-            if (needReinsert) insertOurLine();
-        });
-
-        observer.observe(wrap, {childList: true, subtree: true});
-        debug('wrap observer attached');
-    }
-
-    function startWatchdog() {
-        if (watchdog) return;
-        watchdog = setInterval(function () {
-            try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
-        }, WATCHDOG_INTERVAL);
-        setTimeout(insertOurLine, 0);
-        setTimeout(insertOurLine, 200);
-        setTimeout(insertOurLine, 800);
-    }
-
     function init() {
         if (!Lampa || !Lampa.Listener) return;
 
         Lampa.Listener.follow('app', function (event) {
             if (event.type === 'ready') {
-                attachWrapObserver();
-                startWatchdog();
+                installRow();
+                bindCardHandlers();
             }
         });
 
-        Lampa.Listener.follow('activity', function () {
-            setTimeout(insertOurLine, 0);
-            setTimeout(insertOurLine, 200);
-            setTimeout(insertOurLine, 800);
+        Lampa.Listener.follow('activity', function (event) {
+            if (!event || event.type !== 'complite') return;
+            var active = event.object && event.object.activity;
+            if (!active) return;
+            if (active.component === 'main' || active.url === 'main') {
+                installRow();
+            }
         });
 
-        if (typeof window !== 'undefined' && window.addEventListener) {
-            window.addEventListener('focus', function () {
-                setTimeout(insertOurLine, 50);
-            });
-        }
-
-        attachWrapObserver();
-        startWatchdog();
+        installRow();
+        bindCardHandlers();
         debug('ready');
     }
 
