@@ -1,7 +1,7 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
  * Зависит от lampa_continue_torrent_v2.js (читает его localStorage).
- * Версия: 1.2.0 — защита от перерисовки, только на главной странице.
+ * Версия: 1.3.0 — watchdog, постер/title/year из истории.
  */
 (function () {
     'use strict';
@@ -11,13 +11,9 @@
 
     var STORAGE = 'lampa_continue_torrent_v2';
     var MAX_CARDS = 20;
-    var REFRESH_DELAYS = [0, 300, 1000, 2500];
     var SORT_MODE = 'recent'; // 'recent' | 'series-first' | 'movies-first'
 
-    var mainObserver = null;
-    var bodyObserver = null;
-    var watchTimer = null;
-    var currentBody = null;
+    var watchdog = null;
     var lastRenderKey = '';
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
@@ -27,7 +23,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.2.0]');
+            args.unshift('[ContinueTorrent-main v1.3.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -44,8 +40,8 @@
         var h = Math.floor(seconds / 3600);
         var m = Math.floor((seconds % 3600) / 60);
         var s = seconds % 60;
-        if (h) return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
-        return m + ':' + String(s).padStart(2,'0');
+        if (h) return h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        return m + ':' + String(s).padStart(2, '0');
     }
 
     function isSeriesRecord(record) {
@@ -67,69 +63,15 @@
         return Math.max(0, Math.min(100, percent));
     }
 
-    function remainingLabel(record) {
-        var time = n(record.time);
-        var duration = n(record.duration);
-        if (!duration || !time) return '';
-        var left = Math.max(0, duration - time);
-        if (!left) return '';
-        return 'осталось ' + formatTime(left);
-    }
-
-    function guessCardFromRecord(key, record) {
-        var source = 'tmdb';
-        var id = '';
-        var parts = t(key).split(':');
-        if (parts.length === 2) {
-            source = parts[0];
-            id = parts[1];
-        }
-
-        return {
-            source: source,
-            id: id,
-            tmdb_id: source === 'tmdb' ? id : undefined,
-            imdb_id: source === 'imdb' ? id : undefined,
-            kinopoisk_id: (source === 'kinopoisk' || source === 'kp') ? id : undefined,
-            title: record.torrent_title || '',
-            name: record.torrent_title || ''
-        };
-    }
-
-    function findExistingCardInDom(card) {
-        var found = null;
-        $('.card').each(function () {
-            if (found) return;
-            var vote = $(this).find('.card__vote');
-            var mid = t(vote.attr('data-movie-id'));
-            var msrc = t(vote.attr('data-source'));
-            var same = false;
-
-            if (msrc === 'kp' && t(card.kinopoisk_id) === mid) same = true;
-            if (msrc === 'tmdb' && t(card.tmdb_id) === mid) same = true;
-            if (msrc === 'imdb' && t(card.imdb_id) === mid) same = true;
-
-            if (same) {
-                var img = $(this).find('.card__img').attr('src') || '';
-                var title = t($(this).find('.card__title').text());
-                var age = t($(this).find('.card__age').text());
-                found = {img: img, title: title, age: age};
-            }
-        });
-        return found;
-    }
-
     function cardHtml(record, key) {
-        var card = guessCardFromRecord(key, record);
-        var dom = findExistingCardInDom(card);
-
-        var img = dom && dom.img ? dom.img : './img/img_load.svg';
-        var title = dom && dom.title ? dom.title : (record.torrent_title || 'Без названия');
-        var year = dom && dom.age ? dom.age : '';
-
         var series = isSeriesRecord(record);
         var percent = progressPercent(record);
         var time = n(record.time) > 0 ? formatTime(record.time) : '';
+
+        // Постер и title — из истории (после доработки основного плагина).
+        var poster = t(record.poster) || './img/img_load.svg';
+        var title = t(record.card_title) || t(record.torrent_title) || 'Без названия';
+        var year = t(record.card_year) || '';
 
         var subtitleParts = [];
         if (series) {
@@ -137,17 +79,13 @@
             if (ep) subtitleParts.push(ep);
         }
         if (time) subtitleParts.push(time);
-        else if (!series) {
-            var rem = remainingLabel(record);
-            if (rem) subtitleParts.push(rem);
-        }
         var subtitle = subtitleParts.join(' · ');
 
         return '' +
             '<div class="card selector layer--visible layer--render card--loaded ctv-main-card' +
                 (series ? ' card--tv' : '') + '" data-ctv-key="' + escapeAttr(key) + '">' +
                 '<div class="card__view" style="position:relative;">' +
-                    '<img src="' + escapeAttr(img) + '" class="card__img">' +
+                    '<img src="' + escapeAttr(poster) + '" class="card__img">' +
                     '<div class="card__icons">' +
                         '<div class="card__icons-inner"></div>' +
                     '</div>' +
@@ -162,8 +100,7 @@
                 (year ? '<div class="card__age">' + escapeHtml(year) + '</div>' : '') +
                 (subtitle
                     ? '<div class="ctv-main-card__sub" style="font-size:1.1em;opacity:0.75;margin-top:0.3em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
-                        escapeHtml(subtitle) +
-                      '</div>'
+                        escapeHtml(subtitle) + '</div>'
                     : '') +
             '</div>';
     }
@@ -211,91 +148,56 @@
         }).join('|');
     }
 
-    // === ГЛАВНАЯ ПРОВЕРКА: мы действительно на главной? ===
-    function isMainActivity() {
-        try {
-            if (!Lampa.Activity || typeof Lampa.Activity.active !== 'function') return false;
-            var active = Lampa.Activity.active();
-            if (!active) return false;
-            if (active.component === 'main') return true;
-            if (active.url === 'main') return true;
-            // Иногда component может быть вложен
-            if (active.activity && active.activity.component === 'main') return true;
-        } catch (e) {}
-        // Резервный признак: в текущем .scroll__body есть полка «Сейчас смотрят»
-        var body = $('.activity.activity--active .scroll__body').first();
-        if (body.length) {
-            var hasNowWatching = false;
-            body.find('.items-line .items-line__title').each(function () {
-                var txt = t($(this).text()).toLowerCase();
-                if (txt === 'сейчас смотрят') hasNowWatching = true;
-            });
-            return hasNowWatching;
-        }
-        return false;
-    }
-
+    // Ищем .scroll__body именно главной: тот, где есть полки с известными заголовками.
     function findMainBody() {
-        if (!isMainActivity()) return null;
-        var active = $('.activity.activity--active').first();
-        if (!active.length) return null;
-        var body = active.find('.scroll__body').first();
-        return body.length ? body : null;
-    }
-
-    // === Наблюдаем за конкретным .scroll__body ===
-    function attachBodyObserver(body) {
-        if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
-        if (!body || !body.length || typeof MutationObserver === 'undefined') return;
-
-        bodyObserver = new MutationObserver(function (mutations) {
-            // Если нашу .items-line удалили — вставим снова
-            for (var i = 0; i < mutations.length; i++) {
-                var m = mutations[i];
-                if (m.type === 'childList' && m.removedNodes && m.removedNodes.length) {
-                    for (var j = 0; j < m.removedNodes.length; j++) {
-                        var node = m.removedNodes[j];
-                        if (node && node.classList && node.classList.contains('ctv-main-line')) {
-                            debug('our line was removed, reinserting');
-                            setTimeout(render, 50);
-                            return;
-                        }
-                    }
+        var result = null;
+        $('.activity.activity--active .scroll__body').each(function () {
+            if (result) return;
+            var hasNativeLine = false;
+            $(this).children('.items-line').each(function () {
+                var title = t($(this).find('.items-line__title').first().text()).toLowerCase();
+                if (title === 'сейчас смотрят' ||
+                    title === 'продолжить просмотр' ||
+                    title === 'последнее добавление' ||
+                    title === 'недавние выходы эпизодов') {
+                    hasNativeLine = true;
                 }
+            });
+            // Внутренний body полки тоже имеет класс scroll__body — исключаем его,
+            // оставляя только верхнеуровневый body главной.
+            if (hasNativeLine && !$(this).closest('.items-line').length) {
+                result = $(this);
             }
         });
-
-        bodyObserver.observe(body[0], {childList: true});
+        return result;
     }
 
-    function render() {
-        // Не на главной — убираем свой блок, если он где-то остался
-        if (!isMainActivity()) {
-            $('.items-line.ctv-main-line').remove();
-            if (bodyObserver) { bodyObserver.disconnect(); bodyObserver = null; }
-            currentBody = null;
+    function removeOurLineEverywhere() {
+        $('.items-line.ctv-main-line').remove();
+    }
+
+    function insertOurLine() {
+        var body = findMainBody();
+        if (!body || !body.length) {
+            removeOurLineEverywhere();
             lastRenderKey = '';
             return;
-        }
-
-        var body = findMainBody();
-        if (!body || !body.length) return;
-
-        // Если body сменился — перевесим наблюдатель
-        if (!currentBody || currentBody[0] !== body[0]) {
-            currentBody = body;
-            attachBodyObserver(body);
         }
 
         var rows = collectRecords();
         var key = renderKey(rows);
 
-        var existing = body.find('.items-line.ctv-main-line');
+        // Уже наша полка на месте и с тем же содержимым — ничего не делаем.
+        var existing = body.children('.items-line.ctv-main-line');
         if (existing.length && existing.attr('data-ctv-key') === key) return;
 
-        existing.remove();
+        // Удаляем старую (в этом и любом другом контейнере).
+        removeOurLineEverywhere();
 
-        if (!rows.length) return;
+        if (!rows.length) {
+            lastRenderKey = key;
+            return;
+        }
 
         var cardsHtml = rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
 
@@ -316,10 +218,11 @@
         body.prepend(html);
         lastRenderKey = key;
         bindCardHandlers(body);
+        debug('inserted line, key=', key);
     }
 
     function bindCardHandlers(body) {
-        var line = body.find('.items-line.ctv-main-line');
+        var line = body.children('.items-line.ctv-main-line');
         if (!line.length) return;
 
         line.find('.ctv-main-card').off('hover:enter.ctv').on('hover:enter.ctv', function () {
@@ -335,7 +238,19 @@
         var record = history[key];
         if (!record) return;
 
-        var card = guessCardFromRecord(key, record);
+        var parts = t(key).split(':');
+        var source = parts[0] || 'tmdb';
+        var id = parts[1] || '';
+
+        var card = {
+            source: source,
+            id: id,
+            title: t(record.card_title) || t(record.torrent_title) || '',
+            name: t(record.card_title) || t(record.torrent_title) || ''
+        };
+        if (source === 'tmdb') card.tmdb_id = id;
+        if (source === 'imdb') card.imdb_id = id;
+        if (source === 'kp' || source === 'kinopoisk') card.kinopoisk_id = id;
 
         try {
             if (Lampa.Activity && Lampa.Activity.push) {
@@ -344,7 +259,7 @@
                     component: 'full',
                     card: card,
                     movie: card,
-                    source: card.source || 'tmdb'
+                    source: source
                 });
                 return;
             }
@@ -355,60 +270,37 @@
         if (Lampa.Noty) Lampa.Noty.show('Не удалось открыть торрент');
     }
 
-    function scheduleRender() {
-        REFRESH_DELAYS.forEach(function (wait) {
-            setTimeout(render, wait);
-        });
-    }
-
-    // === Общий наблюдатель за сменой activity ===
-    function watchWrap() {
-        if (mainObserver) { mainObserver.disconnect(); mainObserver = null; }
-        if (typeof MutationObserver === 'undefined') return;
-
-        var wrap = document.querySelector('.wrap__content') || document.body;
-        if (!wrap) return;
-
-        mainObserver = new MutationObserver(function () {
-            if (watchTimer) clearTimeout(watchTimer);
-            watchTimer = setTimeout(function () {
-                render();
-            }, 200);
-        });
-        mainObserver.observe(wrap, {childList: true, subtree: true});
+    function startWatchdog() {
+        if (watchdog) return;
+        // Вставляем полку с задержкой, чтобы не конфликтовать с рендером Lampa,
+        // и проверяем её наличие каждые 500 мс.
+        watchdog = setInterval(function () {
+            try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
+        }, 500);
+        setTimeout(insertOurLine, 0);
+        setTimeout(insertOurLine, 300);
+        setTimeout(insertOurLine, 1000);
     }
 
     function init() {
         if (!Lampa || !Lampa.Listener) return;
 
-        Lampa.Listener.follow('activity', function (event) {
-            if (!event || event.type !== 'complite') return;
-            // Проверяем именно компонент
-            var active = event.object && event.object.activity;
-            if (!active) return;
-            if (active.component === 'main' || active.url === 'main') {
-                debug('main activity complite');
-                scheduleRender();
-                watchWrap();
-            } else {
-                // Ушли с главной — убираем блок
-                $('.items-line.ctv-main-line').remove();
-            }
+        Lampa.Listener.follow('app', function (event) {
+            if (event.type === 'ready') startWatchdog();
         });
 
-        Lampa.Listener.follow('app', function (event) {
-            if (event.type === 'ready') {
-                scheduleRender();
-                watchWrap();
-            }
+        Lampa.Listener.follow('activity', function () {
+            setTimeout(insertOurLine, 100);
+            setTimeout(insertOurLine, 500);
         });
 
         if (typeof window !== 'undefined' && window.addEventListener) {
             window.addEventListener('focus', function () {
-                if (isMainActivity()) scheduleRender();
+                setTimeout(insertOurLine, 100);
             });
         }
 
+        startWatchdog();
         debug('ready');
     }
 
