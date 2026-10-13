@@ -1,7 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Зависит от lampa_continue_torrent_v2.js (читает его localStorage).
- * Версия: 1.3.0 — watchdog, постер/title/year из истории.
+ * Версия: 1.4.0 — быстрый watchdog (100 мс) + observer на .scroll__body
  */
 (function () {
     'use strict';
@@ -11,9 +10,13 @@
 
     var STORAGE = 'lampa_continue_torrent_v2';
     var MAX_CARDS = 20;
-    var SORT_MODE = 'recent'; // 'recent' | 'series-first' | 'movies-first'
+    var SORT_MODE = 'recent';
+    var WATCHDOG_INTERVAL = 100;
 
     var watchdog = null;
+    var bodyObserver = null;
+    var currentBody = null;
+    var reinsertScheduled = false;
     var lastRenderKey = '';
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
@@ -23,7 +26,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.3.0]');
+            args.unshift('[ContinueTorrent-main v1.4.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -68,7 +71,6 @@
         var percent = progressPercent(record);
         var time = n(record.time) > 0 ? formatTime(record.time) : '';
 
-        // Постер и title — из истории (после доработки основного плагина).
         var poster = t(record.poster) || './img/img_load.svg';
         var title = t(record.card_title) || t(record.torrent_title) || 'Без названия';
         var year = t(record.card_year) || '';
@@ -86,9 +88,7 @@
                 (series ? ' card--tv' : '') + '" data-ctv-key="' + escapeAttr(key) + '">' +
                 '<div class="card__view" style="position:relative;">' +
                     '<img src="' + escapeAttr(poster) + '" class="card__img">' +
-                    '<div class="card__icons">' +
-                        '<div class="card__icons-inner"></div>' +
-                    '</div>' +
+                    '<div class="card__icons"><div class="card__icons-inner"></div></div>' +
                     (series ? '<div class="card__type">TV</div>' : '') +
                     (percent > 0
                         ? '<div class="ctv-main-progress" style="position:absolute;left:0;right:0;bottom:0;height:0.3em;background:rgba(0,0,0,0.5);">' +
@@ -148,13 +148,14 @@
         }).join('|');
     }
 
-    // Ищем .scroll__body именно главной: тот, где есть полки с известными заголовками.
+    // Главный .scroll__body главной страницы: тот, где есть известные нативные полки.
     function findMainBody() {
         var result = null;
         $('.activity.activity--active .scroll__body').each(function () {
             if (result) return;
             var hasNativeLine = false;
             $(this).children('.items-line').each(function () {
+                if ($(this).hasClass('ctv-main-line')) return;
                 var title = t($(this).find('.items-line__title').first().text()).toLowerCase();
                 if (title === 'сейчас смотрят' ||
                     title === 'продолжить просмотр' ||
@@ -163,8 +164,6 @@
                     hasNativeLine = true;
                 }
             });
-            // Внутренний body полки тоже имеет класс scroll__body — исключаем его,
-            // оставляя только верхнеуровневый body главной.
             if (hasNativeLine && !$(this).closest('.items-line').length) {
                 result = $(this);
             }
@@ -176,32 +175,9 @@
         $('.items-line.ctv-main-line').remove();
     }
 
-    function insertOurLine() {
-        var body = findMainBody();
-        if (!body || !body.length) {
-            removeOurLineEverywhere();
-            lastRenderKey = '';
-            return;
-        }
-
-        var rows = collectRecords();
-        var key = renderKey(rows);
-
-        // Уже наша полка на месте и с тем же содержимым — ничего не делаем.
-        var existing = body.children('.items-line.ctv-main-line');
-        if (existing.length && existing.attr('data-ctv-key') === key) return;
-
-        // Удаляем старую (в этом и любом другом контейнере).
-        removeOurLineEverywhere();
-
-        if (!rows.length) {
-            lastRenderKey = key;
-            return;
-        }
-
+    function buildLineHtml(rows, key) {
         var cardsHtml = rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
-
-        var html = '' +
+        return '' +
             '<div class="items-line layer--visible layer--render items-line--type-default ctv-main-line" data-ctv-key="' + escapeAttr(key) + '">' +
                 '<div class="items-line__head">' +
                     '<div class="items-line__title">Продолжить торренты</div>' +
@@ -214,11 +190,84 @@
                     '</div>' +
                 '</div>' +
             '</div>';
+    }
 
-        body.prepend(html);
+    function insertOurLine() {
+        var body = findMainBody();
+        if (!body || !body.length) {
+            if (currentBody) {
+                removeOurLineEverywhere();
+                detachBodyObserver();
+                currentBody = null;
+                lastRenderKey = '';
+            }
+            return;
+        }
+
+        // Перевесили observer, если body сменился.
+        if (!currentBody || currentBody[0] !== body[0]) {
+            currentBody = body;
+            attachBodyObserver(body);
+        }
+
+        var rows = collectRecords();
+        var key = renderKey(rows);
+
+        var existing = body.children('.items-line.ctv-main-line');
+        if (existing.length && existing.attr('data-ctv-key') === key) return;
+
+        if (!rows.length) {
+            existing.remove();
+            lastRenderKey = key;
+            return;
+        }
+
+        existing.remove();
+        body.prepend(buildLineHtml(rows, key));
         lastRenderKey = key;
         bindCardHandlers(body);
         debug('inserted line, key=', key);
+    }
+
+    // Наблюдатель на .scroll__body: как только Lampa перерисовала содержимое
+    // и удалила нашу полку — возвращаем её синхронно (в том же кадре).
+    function attachBodyObserver(body) {
+        detachBodyObserver();
+        if (!body || !body.length || typeof MutationObserver === 'undefined') return;
+
+        bodyObserver = new MutationObserver(function (mutations) {
+            var removedOurs = false;
+            for (var i = 0; i < mutations.length; i++) {
+                var m = mutations[i];
+                if (m.type !== 'childList') continue;
+                if (m.removedNodes && m.removedNodes.length) {
+                    for (var j = 0; j < m.removedNodes.length; j++) {
+                        var node = m.removedNodes[j];
+                        if (node && node.classList && node.classList.contains('ctv-main-line')) {
+                            removedOurs = true;
+                        }
+                    }
+                }
+            }
+            if (removedOurs) {
+                // Пытаемся вернуть нашу полку в том же тике.
+                if (!reinsertScheduled) {
+                    reinsertScheduled = true;
+                    Promise.resolve().then(function () {
+                        reinsertScheduled = false;
+                        try { insertOurLine(); } catch (e) { debug('observer reinsert error', e); }
+                    });
+                }
+            }
+        });
+        bodyObserver.observe(body[0], {childList: true});
+    }
+
+    function detachBodyObserver() {
+        if (bodyObserver) {
+            try { bodyObserver.disconnect(); } catch (e) {}
+            bodyObserver = null;
+        }
     }
 
     function bindCardHandlers(body) {
@@ -228,7 +277,6 @@
         line.find('.ctv-main-card').off('hover:enter.ctv').on('hover:enter.ctv', function () {
             var key = t($(this).attr('data-ctv-key'));
             if (!key) return;
-            debug('card activated', key);
             openCard(key);
         });
     }
@@ -263,23 +311,20 @@
                 });
                 return;
             }
-        } catch (e) {
-            debug('Activity.push failed', e);
-        }
+        } catch (e) { debug('Activity.push failed', e); }
 
         if (Lampa.Noty) Lampa.Noty.show('Не удалось открыть торрент');
     }
 
     function startWatchdog() {
         if (watchdog) return;
-        // Вставляем полку с задержкой, чтобы не конфликтовать с рендером Lampa,
-        // и проверяем её наличие каждые 500 мс.
         watchdog = setInterval(function () {
             try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
-        }, 500);
+        }, WATCHDOG_INTERVAL);
         setTimeout(insertOurLine, 0);
-        setTimeout(insertOurLine, 300);
-        setTimeout(insertOurLine, 1000);
+        setTimeout(insertOurLine, 50);
+        setTimeout(insertOurLine, 200);
+        setTimeout(insertOurLine, 500);
     }
 
     function init() {
@@ -290,13 +335,14 @@
         });
 
         Lampa.Listener.follow('activity', function () {
+            setTimeout(insertOurLine, 0);
             setTimeout(insertOurLine, 100);
-            setTimeout(insertOurLine, 500);
+            setTimeout(insertOurLine, 300);
         });
 
         if (typeof window !== 'undefined' && window.addEventListener) {
             window.addEventListener('focus', function () {
-                setTimeout(insertOurLine, 100);
+                setTimeout(insertOurLine, 50);
             });
         }
 
