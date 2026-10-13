@@ -1,6 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Версия: 1.7.0 — пересборка навигации Lampa после вставки полки
+ * Версия: 1.8.0 — обновление содержимого без пересоздания DOM (сохранение фокуса)
  */
 (function () {
     'use strict';
@@ -24,7 +24,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.7.0]');
+            args.unshift('[ContinueTorrent-main v1.8.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -211,6 +211,18 @@
         }
     }
 
+    function updateLineInPlace(line, rows, key) {
+        // Обновляем только содержимое .scroll__body внутри полки,
+        // не трогая сам узел .items-line — Lampa сохранит фокус.
+        var scrollBody = line.find('.scroll__body.mapping--line').first();
+        if (!scrollBody.length) return;
+
+        var cardsHtml = rows.map(function (r) { return cardHtml(r.record, r.key); }).join('');
+        scrollBody.html(cardsHtml);
+        line.attr('data-ctv-key', key);
+        bindCardHandlers(line.parent());
+    }
+
     function insertOurLine() {
         var body = findMainBody();
         if (!body || !body.length) {
@@ -227,9 +239,16 @@
         var key = renderKey(rows);
 
         var existing = body.children('.items-line.ctv-main-line');
-        if (existing.length && existing.attr('data-ctv-key') === key) return;
 
-        existing.remove();
+        if (existing.length) {
+            // Полка уже в DOM. Ничего не делаем, если ключ не изменился.
+            if (existing.attr('data-ctv-key') === key) return;
+            // Иначе обновляем содержимое на месте, не пересоздавая узел.
+            updateLineInPlace(existing, rows, key);
+            lastRenderKey = key;
+            debug('updated line in place, key=', key);
+            return;
+        }
 
         if (!rows.length) {
             lastRenderKey = key;
@@ -249,7 +268,7 @@
         lastRenderKey = key;
         bindCardHandlers(body);
         refreshController();
-        debug('inserted line, key=', key);
+        debug('inserted line (new), key=', key);
     }
 
     function bindCardHandlers(body) {
@@ -257,14 +276,11 @@
         if (!line.length) return;
 
         line.find('.ctv-main-card')
-            .off('hover:enter.ctv hover:focus.ctv')
+            .off('hover:enter.ctv')
             .on('hover:enter.ctv', function () {
                 var key = t($(this).attr('data-ctv-key'));
                 if (!key) return;
                 openCard(key);
-            })
-            .on('hover:focus.ctv', function () {
-                // ничего не делаем, просто чтобы Lampa знала про селектор
             });
     }
 
