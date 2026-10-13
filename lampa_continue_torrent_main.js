@@ -1,6 +1,6 @@
 /*
  * Continue Torrent — полка "Продолжить торренты" на главной
- * Версия: 1.4.0 — быстрый watchdog (100 мс) + observer на .scroll__body
+ * Версия: 1.5.0 — observer на .wrap__content, следим за подменой .scroll__body
  */
 (function () {
     'use strict';
@@ -11,13 +11,14 @@
     var STORAGE = 'lampa_continue_torrent_v2';
     var MAX_CARDS = 20;
     var SORT_MODE = 'recent';
-    var WATCHDOG_INTERVAL = 100;
+    var WATCHDOG_INTERVAL = 200;
 
     var watchdog = null;
-    var bodyObserver = null;
+    var wrapObserver = null;
     var currentBody = null;
-    var reinsertScheduled = false;
     var lastRenderKey = '';
+    var lastBodyEl = null;
+    var pendingReinsert = false;
 
     function t(v) { return v === undefined || v === null ? '' : String(v).trim(); }
     function n(v) { var x = Number(v); return isFinite(x) ? x : 0; }
@@ -26,7 +27,7 @@
         try {
             if (localStorage.getItem('lampa_continue_torrent_debug') !== 'true') return;
             var args = Array.prototype.slice.call(arguments);
-            args.unshift('[ContinueTorrent-main v1.4.0]');
+            args.unshift('[ContinueTorrent-main v1.5.0]');
             console.log.apply(console, args);
         } catch (e) {}
     }
@@ -148,7 +149,7 @@
         }).join('|');
     }
 
-    // Главный .scroll__body главной страницы: тот, где есть известные нативные полки.
+    // .scroll__body главной — тот, где есть известные нативные полки.
     function findMainBody() {
         var result = null;
         $('.activity.activity--active .scroll__body').each(function () {
@@ -197,18 +198,15 @@
         if (!body || !body.length) {
             if (currentBody) {
                 removeOurLineEverywhere();
-                detachBodyObserver();
                 currentBody = null;
+                lastBodyEl = null;
                 lastRenderKey = '';
             }
             return;
         }
 
-        // Перевесили observer, если body сменился.
-        if (!currentBody || currentBody[0] !== body[0]) {
-            currentBody = body;
-            attachBodyObserver(body);
-        }
+        currentBody = body;
+        lastBodyEl = body[0];
 
         var rows = collectRecords();
         var key = renderKey(rows);
@@ -227,47 +225,6 @@
         lastRenderKey = key;
         bindCardHandlers(body);
         debug('inserted line, key=', key);
-    }
-
-    // Наблюдатель на .scroll__body: как только Lampa перерисовала содержимое
-    // и удалила нашу полку — возвращаем её синхронно (в том же кадре).
-    function attachBodyObserver(body) {
-        detachBodyObserver();
-        if (!body || !body.length || typeof MutationObserver === 'undefined') return;
-
-        bodyObserver = new MutationObserver(function (mutations) {
-            var removedOurs = false;
-            for (var i = 0; i < mutations.length; i++) {
-                var m = mutations[i];
-                if (m.type !== 'childList') continue;
-                if (m.removedNodes && m.removedNodes.length) {
-                    for (var j = 0; j < m.removedNodes.length; j++) {
-                        var node = m.removedNodes[j];
-                        if (node && node.classList && node.classList.contains('ctv-main-line')) {
-                            removedOurs = true;
-                        }
-                    }
-                }
-            }
-            if (removedOurs) {
-                // Пытаемся вернуть нашу полку в том же тике.
-                if (!reinsertScheduled) {
-                    reinsertScheduled = true;
-                    Promise.resolve().then(function () {
-                        reinsertScheduled = false;
-                        try { insertOurLine(); } catch (e) { debug('observer reinsert error', e); }
-                    });
-                }
-            }
-        });
-        bodyObserver.observe(body[0], {childList: true});
-    }
-
-    function detachBodyObserver() {
-        if (bodyObserver) {
-            try { bodyObserver.disconnect(); } catch (e) {}
-            bodyObserver = null;
-        }
     }
 
     function bindCardHandlers(body) {
@@ -316,28 +273,104 @@
         if (Lampa.Noty) Lampa.Noty.show('Не удалось открыть торрент');
     }
 
+    function scheduleInsert() {
+        if (pendingReinsert) return;
+        pendingReinsert = true;
+        Promise.resolve().then(function () {
+            pendingReinsert = false;
+            try { insertOurLine(); } catch (e) { debug('insert error', e); }
+        });
+    }
+
+    // Главный наблюдатель — на .wrap__content. Ловит и замену .scroll__body,
+    // и удаление нашей полки.
+    function attachWrapObserver() {
+        if (wrapObserver) return;
+        if (typeof MutationObserver === 'undefined') return;
+
+        var wrap = document.querySelector('.wrap__content');
+        if (!wrap) {
+            setTimeout(attachWrapObserver, 300);
+            return;
+        }
+
+        wrapObserver = new MutationObserver(function (mutations) {
+            var needReinsert = false;
+
+            for (var i = 0; i < mutations.length; i++) {
+                var m = mutations[i];
+                if (m.type !== 'childList') continue;
+
+                // Наш блок удалён?
+                if (m.removedNodes && m.removedNodes.length) {
+                    for (var j = 0; j < m.removedNodes.length; j++) {
+                        var node = m.removedNodes[j];
+                        if (!node || !node.classList) continue;
+                        if (node.classList.contains('ctv-main-line') ||
+                            node.querySelector && node.querySelector('.ctv-main-line')) {
+                            needReinsert = true;
+                            break;
+                        }
+                    }
+                }
+
+                // .scroll__body заменён целиком?
+                if (m.addedNodes && m.addedNodes.length) {
+                    for (var k = 0; k < m.addedNodes.length; k++) {
+                        var add = m.addedNodes[k];
+                        if (!add || !add.classList) continue;
+                        if (add.classList.contains('scroll__body') ||
+                            add.querySelector && add.querySelector('.scroll__body')) {
+                            needReinsert = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Текущий body отвалился от документа?
+                if (lastBodyEl && !document.contains(lastBodyEl)) {
+                    needReinsert = true;
+                }
+
+                if (needReinsert) break;
+            }
+
+            if (needReinsert) scheduleInsert();
+        });
+
+        wrapObserver.observe(wrap, {childList: true, subtree: true});
+        debug('wrap observer attached');
+    }
+
     function startWatchdog() {
         if (watchdog) return;
+        // Watchdog как страховка на случай, если MutationObserver что-то пропустит.
         watchdog = setInterval(function () {
             try { insertOurLine(); } catch (e) { debug('watchdog error', e); }
         }, WATCHDOG_INTERVAL);
         setTimeout(insertOurLine, 0);
         setTimeout(insertOurLine, 50);
-        setTimeout(insertOurLine, 200);
-        setTimeout(insertOurLine, 500);
+        setTimeout(insertOurLine, 250);
+        setTimeout(insertOurLine, 800);
     }
 
     function init() {
         if (!Lampa || !Lampa.Listener) return;
 
         Lampa.Listener.follow('app', function (event) {
-            if (event.type === 'ready') startWatchdog();
+            if (event.type === 'ready') {
+                attachWrapObserver();
+                startWatchdog();
+            }
         });
 
         Lampa.Listener.follow('activity', function () {
+            // Каждое переключение activity — заново проверяем и, если надо,
+            // вставляем нашу полку.
             setTimeout(insertOurLine, 0);
             setTimeout(insertOurLine, 100);
-            setTimeout(insertOurLine, 300);
+            setTimeout(insertOurLine, 400);
+            setTimeout(insertOurLine, 1000);
         });
 
         if (typeof window !== 'undefined' && window.addEventListener) {
@@ -346,6 +379,7 @@
             });
         }
 
+        attachWrapObserver();
         startWatchdog();
         debug('ready');
     }
