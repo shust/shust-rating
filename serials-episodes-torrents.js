@@ -6,8 +6,9 @@
 
     var longPressed = false;
     var longPressTimer = null;
-    var currentFilter = null;        // { season, episode }
+    var currentFilter = null;
     var filterObserver = null;
+    var autoScrollTimer = null;
 
     function log() {
         console.log.apply(console, ['[' + PLUGIN + ']'].concat([].slice.call(arguments)));
@@ -25,15 +26,12 @@
         return null;
     }
 
-    // Сезон из контекста
     function findSeason(el) {
-        // 1. Активный Activity — самый надёжный источник
         try {
             var a = Lampa.Activity.active();
             if (a && a.season) return parseInt(a.season, 10);
         } catch (e) {}
 
-        // 2. Из заголовка .items-line ("Сезон 2")
         var line = el && el.closest ? el.closest('.items-line') : null;
         if (line) {
             var t = line.querySelector('.items-line__title');
@@ -43,7 +41,6 @@
             }
         }
 
-        // 3. Из модалки выбора сезона
         var selectboxItem = document.querySelector('.selectbox-item.selected .selectbox-item__title');
         if (selectboxItem) {
             var sm = selectboxItem.textContent.trim().match(/Сезон\s+(\d+)/i);
@@ -53,24 +50,18 @@
         return null;
     }
 
-    // Номер серии — работает для обоих типов карточек
     function getEpNum(el) {
         if (!el) return null;
-
-        // .full-episode__num (страница сериала)
         var n = el.querySelector('.full-episode__num');
         if (n) {
             var v = parseInt(n.textContent.trim(), 10);
             if (!isNaN(v)) return v;
         }
-
-        // .season-episode__episode-number (модалка сезона)
         var sn = el.querySelector('.season-episode__episode-number');
         if (sn) {
             var sv = parseInt(sn.textContent.trim(), 10);
             if (!isNaN(sv)) return sv;
         }
-
         return null;
     }
 
@@ -80,7 +71,6 @@
         return n ? n.textContent.trim() : '';
     }
 
-    // Сфокусированная серия
     function getFocusedEpisode() {
         return document.querySelector('.season-episode.focus')
             || document.querySelector('.season-episode.hover')
@@ -161,81 +151,18 @@
         if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Не удалось открыть торренты');
     }
 
-    // ================= ПАРСЕР .m-general =================
-
-    // Разбирает "S13" / "S1-8" / "S131-3" / "S11-8" / "S2"
-    function parseGeneral(raw) {
-        if (!raw) return null;
-
-        raw = String(raw).trim();
-
-        // Нормальный случай: "S13" / "S1-8"
-        var m1 = raw.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
-        if (m1) {
-            return {
-                season: { from: parseInt(m1[1], 10), to: parseInt(m1[2], 10) },
-                from: null, to: null
-            };
-        }
-
-        // "S13"
-        var m2 = raw.match(/^S(\d+)$/i);
-        if (m2) {
-            return { season: parseInt(m2[1], 10), from: null, to: null };
-        }
-
-        // Слипшийся формат: "S131-3", "S11-8", "S41-4"
-        var m3 = raw.match(/^S(\d+)\s*[-–]\s*(\d+)$/i);
-        if (m3) {
-            var left  = m3[1]; // "131", "11", "41"
-            var right = m3[2]; // "3", "8", "4"
-
-            var season = null, from = null, to = null;
-
-            if (left.length === 1) {
-                // "S1-3" — сезон 1, диапазон 1-3? Или серия 1-3?
-                // Скорее всего это "S1" и серия-диапазон не указана, а 1-3 — сезон 1-3
-                season = { from: parseInt(left, 10), to: parseInt(right, 10) };
-            } else if (left.length === 2) {
-                // "S11-8" или "S41-4"
-                // Сезон = 1 или 4, серия от = 1 или 1, серия до = 8 или 4
-                season = parseInt(left[0], 10);
-                from = parseInt(left[1], 10);
-                to = parseInt(right, 10);
-            } else if (left.length === 3) {
-                // "S131-3"
-                // Сезон = 13, серия от = 1, серия до = 3
-                season = parseInt(left.substring(0, 2), 10);
-                from = parseInt(left[2], 10);
-                to = parseInt(right, 10);
-            } else {
-                // 4+ цифр — маловероятно, но пусть будет
-                season = parseInt(left.substring(0, left.length - 1), 10);
-                from = parseInt(left[left.length - 1], 10);
-                to = parseInt(right, 10);
-            }
-
-            return { season: season, from: from, to: to };
-        }
-
-        return null;
-    }
-
     // ================= ФИЛЬТР ТОРРЕНТОВ =================
 
     function parseTorrentRange(item) {
         var gen = item.querySelector('.m-general');
         if (gen) {
-            var divs = gen.querySelectorAll('div');
+            var result = { season: null, from: null, to: null };
 
+            var divs = gen.querySelectorAll('div');
             if (divs.length >= 2) {
-                // Нормальная структура с двумя div
                 var s = divs[0].textContent.trim();
                 var e = divs[1].textContent.trim();
 
-                var result = { season: null, from: null, to: null };
-
-                // Сезон
                 var sRange = s.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
                 if (sRange) {
                     result.season = { from: parseInt(sRange[1], 10), to: parseInt(sRange[2], 10) };
@@ -244,7 +171,6 @@
                     if (sSingle) result.season = parseInt(sSingle[1], 10);
                 }
 
-                // Серии
                 var eRange = e.match(/^(\d+)\s*[-–]\s*(\d+)$/);
                 if (eRange) {
                     result.from = parseInt(eRange[1], 10);
@@ -257,29 +183,40 @@
                 if (result.season !== null) return result;
             }
 
-            // Слипшийся формат
-            var parsed = parseGeneral(gen.textContent);
-            if (parsed) return parsed;
+            var raw = gen.textContent.trim();
+            var m = raw.match(/^S(\d+)\s*[-–]\s*(\d+)$/i);
+            if (m) {
+                var left = m[1], right = m[2];
+                if (left.length === 2) {
+                    result.season = parseInt(left[0], 10);
+                    result.from = parseInt(left[1], 10);
+                    result.to = parseInt(right, 10);
+                } else if (left.length === 3) {
+                    result.season = parseInt(left.substring(0, 2), 10);
+                    result.from = parseInt(left[2], 10);
+                    result.to = parseInt(right, 10);
+                }
+                if (result.season !== null) return result;
+            }
+
+            var m2 = raw.match(/^S(\d+)$/i);
+            if (m2) return { season: parseInt(m2[1], 10), from: null, to: null };
         }
 
-        // Fallback из title
         var title = item.querySelector('.torrent-item__title');
         if (!title) return null;
         var t = title.textContent;
 
         var season = null, from = null, to = null;
 
-        // Диапазон сезонов "1-8 сезоны"
         var r1 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сезон/i);
         if (r1) season = { from: parseInt(r1[1], 10), to: parseInt(r1[2], 10) };
 
-        // Одиночный "13 сезон" / "Сезон 13"
         if (season === null) {
             var s1 = t.match(/сезон[ыа]?\s*[:]?\s*(\d+)/i) || t.match(/(\d+)\s*сезон/i);
             if (s1) season = parseInt(s1[1], 10);
         }
 
-        // "13х01-08"
         var r2 = t.match(/(\d+)\s*[хx]\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
         if (r2) {
             if (season === null) season = parseInt(r2[1], 10);
@@ -287,7 +224,6 @@
             to   = r2[3] ? parseInt(r2[3], 10) : from;
         }
 
-        // "S13E01"
         var r2b = t.match(/S(\d+)\s*E(\d+)(?:\s*[-–]\s*E?(\d+))?/i);
         if (r2b) {
             if (season === null) season = parseInt(r2b[1], 10);
@@ -295,15 +231,9 @@
             to   = r2b[3] ? parseInt(r2b[3], 10) : from;
         }
 
-        // "1-4 серии"
         var r3 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сери/i);
         if (r3) { from = parseInt(r3[1], 10); to = parseInt(r3[2], 10); }
 
-        // "Серии: 1-4 из"
-        var r3b = t.match(/серии?[:\s]+(\d+)\s*[-–]\s*(\d+)/i);
-        if (r3b && from === null) { from = parseInt(r3b[1], 10); to = parseInt(r3b[2], 10); }
-
-        // "серия 4"
         if (from === null) {
             var r4 = t.match(/серия[:\s]+(\d+)/i);
             if (r4) { from = parseInt(r4[1], 10); to = from; }
@@ -344,24 +274,15 @@
             var range = parseTorrentRange(item);
             var ok = matchFilter(range, season, episode);
             item.style.display = ok ? '' : 'none';
-            item.style.visibility = ok ? '' : 'hidden';
             if (ok) visible++;
         });
 
         log('filter S' + season + 'E' + episode + ' → visible ' + visible + '/' + items.length);
 
-        ensureBadge(season, episode);
-
-        if (visible === 0 && window.Lampa && Lampa.Noty) {
-            if (!applyTorrentFilter._warned) {
-                Lampa.Noty.show('Нет раздач для S' + season + 'E' + episode);
-                applyTorrentFilter._warned = true;
-                setTimeout(function(){ applyTorrentFilter._warned = false; }, 3000);
-            }
-        }
+        ensureBadge(season, episode, visible);
     }
 
-    function ensureBadge(season, episode) {
+    function ensureBadge(season, episode, visibleCount) {
         var head = document.querySelector('.explorer__files-head');
         if (!head) return;
 
@@ -370,11 +291,21 @@
 
         var badge = document.createElement('div');
         badge.className = 'ep-filter-badge selector';
-        badge.textContent = 'S' + season + 'E' + episode + ' ✕';
-        badge.style.cssText = 'display:inline-flex;align-items:center;' +
-            'padding:.4em 1em;margin:.4em;border-radius:.5em;' +
-            'background:rgba(255,255,255,.18);cursor:pointer;font-size:1em;' +
-            'white-space:nowrap;';
+
+        var label = 'S' + season + 'E' + episode;
+        if (visibleCount === 0) {
+            badge.textContent = label + ' — нет в видимых ✕';
+            badge.style.cssText = 'display:inline-flex;align-items:center;' +
+                'padding:.4em 1em;margin:.4em;border-radius:.5em;' +
+                'background:rgba(255,100,100,.25);cursor:pointer;font-size:1em;' +
+                'white-space:nowrap;';
+        } else {
+            badge.textContent = label + ' ✕';
+            badge.style.cssText = 'display:inline-flex;align-items:center;' +
+                'padding:.4em 1em;margin:.4em;border-radius:.5em;' +
+                'background:rgba(255,255,255,.18);cursor:pointer;font-size:1em;' +
+                'white-space:nowrap;';
+        }
 
         badge.addEventListener('click', function (e) {
             e.stopPropagation();
@@ -389,18 +320,17 @@
         currentFilter = null;
         document.querySelectorAll('.torrent-item').forEach(function (el) {
             el.style.display = '';
-            el.style.visibility = '';
         });
         var b = document.querySelector('.ep-filter-badge');
         if (b) b.remove();
         if (filterObserver) { filterObserver.disconnect(); filterObserver = null; }
+        if (autoScrollTimer) { clearInterval(autoScrollTimer); autoScrollTimer = null; }
         log('filter reset');
     }
 
     function setTorrentFilter(season, episode) {
         currentFilter = { season: season, episode: episode };
         log('set filter S' + season + 'E' + episode);
-        applyTorrentFilter._warned = false;
 
         var tries = 0;
         var t = setInterval(function () {
@@ -409,11 +339,67 @@
                 clearInterval(t);
                 watchTorrents();
                 applyTorrentFilter();
+                // Запускаем автоподгрузку и повторную фильтрацию
+                startAutoLoad(season, episode);
             } else if (tries > 60) {
                 clearInterval(t);
                 log('torrents did not appear');
             }
         }, 250);
+    }
+
+    // Автоподгрузка всех раздач: прокручиваем список вниз, ждём,
+    // пока Lampa подгрузит следующие партии, и так до упора
+    function startAutoLoad(season, episode) {
+        if (autoScrollTimer) clearInterval(autoScrollTimer);
+
+        var scrollContent = document.querySelector('.explorer__files-body .scroll__content');
+        if (!scrollContent) {
+            log('auto-load: no scroll content');
+            return;
+        }
+
+        var lastCount = 0;
+        var stableRounds = 0;
+        var scrollPos = 0;
+        var rounds = 0;
+        var MAX_ROUNDS = 60; // максимум 60 шагов * 500ms = 30 сек
+
+        autoScrollTimer = setInterval(function () {
+            rounds++;
+            var count = document.querySelectorAll('.torrent-item').length;
+
+            if (count === lastCount) {
+                stableRounds++;
+            } else {
+                stableRounds = 0;
+                lastCount = count;
+            }
+
+            // Прокрутка на порцию вниз
+            scrollPos += 800;
+            scrollContent.scrollTop = scrollPos;
+
+            // Если счёт стабилизировался или достигнут лимит — останавливаемся
+            if (stableRounds >= 4 || rounds > MAX_ROUNDS) {
+                clearInterval(autoScrollTimer);
+                autoScrollTimer = null;
+                log('auto-load finished. total items: ' + lastCount +
+                    ', rounds: ' + rounds);
+
+                // Возвращаем скролл наверх
+                scrollContent.scrollTop = 0;
+
+                // Финальный пересчёт фильтра
+                applyTorrentFilter();
+                return;
+            }
+
+            // Промежуточная фильтрация после каждой подгрузки
+            if (count !== lastCount || rounds % 5 === 0) {
+                applyTorrentFilter();
+            }
+        }, 400);
     }
 
     function watchTorrents() {
