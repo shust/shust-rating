@@ -46,44 +46,13 @@
         return n ? n.textContent.trim() : '';
     }
 
+    // Сфокусированная серия. Ищем по классам .focus и .hover
     function getFocusedEpisode() {
         return document.querySelector('.full-episode--small.focus')
+            || document.querySelector('.full-episode--small.hover')
             || document.querySelector('.full-episode.focus')
-            || document.querySelector('.full-episode--small.hover');
-    }
-
-    // ================= ДИАГНОСТИКА =================
-
-    function diagnoseLampa() {
-        if (!window.Lampa) {
-            log('DIAG: Lampa not defined');
-            return;
-        }
-        log('DIAG Lampa keys:', Object.keys(Lampa).join(', '));
-        log('DIAG Lampa.Parser:', Lampa.Parser ? Object.keys(Lampa.Parser).join(', ') : 'no');
-        log('DIAG Lampa.Torrent:', Lampa.Torrent ? Object.keys(Lampa.Torrent).join(', ') : 'no');
-        log('DIAG Lampa.Activity:', Lampa.Activity ? Object.keys(Lampa.Activity).join(', ') : 'no');
-        log('DIAG Lampa.Controller:', Lampa.Controller ? Object.keys(Lampa.Controller).join(', ') : 'no');
-        log('DIAG Lampa.Select:', Lampa.Select ? Object.keys(Lampa.Select).join(', ') : 'no');
-
-        // Активный контроллер
-        try {
-            if (Lampa.Controller && Lampa.Controller.enabled) {
-                var en = Lampa.Controller.enabled();
-                log('DIAG enabled controller:', en && en.name ? en.name : en);
-            }
-        } catch (e) { log('DIAG enabled error', e); }
-
-        // Проверка типов ключевых методов
-        if (Lampa.Parser) {
-            log('DIAG typeof Parser.open:', typeof Lampa.Parser.open);
-        }
-        if (Lampa.Torrent) {
-            log('DIAG typeof Torrent.open:', typeof Lampa.Torrent.open);
-        }
-        if (Lampa.Activity) {
-            log('DIAG typeof Activity.push:', typeof Lampa.Activity.push);
-        }
+            || document.querySelector('.full-episode.hover')
+            || document.querySelector('.full-episode--small.selector.focus');
     }
 
     // ================= ОТКРЫТИЕ ТОРРЕНТОВ =================
@@ -114,64 +83,43 @@
             }
         } catch (e) {}
 
-        if (card.hash && typeof card.hash !== 'string') {
-            log('WARN: card.hash is not a string, resetting');
-            delete card.hash;
-        }
+        // Метаданные для поиска
+        var search    = card.title || card.name || '';
+        var searchOne = card.original_title || card.original_name || '';
+        var searchTwo = card.name || card.title || '';
 
-        // --- 1. Прямой вызов API Lampa ---
+        // Сохраняем фильтр
+        setTorrentFilter(season, episode);
+
+        // Открываем торренты через Activity.push
         try {
-            if (window.Lampa) {
-                // Parser.open
-                if (Lampa.Parser && typeof Lampa.Parser.open === 'function') {
-                    log('using Lampa.Parser.open');
-                    Lampa.Parser.open({
-                        movie: card,
-                        season: season,
-                        episode: episode
-                    });
-                    setTorrentFilter(season, episode);
-                    return;
-                }
-                // Torrent.open
-                if (Lampa.Torrent && typeof Lampa.Torrent.open === 'function') {
-                    log('using Lampa.Torrent.open');
-                    Lampa.Torrent.open(card, { season: season, episode: episode });
-                    setTorrentFilter(season, episode);
-                    return;
-                }
-                // Activity.push
-                if (Lampa.Activity && typeof Lampa.Activity.push === 'function') {
-                    log('using Lampa.Activity.push torrents');
-                    Lampa.Activity.push({
-                        url: '',
-                        component: 'torrents',
-                        title: 'Торренты',
-                        movie: card,
-                        season: season,
-                        episode: episode
-                    });
-                    setTorrentFilter(season, episode);
-                    return;
-                }
-            }
+            log('using Activity.push torrents');
+            Lampa.Activity.push({
+                url: '',
+                component: 'torrents',
+                title: 'Торренты',
+                movie: card,
+                season: season,
+                episode: episode,
+                search: search,
+                search_one: searchOne,
+                search_two: searchTwo
+            });
+            return;
         } catch (e) {
-            log('native open failed', e);
+            log('Activity.push failed', e);
         }
 
-        // --- 2. Фолбэк: клик по нативной кнопке торрентов ---
+        // Fallback — клик по кнопке
         var btn = document.querySelector('.full-start__button.view--torrent')
-               || document.querySelector('.full-start__button.button--priority')
-               || document.querySelector('.full-start__button.view--online');
-
+               || document.querySelector('.full-start__button.button--priority');
         if (btn) {
-            log('fallback: click native torrent button');
-            try { btn.click(); } catch (e) { log('btn.click error', e); }
-            setTorrentFilter(season, episode);
+            log('fallback: click torrent button');
+            try { btn.click(); } catch (e) {}
             return;
         }
 
-        log('torrent button not found');
+        log('no way to open torrents');
         if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Не удалось открыть торренты');
     }
 
@@ -184,8 +132,15 @@
             var season = null, from = null, to = null;
 
             if (divs[0]) {
-                var sm = divs[0].textContent.trim().match(/S(\d+)/i);
-                if (sm) season = parseInt(sm[1], 10);
+                var s = divs[0].textContent.trim();
+                // Поддерживаем "S8", "S1-8"
+                var single = s.match(/^S(\d+)$/i);
+                var range  = s.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
+                if (range) {
+                    season = { from: parseInt(range[1], 10), to: parseInt(range[2], 10) };
+                } else if (single) {
+                    season = parseInt(single[1], 10);
+                }
             }
             if (divs[1]) {
                 var e = divs[1].textContent.trim();
@@ -194,39 +149,54 @@
                     from = parseInt(rm[1], 10);
                     to   = parseInt(rm[2], 10);
                 } else {
-                    var single = parseInt(e, 10);
-                    if (!isNaN(single)) { from = single; to = single; }
+                    var one = parseInt(e, 10);
+                    if (!isNaN(one)) { from = one; to = one; }
                 }
             }
             if (season !== null) return { season: season, from: from, to: to };
         }
 
-        // Fallback: из title
+        // Fallback из title
         var title = item.querySelector('.torrent-item__title');
         if (!title) return null;
         var t = title.textContent;
 
         var season = null, from = null, to = null;
 
-        var m1 = t.match(/(\d+)\s*сезон/i);
-        if (m1) season = parseInt(m1[1], 10);
-
-        var m2 = t.match(/(\d+)\s*[хx]\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
-        if (m2) {
-            if (season === null) season = parseInt(m2[1], 10);
-            from = parseInt(m2[2], 10);
-            to   = m2[3] ? parseInt(m2[3], 10) : from;
+        // "2 сезон" / "1-8 сезоны" / "Сезон 2" / "5-8 сезон"
+        var r1 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сезон/i);
+        if (r1) season = { from: parseInt(r1[1], 10), to: parseInt(r1[2], 10) };
+        if (season === null) {
+            var s1 = t.match(/сезон[ыа]?\s*[:]?\s*(\d+)/i) || t.match(/(\d+)\s*сезон/i);
+            if (s1) season = parseInt(s1[1], 10);
         }
 
-        var m3 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сери/i);
-        if (m3) {
-            from = parseInt(m3[1], 10);
-            to   = parseInt(m3[2], 10);
+        // "02х01-03" / "S02E01"
+        var r2 = t.match(/(\d+)\s*[хx]\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
+        if (r2) {
+            if (season === null) season = parseInt(r2[1], 10);
+            from = parseInt(r2[2], 10);
+            to   = r2[3] ? parseInt(r2[3], 10) : from;
+        }
+        var r2b = t.match(/S(\d+)\s*E(\d+)(?:\s*[-–]\s*E?(\d+))?/i);
+        if (r2b) {
+            if (season === null) season = parseInt(r2b[1], 10);
+            from = parseInt(r2b[2], 10);
+            to   = r2b[3] ? parseInt(r2b[3], 10) : from;
         }
 
+        // "1-4 серии" / "1-73 серии"
+        var r3 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сери/i);
+        if (r3) { from = parseInt(r3[1], 10); to = parseInt(r3[2], 10); }
+
+        // "Серии: 1-4 из"
+        var r3b = t.match(/серии?[:\s]+(\d+)\s*[-–]\s*(\d+)/i);
+        if (r3b && from === null) { from = parseInt(r3b[1], 10); to = parseInt(r3b[2], 10); }
+
+        // "серия 4"
         if (from === null) {
-            var m4 = t.match(/(\d+)\s*серия/i);
-            if (m4) { from = parseInt(m4[1], 10); to = from; }
+            var r4 = t.match(/серия[:\s]+(\d+)/i);
+            if (r4) { from = parseInt(r4[1], 10); to = from; }
         }
 
         if (season === null && from === null) return null;
@@ -235,7 +205,18 @@
 
     function matchFilter(range, season, episode) {
         if (!range) return true;
-        if (range.season !== null && range.season !== season) return false;
+
+        // Сезон
+        if (range.season !== null) {
+            if (typeof range.season === 'object') {
+                // диапазон сезонов: S1-8
+                if (season < range.season.from || season > range.season.to) return false;
+            } else {
+                if (range.season !== season) return false;
+            }
+        }
+
+        // Серия
         if (range.from !== null && range.to !== null) {
             return episode >= range.from && episode <= range.to;
         }
@@ -244,6 +225,7 @@
 
     function applyTorrentFilter() {
         if (!currentFilter) return;
+
         var season  = currentFilter.season;
         var episode = currentFilter.episode;
 
@@ -255,6 +237,7 @@
             var range = parseTorrentRange(item);
             var ok = matchFilter(range, season, episode);
             item.style.display = ok ? '' : 'none';
+            item.style.visibility = ok ? '' : 'hidden';
             if (ok) visible++;
         });
 
@@ -299,6 +282,7 @@
         currentFilter = null;
         document.querySelectorAll('.torrent-item').forEach(function (el) {
             el.style.display = '';
+            el.style.visibility = '';
         });
         var b = document.querySelector('.ep-filter-badge');
         if (b) b.remove();
@@ -311,6 +295,7 @@
         log('set filter S' + season + 'E' + episode);
         applyTorrentFilter._warned = false;
 
+        // Ждём появления торрентов
         var tries = 0;
         var t = setInterval(function () {
             tries++;
@@ -318,7 +303,7 @@
                 clearInterval(t);
                 watchTorrents();
                 applyTorrentFilter();
-            } else if (tries > 40) {
+            } else if (tries > 60) {
                 clearInterval(t);
                 log('torrents did not appear');
             }
@@ -421,24 +406,21 @@
         log('Lampa.Select not available');
     }
 
-    // ================= ПЕРЕХВАТ SELECT КОНТРОЛЛЕРА =================
+    // ================= ПЕРЕХВАТ OK =================
+    // Активный контроллер в Lampa на странице сериала — 'full_start'.
+    // Перехватываем его через Controller.trigger('enter') и через Controller.enter.
 
     function installControllerHook() {
         if (!window.Lampa || !Lampa.Controller) return false;
         if (Lampa.Controller.__epHooked) return true;
 
-        log('installing Controller.add hook');
+        log('installing Controller hooks');
 
-        var origAdd = Lampa.Controller.add;
-        if (typeof origAdd !== 'function') {
-            log('Lampa.Controller.add not found');
-            return false;
-        }
-
-        Lampa.Controller.add = function (name, methods) {
-            if (methods && typeof methods.select === 'function') {
-                var origSelect = methods.select;
-                methods.select = function () {
+        // --- Перехват trigger('enter') ---
+        var origTrigger = Lampa.Controller.trigger;
+        if (typeof origTrigger === 'function') {
+            Lampa.Controller.trigger = function (name, params) {
+                if (name === 'enter' || name === 'select') {
                     var focused = getFocusedEpisode();
                     if (focused) {
                         if (longPressed) {
@@ -448,16 +430,37 @@
                         var season = findSeason(focused);
                         var ep = getEpNum(focused);
                         if (season !== null && ep !== null) {
-                            log('intercept select → torrents S' + season + 'E' + ep);
+                            log('intercept trigger → torrents S' + season + 'E' + ep);
                             openTorrents(season, ep);
                             return;
                         }
                     }
-                    return origSelect.apply(this, arguments);
-                };
-            }
-            return origAdd.apply(this, arguments);
-        };
+                }
+                return origTrigger.apply(this, arguments);
+            };
+        }
+
+        // --- Перехват enter() ---
+        var origEnter = Lampa.Controller.enter;
+        if (typeof origEnter === 'function') {
+            Lampa.Controller.enter = function () {
+                var focused = getFocusedEpisode();
+                if (focused) {
+                    if (longPressed) {
+                        longPressed = false;
+                        return;
+                    }
+                    var season = findSeason(focused);
+                    var ep = getEpNum(focused);
+                    if (season !== null && ep !== null) {
+                        log('intercept enter → torrents S' + season + 'E' + ep);
+                        openTorrents(season, ep);
+                        return;
+                    }
+                }
+                return origEnter.apply(this, arguments);
+            };
+        }
 
         Lampa.Controller.__epHooked = true;
         return true;
@@ -512,6 +515,7 @@
             var ep = getEpNum(card);
             if (season === null || ep === null) return;
 
+            // Не срабатываем на странице торрентов
             if (document.querySelector('.explorer__files')) return;
 
             e.preventDefault();
@@ -525,6 +529,7 @@
             return false;
         }, true);
 
+        // Долгий тап мышью
         document.addEventListener('mousedown', function (e) {
             var card = e.target.closest ? e.target.closest('.full-episode--small') : null;
             if (!card) return;
@@ -549,7 +554,6 @@
             setTimeout(boot, 500);
             return;
         }
-        diagnoseLampa();
         installControllerHook();
         installLongPress();
         installClickFallback();
@@ -565,7 +569,7 @@
     var tries = 0;
     var t = setInterval(function () {
         tries++;
-        if (window.Lampa && Lampa.Controller && Lampa.Controller.add) {
+        if (window.Lampa && Lampa.Controller && Lampa.Controller.trigger) {
             boot();
             clearInterval(t);
         } else if (tries > 60) clearInterval(t);
