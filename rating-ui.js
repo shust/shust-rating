@@ -4,13 +4,14 @@
     Rating sources:
     - Kinopoisk: rating.kinopoisk.ru XML + KP API fallback
     - IMDb: OMDb + Kinopoisk XML imdb_rating fallback
-    - TMDB: Lampa native
+    - TMDB: fallback, только если IMDb и KP выключены/не найдены
 
     Optimizations:
     - KP-XML напрямую (без прокси), прокси только при неудаче
     - IMDb параллельно через OMDb, не ждём KP
     - Короткий таймаут прокси, один прокси вместо двух
     - Android TV фикс: applyPgVisibility вызывается многократно + setInterval
+    - Фиксированная ширина и плейсхолдеры -.- для IMDb и KP
 */
 
 (function() {
@@ -119,8 +120,8 @@
             pt: 'Kinopoisk', zh: 'Kinopoisk', he: 'Kinopoisk', cs: 'Kinopoisk', bg: 'Kinopoisk'
         },
         maxsm_ratings_source_tmdb: {
-            ru: 'TMDB', en: 'TMDB', uk: 'TMDB', be: 'TMDB',
-            pt: 'TMDB', zh: 'TMDB', he: 'TMDB', cs: 'TMDB', bg: 'TMDB'
+            ru: 'TMDB (fallback)', en: 'TMDB (fallback)', uk: 'TMDB (резерв)', be: 'TMDB (рэзерв)',
+            pt: 'TMDB (fallback)', zh: 'TMDB (备用)', he: 'TMDB (גיבוי)', cs: 'TMDB (záloha)', bg: 'TMDB (резерва)'
         },
         maxsm_ratings_source_imdb: {
             ru: 'IMDb', en: 'IMDb', uk: 'IMDb', be: 'IMDb',
@@ -136,7 +137,7 @@
         },
         maxsm_ratings_avg: {
             ru: 'ИТОГ', en: 'TOTAL', uk: 'ПІДСУМОК', be: 'ВЫНІК',
-            pt: 'TOTAL', zh: '总评', he: 'סה"כ', cs: 'VÝSLEDEK', bg: 'РЕЗУЛТАТ'
+            pt: 'TOTAL', zh: '总评', he: 'סה"כ', cs: 'VÝSLEDEK', bg: 'РЕЗУЛЬТАТ'
         },
         maxsm_ratings_avg_simple: {
             ru: 'Оценка', en: 'Rating', uk: 'Оцінка', be: 'Ацэнка',
@@ -314,6 +315,22 @@
         "html.maxsm-hide-pg .full-start-new__rate-line > .full-start__pg {" +
             "display: none !important;" +
         "}" +
+        /* Фиксированная ширина блоков IMDb и KP */
+        ".rate--imdb, .rate--kp {" +
+            "min-width: 5.4em !important;" +
+            "display: inline-flex !important;" +
+            "align-items: center;" +
+            "justify-content: flex-start;" +
+        "}" +
+        ".rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
+            "min-width: 2.6em !important;" +
+            "text-align: left;" +
+        "}" +
+        /* Плейсхолдер -.- */
+        ".maxsm-rating-placeholder {" +
+            "opacity: 0.6;" +
+            "letter-spacing: -0.02em;" +
+        "}" +
         ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
             "font-family: 'Inter', sans-serif !important;" +
             "font-size: 1.04em !important;" +
@@ -372,7 +389,6 @@
             html.classList.add('maxsm-hide-pg');
         }
 
-        /* Дополнительно: прячем inline, чтобы на Android TV гарантированно работало */
         try {
             var els = document.querySelectorAll('.full-start__pg');
             for (var i = 0; i < els.length; i++) {
@@ -634,6 +650,10 @@
         return !isNaN(value) && value > 0;
     }
 
+    /*
+     * TMDB показываем только если ОБА источника (KP и IMDb) выключены.
+     * Если хотя бы один включён — TMDB скрыт, даже если рейтинг ещё грузится.
+     */
     function applyRatingSourceVisibility(render) {
         if (!render) return;
         var kpElement = $('.rate--kp', render);
@@ -641,10 +661,9 @@
         var tmdbElement = $('.rate--tmdb', render);
         var kpEnabled = isRatingSourceEnabled('kp');
         var imdbEnabled = isRatingSourceEnabled('imdb');
-        var kpHasRating = hasRatingValue(kpElement);
-        var imdbHasRating = hasRatingValue(imdbElement);
-        var noPrimaryRating = !kpHasRating && !imdbHasRating;
-        var tmdbEnabled = isRatingSourceEnabled('tmdb') || noPrimaryRating;
+
+        var tmdbEnabled = !kpEnabled && !imdbEnabled;
+
         kpElement.toggleClass('maxsm-source-disabled', !kpEnabled);
         imdbElement.toggleClass('maxsm-source-disabled', !imdbEnabled);
         tmdbElement.toggleClass('maxsm-source-disabled', !tmdbEnabled);
@@ -699,6 +718,20 @@
 
         if (kpExists) ratingsData.kp = parseFloat(kpText);
         if (imdbExists) ratingsData.imdb = parseFloat(imdbText);
+
+        /* Ставим плейсхолдеры -.- для тех, которых ещё нет */
+        if (!imdbExists && imdbElement.length) {
+            var imdbDiv = imdbElement.find('> div').eq(0);
+            if (!imdbDiv.text().trim() || isNaN(parseFloat(imdbDiv.text()))) {
+                imdbDiv.text('–.–').addClass('maxsm-rating-placeholder');
+            }
+        }
+        if (!kpExists && kpElement.length) {
+            var kpDiv = kpElement.find('> div').eq(0);
+            if (!kpDiv.text().trim() || isNaN(parseFloat(kpDiv.text()))) {
+                kpDiv.text('–.–').addClass('maxsm-rating-placeholder');
+            }
+        }
 
         var uiTimer = null;
 
@@ -853,6 +886,18 @@
                 if (iconType !== 'average' && sourceName.length) sourceName.addClass('maxsm-source-text-hidden');
 
                 var ratingValue = element.children('div').first();
+
+                if (iconType === 'source' &&
+                    (className === 'rate--imdb' || className === 'rate--kp')) {
+
+                    var currentText = ratingValue.text().trim();
+                    if (!currentText || currentText === '' || isNaN(parseFloat(currentText))) {
+                        ratingValue.text('–.–').addClass('maxsm-rating-placeholder');
+                    } else {
+                        ratingValue.removeClass('maxsm-rating-placeholder');
+                    }
+                }
+
                 var extraClass = iconType === 'average' ? 'maxsm-average-icon' : 'maxsm-source-icon';
                 var styleClass = iconStyle === '1'
                     ? 'maxsm-icon-style-white'
@@ -893,17 +938,29 @@
             var imdbRating;
             if (ratings.imdb && !isNaN(ratings.imdb)) {
                 imdbRating = parseFloat(ratings.imdb).toFixed(1);
-                imdbElement.removeClass('hide').find('> div').eq(0).text(imdbRating);
+                imdbElement
+                    .removeClass('hide')
+                    .find('> div').eq(0)
+                    .removeClass('maxsm-rating-placeholder')
+                    .text(imdbRating);
             } else if (ratings.imdb_kp && !isNaN(ratings.imdb_kp)) {
                 imdbRating = parseFloat(ratings.imdb_kp).toFixed(1);
-                imdbElement.removeClass('hide').find('> div').eq(0).text(imdbRating);
+                imdbElement
+                    .removeClass('hide')
+                    .find('> div').eq(0)
+                    .removeClass('maxsm-rating-placeholder')
+                    .text(imdbRating);
             }
         }
 
         var kpElement = $('.rate--kp', render);
         if (kpElement.length && ratings.kp && !isNaN(ratings.kp)) {
             var kpRating = parseFloat(ratings.kp).toFixed(1);
-            kpElement.removeClass('hide').find('> div').eq(0).text(kpRating);
+            kpElement
+                .removeClass('hide')
+                .find('> div').eq(0)
+                .removeClass('maxsm-rating-placeholder')
+                .text(kpRating);
         }
     }
 
@@ -1020,7 +1077,6 @@
         if (localStorage.getItem('maxsm_ratings_show_average') === null) localStorage.setItem('maxsm_ratings_show_average', 'true');
         if (localStorage.getItem('maxsm_ratings_font_weight') === null) localStorage.setItem('maxsm_ratings_font_weight', '500');
 
-        /* Удаляем старый ключ hide_pg, если он был */
         try { localStorage.removeItem('maxsm_ratings_hide_pg'); } catch (e) {}
 
         applyRatingFontWeight();
@@ -1177,10 +1233,6 @@
 
         setTimeout(tryProcessCardInDom, 500);
 
-        /*
-         * Страховка для Android TV: MutationObserver не всегда срабатывает
-         * при перерисовке карточки. Раз в секунду перепроверяем состояние.
-         */
         setInterval(function () {
             try {
                 if (document.querySelectorAll('.full-start__pg').length > 0) {
