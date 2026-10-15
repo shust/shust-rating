@@ -10,6 +10,7 @@
     - KP-XML напрямую (без прокси), прокси только при неудаче
     - IMDb параллельно через OMDb, не ждём KP
     - Короткий таймаут прокси, один прокси вместо двух
+    - Android TV фикс: applyPgVisibility вызывается многократно + setInterval
 */
 
 (function() {
@@ -143,7 +144,6 @@
         }
     });
 
-    // Стили модалки
     var modalStyle = "<style id=\"maxsm_ratings_modal\">" +
         ".maxsm-modal-ratings { padding: 1.25em; font-size: 1.4em; line-height: 1.6; }" +
         ".maxsm-modal-rating-line { padding: 0.5em 0; border-bottom: 0.0625em solid rgba(255, 255, 255, 0.1); }" +
@@ -351,16 +351,14 @@
         return arr[Math.floor(Math.random() * arr.length)];
     }
 
-    /* Применение класса скрытия возрастного рейтинга */
-     function applyPgVisibility(value) {
+    function applyPgVisibility(value) {
         var visible;
 
         if (value !== undefined && value !== null) {
-            /* "Да" в настройке = показывать возрастной рейтинг */
             visible = (value === true || value === 'true' || value === 1 || value === '1');
             try { Lampa.Storage.set('maxsm_ratings_show_pg', visible); } catch (e) {}
         } else {
-            var stored = true; /* по умолчанию — показывать */
+            var stored = true;
             try { stored = Lampa.Storage.get('maxsm_ratings_show_pg', true); } catch (e) {}
             visible = (stored === true || stored === 'true' || stored === 1 || stored === '1');
         }
@@ -373,6 +371,18 @@
         } else {
             html.classList.add('maxsm-hide-pg');
         }
+
+        /* Дополнительно: прячем inline, чтобы на Android TV гарантированно работало */
+        try {
+            var els = document.querySelectorAll('.full-start__pg');
+            for (var i = 0; i < els.length; i++) {
+                if (visible) {
+                    els[i].style.removeProperty('display');
+                } else {
+                    els[i].style.setProperty('display', 'none', 'important');
+                }
+            }
+        } catch (e) {}
     }
 
     function fetchWithProxy(url, localCurrentCard, callback) {
@@ -405,10 +415,6 @@
         PROXY_LIST.forEach(function(proxy) {
             var proxyUrl = proxy + encodeURIComponent(url);
 
-            if (C_LOGGING) {
-                console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Fetch with proxy: " + proxyUrl);
-            }
-
             fetch(proxyUrl)
                 .then(function(response) {
                     if (!response.ok) throw new Error('Proxy error: ' + response.status);
@@ -426,7 +432,6 @@
     //-----------------------------------------------------get---kinopoisk-------------------------------------
     function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
         if (normalizedCard.kinopoisk_id) {
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP by id: " + normalizedCard.kinopoisk_id);
             return fetchRatings(normalizedCard.kinopoisk_id, localCurrentCard);
         }
 
@@ -443,8 +448,6 @@
 
         var encodedTitle = encodeURIComponent(queryTitle);
         var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodedTitle;
-
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search: " + queryTitle + " / " + year);
 
         fetch(searchUrl, {
             method: 'GET',
@@ -492,15 +495,12 @@
 
             fetchRatings(bestMatch.filmId, localCurrentCard);
         })
-        .catch(function(err) {
-            console.warn("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP search failed: " + err.message);
+        .catch(function() {
             callback(null);
         });
 
         function fetchRatings(filmId, localCurrentCard) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
-
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML: " + xmlUrl);
 
             var directDone = false;
             var directTimer = setTimeout(function() {
@@ -607,13 +607,6 @@
         var weight = String(value !== undefined && value !== null ? value : (localStorage.getItem('maxsm_ratings_font_weight') || '500'));
         if (['400', '500', '600', '700'].indexOf(weight) === -1) weight = '500';
         document.documentElement.style.setProperty('--maxsm-rating-font-weight', weight);
-    }
-
-    function getRatingClass(rating) {
-        if (rating >= 8.5) return 'rate--green';
-        if (rating >= 7.0) return 'rate--lime';
-        if (rating >= 5.0) return 'rate--orange';
-        return 'rate--red';
     }
 
     function getAverageRatingClass(rating) {
@@ -741,7 +734,6 @@
 
         updateUI();
 
-        /* IMDb через OMDb — параллельно с KP */
         if (!imdbExists && normalizedCard.imdb_id) {
             var omdbCache = Lampa.Storage.get(OMDB_CACHE) || {};
             var cachedOmdb = omdbCache[normalizedCard.imdb_id];
@@ -769,7 +761,6 @@
             }
         }
 
-        /* Kinopoisk — параллельно */
         var cachedKpData = getKpCache(initialCacheKey);
 
         if (cachedKpData) {
@@ -1009,6 +1000,10 @@
         globalCurrentCard = movie.id;
 
         applyPgVisibility();
+        setTimeout(applyPgVisibility, 50);
+        setTimeout(applyPgVisibility, 200);
+        setTimeout(applyPgVisibility, 600);
+
         fetchAdditionalRatings(movie, render);
     }
 
@@ -1024,7 +1019,9 @@
         if (localStorage.getItem('maxsm_ratings_icon_style') === null) localStorage.setItem('maxsm_ratings_icon_style', '2');
         if (localStorage.getItem('maxsm_ratings_show_average') === null) localStorage.setItem('maxsm_ratings_show_average', 'true');
         if (localStorage.getItem('maxsm_ratings_font_weight') === null) localStorage.setItem('maxsm_ratings_font_weight', '500');
-        if (localStorage.getItem('maxsm_ratings_hide_pg') === null) localStorage.setItem('maxsm_ratings_hide_pg', 'false');
+
+        /* Удаляем старый ключ hide_pg, если он был */
+        try { localStorage.removeItem('maxsm_ratings_hide_pg'); } catch (e) {}
 
         applyRatingFontWeight();
         applyPgVisibility();
@@ -1042,15 +1039,12 @@
 
         var fontWeightValue = { 400: '400', 500: '500', 600: '600', 700: '700' };
 
-        // 1. Средний рейтинг
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_show_average", type: "trigger", default: true },
             field: { name: Lampa.Lang.translate("maxsm_ratings_mode"), description: '' },
             onChange: function() { refreshRatingSourceSettings(); }
         });
-
-        // 2. Источники
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_source_kp", type: "trigger", default: true },
@@ -1069,24 +1063,18 @@
             field: { name: Lampa.Lang.translate("maxsm_ratings_source_tmdb"), description: '' },
             onChange: function() { refreshRatingSourceSettings(); }
         });
-
-        // 2.5. Возрастной рейтинг
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
-            param: { name: "maxsm_ratings_hide_pg", type: "trigger", default: false },
+            param: { name: "maxsm_ratings_show_pg", type: "trigger", default: true },
             field: { name: Lampa.Lang.translate("maxsm_ratings_pg"), description: '' },
             onChange: function(value) { applyPgVisibility(value); }
         });
-
-        // 3. Цвета
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_colors", type: "trigger", default: false },
             field: { name: Lampa.Lang.translate("maxsm_ratings_colors"), description: '' },
             onChange: function() { refreshRatingSourceSettings(); }
         });
-
-        // 4. Иконки
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_icons", type: "trigger", default: false },
@@ -1117,8 +1105,6 @@
                 updateAverageSeparator(render);
             }
         });
-
-        // 5. Внешний вид
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_font_weight", type: "select", values: fontWeightValue, default: 500 },
@@ -1134,8 +1120,6 @@
                 updateAverageSeparator(render);
             }
         });
-
-        // 6. Очистка кеша
         Lampa.SettingsApi.addParam({
             component: 'maxsm_ratings',
             param: { name: 'maxsm_ratings_cc', type: 'button' },
@@ -1148,23 +1132,23 @@
             }
         });
 
-        // Основной триггер
         Lampa.Listener.follow('full', function(e) {
             if (e.type == 'complite') {
                 var render = e.object.activity.render();
                 globalCurrentCard = e.data.movie.id;
                 applyPgVisibility();
+                setTimeout(applyPgVisibility, 50);
+                setTimeout(applyPgVisibility, 200);
+                setTimeout(applyPgVisibility, 600);
                 fetchAdditionalRatings(e.data.movie, render);
             }
         });
 
-        // Резервный триггер
         Lampa.Listener.follow('activity', function (e) {
             if (e.type !== 'render' && e.type !== 'start') return;
             setTimeout(tryProcessCardInDom, 300);
         });
 
-        // MutationObserver
         var domObserver = new MutationObserver(function(mutations) {
             for (var i = 0; i < mutations.length; i++) {
                 var nodes = mutations[i].addedNodes || [];
@@ -1175,12 +1159,15 @@
                     try {
                         if ($(node).is('.full-start__pg') || $(node).find('.full-start__pg').length) {
                             applyPgVisibility();
+                            setTimeout(applyPgVisibility, 100);
+                            setTimeout(applyPgVisibility, 400);
                         }
                     } catch (e) {}
 
                     if ($(node).is('.full-start-new__rate-line') ||
                         $(node).find('.full-start-new__rate-line').length) {
                         setTimeout(tryProcessCardInDom, 100);
+                        setTimeout(applyPgVisibility, 300);
                         return;
                     }
                 }
@@ -1189,6 +1176,18 @@
         domObserver.observe(document.body, { childList: true, subtree: true });
 
         setTimeout(tryProcessCardInDom, 500);
+
+        /*
+         * Страховка для Android TV: MutationObserver не всегда срабатывает
+         * при перерисовке карточки. Раз в секунду перепроверяем состояние.
+         */
+        setInterval(function () {
+            try {
+                if (document.querySelectorAll('.full-start__pg').length > 0) {
+                    applyPgVisibility();
+                }
+            } catch (e) {}
+        }, 1000);
     }
 
     if (!window.maxsmRatingsPlugin) startPlugin();
