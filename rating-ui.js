@@ -132,6 +132,10 @@
             ru: 'Цвета', en: 'Colors', uk: 'Кольори', be: 'Колеры',
             pt: 'Cores', zh: '颜色', he: 'צבעים', cs: 'Barvy', bg: 'Цветове'
         },
+        maxsm_ratings_pg: {
+            ru: 'Возрастной рейтинг', en: 'Age rating', uk: 'Віковий рейтинг', be: 'Узроставы рэйтынг',
+            pt: 'Classificação etária', zh: '年龄分级', he: 'דירוג גיל', cs: 'Věkové hodnocení', bg: 'Възрастов рейтинг'
+        },
         maxsm_ratings_avg: {
             ru: 'ИТОГ', en: 'TOTAL', uk: 'ПІДСУМОК', be: 'ВЫНІК',
             pt: 'TOTAL', zh: '总评', he: 'סה"כ', cs: 'VÝSLEDEK', bg: 'РЕЗУЛТАТ'
@@ -156,11 +160,36 @@
     $('body').append(Lampa.Template.get('maxsm_ratings_modal', {}, true));
 
     var style = "<style id=\"maxsm_ratings\">" +
-        ".full-start-new__rate-line { visibility: visible; flex-wrap: wrap; gap: 0.4em 0; padding-left: 0 !important; margin-left: 0 !important; left: 0 !important; padding-right: 1em !important; box-sizing: border-box; }" +
-        ".full-start-new__rate-line > :first-child { margin-left: 0 !important; }" +
-        ".full-start-new__rate-line > * { margin-right: 0.55em !important; }" +
-        ".full-start-new__rate-line > .full-start__pg { margin-left: 0.55em !important; }" +
-        ".full-start__rate.rate--avg.maxsm-has-separator::after { content: ''; display: block; width: 1px; height: 1.45em; margin-left: 0.55em; background: rgba(255,255,255,0.28); border-radius: 1px; pointer-events: none; }" +
+        ".full-start-new__rate-line {" +
+            "visibility: visible;" +
+            "flex-wrap: wrap;" +
+            "gap: 0.4em 0;" +
+            "padding-left: 0 !important;" +
+            "margin-left: 0 !important;" +
+            "margin-right: 0.5em;" +
+            "left: 0 !important;" +
+            "padding-right: 1em !important;" +
+            "box-sizing: border-box;" +
+        "}" +
+        ".full-start-new__rate-line > :first-child {" +
+            "margin-left: 0 !important;" +
+        "}" +
+        ".full-start-new__rate-line > * {" +
+            "margin-right: 0.85em !important;" +
+        "}" +
+        ".full-start-new__rate-line > .full-start__pg {" +
+            "margin-left: 0.55em !important;" +
+        "}" +
+        ".full-start__rate.rate--avg.maxsm-has-separator::after {" +
+            "content: '';" +
+            "display: block;" +
+            "width: 1px;" +
+            "height: 1.45em;" +
+            "margin-left: 0.55em;" +
+            "background: rgba(255,255,255,0.28);" +
+            "border-radius: 1px;" +
+            "pointer-events: none;" +
+        "}" +
         ".rate--blue   { color: #03A9F4; }" +
         ".rate--green  { color: #4caf50; }" +
         ".rate--lime   { color: #cddc39; }" +
@@ -171,24 +200,130 @@
         ".full-start__rate > div:last-child { padding: 0 !important; }" +
         ".jr { min-width: 5.0em; }" +
         ".rutor { min-width: 7.0em; }" +
-        ".maxsm-icon-container { display: inline-flex; align-items: center; justify-content: center; width: 1.288em; height: 1.288em; padding: 0 !important; margin: 0 !important; overflow: hidden; vertical-align: middle; line-height: 0; background: transparent !important; box-shadow: none !important; }" +
-        ".maxsm-icon-container svg { display: block; width: 100%; height: 100%; object-fit: contain; }" +
-        ".maxsm-source-text-hidden { display: none !important; }" +
-        ".full-start__rate > .maxsm-rating-leading-icon { display: inline-flex !important; align-items: center; justify-content: center; flex: 0 0 auto; width: 1.288em !important; height: 1.288em !important; padding: 0 !important; margin: 0 0.30em 0 !important; overflow: hidden; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
-        ".full-start__rate > .maxsm-rating-leading-icon svg { display: block; width: 100%; height: 100%; }" +
-        ".full-start__rate > .maxsm-source-icon { border-radius: 30% !important; }" +
-        ".full-start__rate > .maxsm-source-icon svg { border-radius: 30% !important; }" +
-        ".full-start__rate > .maxsm-average-icon { border-radius: 30% !important; color: inherit !important; }" +
-        ".full-start__rate > .maxsm-average-icon svg { border-radius: 30% !important; }" +
-        ".full-start__rate > .maxsm-average-icon.maxsm-average-rating-color svg path { fill: currentColor !important; }" +
-        ".rate--icon { display: inline-flex; align-items: center; justify-content: center; padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
-        ".full-start__rate { display: flex; align-items: center; font-family: 'Inter', sans-serif !important; padding: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; }" +
-        ".full-start__rate > div, .full-start__rate > span { padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }" +
-        ".full-start__rate > div:first-child { padding: 0 !important; margin: 0 !important; background: transparent !important; background-color: transparent !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }" +
-        ".full-start-new__rate-line .full-start__rate { padding: 0 !important; min-width: 0 !important; min-height: 0 !important; width: auto !important; height: auto !important; }" +
-        ".full-start-new__rate-line .full-start__rate > div, .full-start-new__rate-line .full-start__rate > span { padding: 0 !important; min-width: 0 !important; min-height: 0 !important; }" +
-        ".maxsm-source-disabled { display: none !important; }" +
-        ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type { font-family: 'Inter', sans-serif !important; font-size: 1.04em !important; font-weight: var(--maxsm-rating-font-weight, 500) !important; letter-spacing: -0.02em !important; line-height: 1.1; }" +
+        ".maxsm-icon-container {" +
+            "display: inline-flex;" +
+            "align-items: center;" +
+            "justify-content: center;" +
+            "width: 1.288em;" +
+            "height: 1.288em;" +
+            "padding: 0 !important;" +
+            "margin: 0 !important;" +
+            "overflow: hidden;" +
+            "vertical-align: middle;" +
+            "line-height: 0;" +
+            "background: transparent !important;" +
+            "box-shadow: none !important;" +
+        "}" +
+        ".maxsm-icon-container svg {" +
+            "display: block;" +
+            "width: 100%;" +
+            "height: 100%;" +
+            "object-fit: contain;" +
+        "}" +
+        ".maxsm-source-text-hidden {" +
+            "display: none !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-rating-leading-icon {" +
+            "display: inline-flex !important;" +
+            "align-items: center;" +
+            "justify-content: center;" +
+            "flex: 0 0 auto;" +
+            "width: 1.288em !important;" +
+            "height: 1.288em !important;" +
+            "padding: 0 !important;" +
+            "margin: 0 0.30em 0 0 !important;" +
+            "overflow: hidden;" +
+            "background: transparent !important;" +
+            "background-color: transparent !important;" +
+            "box-shadow: none !important;" +
+            "border: 0 !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-rating-leading-icon svg {" +
+            "display: block;" +
+            "width: 100%;" +
+            "height: 100%;" +
+        "}" +
+        ".full-start__rate > .maxsm-source-icon {" +
+            "border-radius: 30% !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-source-icon svg {" +
+            "border-radius: 30% !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-average-icon {" +
+            "border-radius: 30% !important;" +
+            "color: inherit !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-average-icon svg {" +
+            "border-radius: 30% !important;" +
+        "}" +
+        ".full-start__rate > .maxsm-average-icon.maxsm-average-rating-color svg path {" +
+            "fill: currentColor !important;" +
+        "}" +
+        ".rate--icon {" +
+            "display: inline-flex;" +
+            "align-items: center;" +
+            "justify-content: center;" +
+            "padding: 0 !important;" +
+            "margin: 0 !important;" +
+            "background: transparent !important;" +
+            "background-color: transparent !important;" +
+            "box-shadow: none !important;" +
+            "border: 0 !important;" +
+        "}" +
+        ".full-start__rate {" +
+            "display: flex;" +
+            "align-items: center;" +
+            "font-family: 'Inter', sans-serif !important;" +
+            "padding: 0 !important;" +
+            "background: transparent !important;" +
+            "background-color: transparent !important;" +
+            "box-shadow: none !important;" +
+            "border: 0 !important;" +
+        "}" +
+        ".full-start__rate > div, .full-start__rate > span {" +
+            "padding: 0 !important;" +
+            "margin: 0 !important;" +
+            "background: transparent !important;" +
+            "background-color: transparent !important;" +
+            "box-shadow: none !important;" +
+            "border: 0 !important;" +
+            "border-radius: 0 !important;" +
+        "}" +
+        ".full-start__rate > div:first-child {" +
+            "padding: 0 !important;" +
+            "margin: 0 !important;" +
+            "background: transparent !important;" +
+            "background-color: transparent !important;" +
+            "box-shadow: none !important;" +
+            "border: 0 !important;" +
+            "border-radius: 0 !important;" +
+        "}" +
+        ".full-start-new__rate-line .full-start__rate {" +
+            "padding: 0 !important;" +
+            "min-width: 0 !important;" +
+            "min-height: 0 !important;" +
+            "width: auto !important;" +
+            "height: auto !important;" +
+        "}" +
+        ".full-start-new__rate-line .full-start__rate > div, .full-start-new__rate-line .full-start__rate > span {" +
+            "padding: 0 !important;" +
+            "min-width: 0 !important;" +
+            "min-height: 0 !important;" +
+        "}" +
+        ".maxsm-source-disabled {" +
+            "display: none !important;" +
+        "}" +
+        /* Скрытие возрастного рейтинга */
+        ".maxsm-hide-pg .full-start__pg {" +
+            "display: none !important;" +
+        "}" +
+        ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
+            "font-family: 'Inter', sans-serif !important;" +
+            "font-size: 1.04em !important;" +
+            "font-weight: var(--maxsm-rating-font-weight, 500) !important;" +
+            "letter-spacing: -0.02em !important;" +
+            "line-height: 1.1;" +
+        "}" +
         "</style>";
 
     Lampa.Template.add('maxsm_ratings_css', style);
@@ -227,6 +362,12 @@
     function getRandomToken(arr) {
         if (!arr || !arr.length) return '';
         return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    /* Применение класса скрытия возрастного рейтинга */
+    function applyPgVisibility() {
+        var hidden = localStorage.getItem('maxsm_ratings_hide_pg') === 'true';
+        document.documentElement.classList.toggle('maxsm-hide-pg', hidden);
     }
 
     function fetchWithProxy(url, localCurrentCard, callback) {
@@ -278,11 +419,6 @@
     }
 
     //-----------------------------------------------------get---kinopoisk-------------------------------------
-    /*
-     * Оптимизация: KP-XML сначала пробуем напрямую (без прокси).
-     * Если за 1.5 сек прямой ответ не пришёл — параллельно идём через прокси.
-     * Если ни то, ни другое — fallback на KP API.
-     */
     function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
         if (normalizedCard.kinopoisk_id) {
             if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP by id: " + normalizedCard.kinopoisk_id);
@@ -373,7 +509,6 @@
                 });
             }, 1500);
 
-            /* Прямой запрос — быстрее всего */
             fetch(xmlUrl)
                 .then(function(response) {
                     if (!response.ok) throw new Error('HTTP ' + response.status);
@@ -605,13 +740,9 @@
             }
         }
 
-        /* Первый UI-рендер — сразу с данными от Lampa */
         updateUI();
 
-        /* ============================================================
-         * IMDb через OMDb — ПАРАЛЛЕЛЬНО с KP.
-         * Ключ живой, работает вне зависимости от KP.
-         * ============================================================ */
+        /* IMDb через OMDb — параллельно */
         if (!imdbExists && normalizedCard.imdb_id) {
             var omdbCache = Lampa.Storage.get(OMDB_CACHE) || {};
             var cachedOmdb = omdbCache[normalizedCard.imdb_id];
@@ -642,9 +773,7 @@
             }
         }
 
-        /* ============================================================
-         * Kinopoisk — параллельно.
-         * ============================================================ */
+        /* Kinopoisk — параллельно */
         var cachedKpData = getKpCache(initialCacheKey);
 
         if (cachedKpData) {
@@ -900,8 +1029,10 @@
         if (localStorage.getItem('maxsm_ratings_icon_style') === null) localStorage.setItem('maxsm_ratings_icon_style', '2');
         if (localStorage.getItem('maxsm_ratings_show_average') === null) localStorage.setItem('maxsm_ratings_show_average', 'true');
         if (localStorage.getItem('maxsm_ratings_font_weight') === null) localStorage.setItem('maxsm_ratings_font_weight', '500');
+        if (localStorage.getItem('maxsm_ratings_hide_pg') === null) localStorage.setItem('maxsm_ratings_hide_pg', 'false');
 
         applyRatingFontWeight();
+        applyPgVisibility();
 
         Lampa.SettingsApi.addComponent({
             component: "maxsm_ratings",
@@ -942,6 +1073,14 @@
             param: { name: "maxsm_ratings_source_tmdb", type: "trigger", default: false },
             field: { name: Lampa.Lang.translate("maxsm_ratings_source_tmdb"), description: '' },
             onChange: function() { refreshRatingSourceSettings(); }
+        });
+
+        // 2.5 Возрастной рейтинг
+        Lampa.SettingsApi.addParam({
+            component: "maxsm_ratings",
+            param: { name: "maxsm_ratings_hide_pg", type: "trigger", default: false },
+            field: { name: Lampa.Lang.translate("maxsm_ratings_pg"), description: '' },
+            onChange: function() { applyPgVisibility(); }
         });
 
         // 3. Цвета
@@ -1046,7 +1185,6 @@
         });
         domObserver.observe(document.body, { childList: true, subtree: true });
 
-        /* Один раз сразу */
         setTimeout(tryProcessCardInDom, 500);
     }
 
@@ -1223,17 +1361,6 @@
 })();
 
 /* ===== Integrated: date-hidden.js + UI toggle (fixed for current Lampa HTML) ===== */
-/* -------------------------------------------------------------------------
-   Integrated header date toggle
-   Based on date-hidden.js, adapted for current Lampa markup:
-   <div class="head__time">
-       <div class="head__time-now time--clock">10:09</div>
-       <div>
-           <div class="head__time-date time--full">7 Октября 2026</div>
-           <div class="head__time-week time--week">Среда</div>
-       </div>
-   </div>
---------------------------------------------------------------------------- */
 (function () {
     'use strict';
 
@@ -1259,19 +1386,13 @@
         if (forcedValue !== undefined) {
             return boolValue(forcedValue, false);
         }
-
-        return boolValue(
-            Lampa.Storage.get(SETTING, false),
-            false
-        );
+        return boolValue(Lampa.Storage.get(SETTING, false), false);
     }
 
     function exactDateSelector() {
         return [
-            '.head__time-date',
-            '.head__time-week',
-            '.header__date',
-            '.header__weekday',
+            '.head__time-date', '.head__time-week',
+            '.header__date', '.header__weekday',
             '.header__date-time .header__date',
             '.header__time .header__date',
             '.header__clock .header__date'
@@ -1280,12 +1401,10 @@
 
     function addStyles() {
         var current = document.getElementById(STYLE_ID);
-
         if (current && current.getAttribute('data-rating-date-toggle') !== '1') {
             if (current.parentNode) current.parentNode.removeChild(current);
             current = null;
         }
-
         if (current) return;
 
         var style = document.createElement('style');
@@ -1304,7 +1423,6 @@
             'html.' + HIDDEN_CLASS + ' .' + FALLBACK_CLASS + '{',
             '  display:none!important;',
             '}',
-
             'html.' + VISIBLE_CLASS + ' .head__time-date,',
             'html.' + VISIBLE_CLASS + ' .head__time-week{',
             '  display:block!important;',
@@ -1317,7 +1435,6 @@
 
     function dateTextMatch(text) {
         text = String(text || '').trim();
-
         return (
             /(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)/i.test(text) ||
             /20\d{2}/.test(text) ||
@@ -1327,12 +1444,10 @@
 
     function isClockElement(el) {
         if (!el || el.nodeType !== 1) return false;
-
         try {
             if (el.matches('.head__time-now, .time--clock')) return true;
             if (el.querySelector && el.querySelector('.head__time-now, .time--clock')) return true;
         } catch (e) {}
-
         return false;
     }
 
@@ -1341,39 +1456,27 @@
         if (!root || !root.querySelectorAll) return;
 
         var exact = root.querySelectorAll(exactDateSelector());
-        for (var i = 0; i < exact.length; i++) {
-            exact[i].classList.add(FALLBACK_CLASS);
-        }
+        for (var i = 0; i < exact.length; i++) exact[i].classList.add(FALLBACK_CLASS);
 
         var headerRoots = [];
-
         try {
-            if (root.matches && root.matches('.head, .header, .head__time')) {
-                headerRoots.push(root);
-            }
+            if (root.matches && root.matches('.head, .header, .head__time')) headerRoots.push(root);
         } catch (e) {}
-
         var roots = root.querySelectorAll('.head, .header, .head__time');
         for (var r = 0; r < roots.length; r++) headerRoots.push(roots[r]);
 
         for (var h = 0; h < headerRoots.length; h++) {
             var elements = headerRoots[h].querySelectorAll('*');
-
             for (var j = 0; j < elements.length; j++) {
                 var el = elements[j];
                 if (isClockElement(el)) continue;
                 if (!dateTextMatch(el.textContent)) continue;
-
                 var childContainsDate = false;
                 if (el.children && el.children.length) {
                     for (var c = 0; c < el.children.length; c++) {
-                        if (dateTextMatch(el.children[c].textContent)) {
-                            childContainsDate = true;
-                            break;
-                        }
+                        if (dateTextMatch(el.children[c].textContent)) { childContainsDate = true; break; }
                     }
                 }
-
                 if (!childContainsDate) el.classList.add(FALLBACK_CLASS);
             }
         }
@@ -1397,7 +1500,6 @@
         var headers = root.querySelectorAll('.head, .header, .head__time');
         for (var h = 0; h < headers.length; h++) {
             var all = headers[h].querySelectorAll('*');
-
             for (var j = 0; j < all.length; j++) {
                 var el = all[j];
                 if (isClockElement(el)) continue;
@@ -1410,12 +1512,9 @@
 
     function applySetting(forcedValue) {
         addStyles();
-
         var visible = dateVisible(forcedValue);
         var html = document.documentElement;
-
         if (!html) return;
-
         html.classList.toggle(HIDDEN_CLASS, !visible);
         html.classList.toggle(VISIBLE_CLASS, visible);
 
@@ -1429,31 +1528,23 @@
 
     function rescanBurst(forcedValue) {
         if (rescanTimer) clearInterval(rescanTimer);
-
         var count = 0;
         rescanTimer = setInterval(function () {
             applySetting(forcedValue);
             count++;
-            if (count >= 8) {
-                clearInterval(rescanTimer);
-                rescanTimer = null;
-            }
+            if (count >= 8) { clearInterval(rescanTimer); rescanTimer = null; }
         }, 250);
     }
 
     function observeDom() {
         if (observer || typeof MutationObserver === 'undefined' || !document.body) return;
-
         observer = new MutationObserver(function (mutations) {
             var visible = dateVisible();
-
             for (var i = 0; i < mutations.length; i++) {
                 var nodes = mutations[i].addedNodes || [];
-
                 for (var j = 0; j < nodes.length; j++) {
                     var node = nodes[j];
                     if (!node || node.nodeType !== 1) continue;
-
                     if (visible) {
                         restoreInlineDateStyles(node);
                     } else {
@@ -1462,13 +1553,11 @@
                                 node.classList.add(FALLBACK_CLASS);
                             }
                         } catch (e) {}
-
                         markFallbackDateNodes(node);
                     }
                 }
             }
         });
-
         observer.observe(document.body, { childList: true, subtree: true });
     }
 
@@ -1478,11 +1567,7 @@
 
         Lampa.SettingsApi.addParam({
             component: 'interface',
-            param: {
-                name: SETTING,
-                type: 'trigger',
-                'default': false
-            },
+            param: { name: SETTING, type: 'trigger', 'default': false },
             field: {
                 name: 'Дата в шапке',
                 description: 'Показывать дату и день недели. Время отображается всегда.'
@@ -1515,11 +1600,6 @@
         observeDom();
     }
 
-    if (window.appready) {
-        startPlugin();
-    } else {
-        Lampa.Listener.follow('app', function (e) {
-            if (e.type === 'ready') startPlugin();
-        });
-    }
+    if (window.appready) startPlugin();
+    else Lampa.Listener.follow('app', function (e) { if (e.type === 'ready') startPlugin(); });
 })();
