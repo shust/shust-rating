@@ -31,21 +31,18 @@
 
     var imdb_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<g clip-path=\"url(#clip0_1219_60)\">\n<path d=\"M201.5 0.5V201.5H0.5V0.5H201.5ZM25.25 72.5938V129.406H41.0312V72.5938H25.25ZM47.3438 72.5938V129.406H60.7314L60.7832 91.8906L66.4189 129.406H75.9502L81.2998 91.0635L81.3389 129.406H94.6875V72.5938H74.7168L71.1846 99.1328L68.9902 84.6982C68.354 80.0746 67.7435 76.0396 67.1592 72.5938H47.3438ZM101 72.5938V129.406H125.633C131.21 129.406 135.719 124.917 135.719 119.38V82.6201C135.719 77.0757 131.203 72.5938 125.633 72.5938H101ZM142.031 72.5938V128.677H156.184L157.093 125.203C158.95 127.745 162.015 129.406 165.481 129.406H166.49C172.158 129.406 176.75 124.972 176.75 119.502V96.7227C176.75 91.2555 172.156 86.8184 166.49 86.8184H165.481C162.089 86.8185 159.083 88.4075 157.132 90.8389V72.5938H142.031ZM159.49 95.6006C160.323 95.6006 161.511 96.0322 161.809 96.7041C162.106 97.376 162.249 98.8362 162.249 101.061V114.522C162.249 117.059 162.118 118.67 161.856 119.33C161.595 119.99 160.347 120.34 159.49 120.34C158.634 120.34 157.409 119.979 157.123 119.33V96.542C157.373 95.9514 158.657 95.6007 159.49 95.6006ZM115.843 82.3174C117.585 82.3174 118.782 82.48 119.408 82.8184C120.048 83.1567 120.442 83.6834 120.619 84.4102C120.796 85.1371 120.892 86.7784 120.892 89.3467V111.375C120.892 115.159 120.62 117.465 120.089 118.317C119.558 119.182 118.142 119.595 115.843 119.595V82.3174Z\" fill=\"#F5C518\"/>\n</g>\n<defs>\n<clipPath id=\"clip0_1219_60\">\n<rect width=\"202\" height=\"202\" fill=\"white\"/>\n</clipPath>\n</defs>\n</svg>";
 
-    /* Цветной Кинопоиск: оранжевый фон, буква K — прозрачный вырез */
     var kp_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
         "<path fill=\"#FF5500\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"" +
         "M45 0H157C181.853 0 202 20.1472 202 45V157C202 181.853 181.853 202 157 202H45C20.1472 202 0 181.853 0 157V45C0 20.1472 20.1472 0 45 0Z " +
         "M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\"/>" +
         "</svg>";
 
-    /* Белый Кинопоиск: белый фон, буква K — прозрачный вырез */
     var kp_white_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
         "<path fill=\"white\" fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"" +
         "M45 0H157C181.853 0 202 20.1472 202 45V157C202 181.853 181.853 202 157 202H45C20.1472 202 0 181.853 0 157V45C0 20.1472 20.1472 0 45 0Z " +
         "M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\"/>" +
         "</svg>";
 
-    /* Полупрозрачный Кинопоиск: полупрозрачный фон, БЕЛАЯ буква K */
     var kp_translucent_svg = "<svg width=\"202\" height=\"202\" viewBox=\"0 0 202 202\" xmlns=\"http://www.w3.org/2000/svg\">" +
         "<rect width=\"202\" height=\"202\" rx=\"45\" fill=\"white\" fill-opacity=\"0.2\"/>" +
         "<path d=\"M41 41H61.7432V84.5449L93.1143 41H118.657L72.5771 88.3301L161 41V63.2861L81.9473 94.9971L161 89.8574V112.143L81.4434 106.798L161 138.714V161L73.7734 115.158L118.657 161H93.1143L61.7432 117.526V161H41V41Z\" fill=\"white\"/>" +
@@ -146,7 +143,7 @@
         }
     });
 
-    // Стили
+    // Стили модалки
     var modalStyle = "<style id=\"maxsm_ratings_modal\">" +
         ".maxsm-modal-ratings { padding: 1.25em; font-size: 1.4em; line-height: 1.6; }" +
         ".maxsm-modal-rating-line { padding: 0.5em 0; border-bottom: 0.0625em solid rgba(255, 255, 255, 0.1); }" +
@@ -310,7 +307,11 @@
             "min-width: 0 !important;" +
             "min-height: 0 !important;" +
         "}" +
-         ".maxsm-source-disabled {" +
+        ".maxsm-source-disabled {" +
+            "display: none !important;" +
+        "}" +
+        "html.maxsm-hide-pg .full-start__pg," +
+        "html.maxsm-hide-pg .full-start-new__rate-line > .full-start__pg {" +
             "display: none !important;" +
         "}" +
         ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
@@ -320,38 +321,24 @@
             "letter-spacing: -0.02em !important;" +
             "line-height: 1.1;" +
         "}" +
-        /* Скрываем возрастной рейтинг */ +
-        ".full-start__pg {" +
-            "display: none !important;" +
-        "}" +
         "</style>";
 
     Lampa.Template.add('maxsm_ratings_css', style);
     $('body').append(Lampa.Template.get('maxsm_ratings_css', {}, true));
 
-    // Глобальная переменная текущей карточки
     var globalCurrentCard = null;
 
-    // Переменные настройки
     var C_LOGGING = false;
     var CACHE_TIME = 3 * 24 * 60 * 60 * 1000;
     var KP_CACHE = 'maxsm_ratings_kp_cache';
     var ID_MAPPING_CACHE = 'maxsm_ratings_id_mapping_cache';
     var OMDB_CACHE = 'maxsm_ratings_omdb_cache';
 
-    /* ВАШ личный ключ Kinopoisk */
     var KP_API_KEYS = (window.RATINGS_PLUGIN_TOKENS && window.RATINGS_PLUGIN_TOKENS.KP_API_KEYS) || ['3c47e3a8-a70f-447c-80a7-8ce15d93e66e'];
-
-    /* OMDb — для IMDb */
     var OMDB_API_KEYS = ['73ff4450', '4a3b71a1', 'b9a5e69d'];
 
-    /* Быстрый таймаут прокси — 2.5 секунды вместо 5 */
     var PROXY_TIMEOUT = 2500;
-
-    /* Один прокси вместо двух — убирает гонку и лишние запросы */
-    var PROXY_LIST = [
-        'https://cors.bwa.workers.dev/'
-    ];
+    var PROXY_LIST = ['https://cors.bwa.workers.dev/'];
 
     var WEIGHTS = {
         imdb: 0.35,
@@ -365,9 +352,26 @@
     }
 
     /* Применение класса скрытия возрастного рейтинга */
-    function applyPgVisibility() {
-        var hidden = localStorage.getItem('maxsm_ratings_hide_pg') === 'true';
-        document.documentElement.classList.toggle('maxsm-hide-pg', hidden);
+    function applyPgVisibility(value) {
+        var hidden;
+
+        if (value !== undefined && value !== null) {
+            hidden = (value === true || value === 'true' || value === 1 || value === '1');
+            try { Lampa.Storage.set('maxsm_ratings_hide_pg', hidden); } catch (e) {}
+        } else {
+            var stored = false;
+            try { stored = Lampa.Storage.get('maxsm_ratings_hide_pg', false); } catch (e) {}
+            hidden = (stored === true || stored === 'true' || stored === 1 || stored === '1');
+        }
+
+        var html = document.documentElement;
+        if (!html) return;
+
+        if (hidden) {
+            html.classList.add('maxsm-hide-pg');
+        } else {
+            html.classList.remove('maxsm-hide-pg');
+        }
     }
 
     function fetchWithProxy(url, localCurrentCard, callback) {
@@ -495,12 +499,11 @@
         function fetchRatings(filmId, localCurrentCard) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
 
-            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML direct: " + xmlUrl);
+            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML: " + xmlUrl);
 
             var directDone = false;
             var directTimer = setTimeout(function() {
                 if (directDone) return;
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML slow, fallback to proxy");
                 fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
                     if (directDone) return;
                     directDone = true;
@@ -518,13 +521,11 @@
                     clearTimeout(directTimer);
                     if (directDone) return;
                     directDone = true;
-                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML direct OK");
                     parseXml(xmlText, localCurrentCard, filmId);
                 })
                 .catch(function() {
                     clearTimeout(directTimer);
                     if (directDone) return;
-                    if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", KP XML direct failed, try proxy");
                     fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
                         if (directDone) return;
                         directDone = true;
@@ -668,13 +669,10 @@
         } catch (e) {}
     }
 
-    // Основная функция
     function fetchAdditionalRatings(card, render) {
         if (!render) return;
 
         var localCurrentCard = card.id;
-
-        if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", Start", card);
 
         var normalizedCard = {
             id: card.id,
@@ -742,7 +740,7 @@
 
         updateUI();
 
-        /* IMDb через OMDb — параллельно */
+        /* IMDb через OMDb — параллельно с KP */
         if (!imdbExists && normalizedCard.imdb_id) {
             var omdbCache = Lampa.Storage.get(OMDB_CACHE) || {};
             var cachedOmdb = omdbCache[normalizedCard.imdb_id];
@@ -754,8 +752,6 @@
                 var omdbKey = getRandomToken(OMDB_API_KEYS);
                 var omdbUrl = 'https://www.omdbapi.com/?apikey=' + omdbKey + '&i=' + normalizedCard.imdb_id;
 
-                if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", OMDb: " + omdbUrl);
-
                 new Lampa.Reguest().silent(omdbUrl, function(data) {
                     if (data && data.Response === 'True' && data.imdbRating && data.imdbRating !== 'N/A') {
                         var imdb = parseFloat(data.imdbRating);
@@ -763,7 +759,6 @@
                             ratingsData.imdb = imdb;
                             omdbCache[normalizedCard.imdb_id] = { imdb: imdb, timestamp: Date.now() };
                             Lampa.Storage.set(OMDB_CACHE, omdbCache);
-                            if (C_LOGGING) console.log("MAXSM-RATINGS", "card: " + localCurrentCard + ", OMDb imdb: " + imdb);
                         }
                     }
                     scheduleUI();
@@ -790,7 +785,6 @@
         }
     }
 
-    //-------------------------------------------MODALKA---------------------------------------------------------
     function showRatingsModal(cardId, render) {
         var showColors = localStorage.getItem('maxsm_ratings_colors') === 'true';
         var modalContent = $('<div class="maxsm-modal-ratings"></div>');
@@ -1013,10 +1007,10 @@
         rateLine.data('maxsm-processed', true);
         globalCurrentCard = movie.id;
 
+        applyPgVisibility();
         fetchAdditionalRatings(movie, render);
     }
 
-    // Инициализация плагина
     function startPlugin() {
         window.maxsmRatingsPlugin = true;
 
@@ -1075,12 +1069,12 @@
             onChange: function() { refreshRatingSourceSettings(); }
         });
 
-        // 2.5 Возрастной рейтинг
+        // 2.5. Возрастной рейтинг
         Lampa.SettingsApi.addParam({
             component: "maxsm_ratings",
             param: { name: "maxsm_ratings_hide_pg", type: "trigger", default: false },
             field: { name: Lampa.Lang.translate("maxsm_ratings_pg"), description: '' },
-            onChange: function() { applyPgVisibility(); }
+            onChange: function(value) { applyPgVisibility(value); }
         });
 
         // 3. Цвета
@@ -1153,28 +1147,36 @@
             }
         });
 
-        /* Основной триггер */
+        // Основной триггер
         Lampa.Listener.follow('full', function(e) {
             if (e.type == 'complite') {
                 var render = e.object.activity.render();
                 globalCurrentCard = e.data.movie.id;
+                applyPgVisibility();
                 fetchAdditionalRatings(e.data.movie, render);
             }
         });
 
-        /* Резервный триггер для source=tmdb */
+        // Резервный триггер
         Lampa.Listener.follow('activity', function (e) {
             if (e.type !== 'render' && e.type !== 'start') return;
             setTimeout(tryProcessCardInDom, 300);
         });
 
-        /* MutationObserver — ловит появление карточки в DOM */
+        // MutationObserver
         var domObserver = new MutationObserver(function(mutations) {
             for (var i = 0; i < mutations.length; i++) {
                 var nodes = mutations[i].addedNodes || [];
                 for (var j = 0; j < nodes.length; j++) {
                     var node = nodes[j];
                     if (!node || node.nodeType !== 1) continue;
+
+                    try {
+                        if ($(node).is('.full-start__pg') || $(node).find('.full-start__pg').length) {
+                            applyPgVisibility();
+                        }
+                    } catch (e) {}
+
                     if ($(node).is('.full-start-new__rate-line') ||
                         $(node).find('.full-start-new__rate-line').length) {
                         setTimeout(tryProcessCardInDom, 100);
@@ -1360,7 +1362,7 @@
     else Lampa.Listener.follow('app', function (e) { if (e.type === 'ready') startPlugin(); });
 })();
 
-/* ===== Integrated: date-hidden.js + UI toggle (fixed for current Lampa HTML) ===== */
+/* ===== Integrated: date-hidden.js + UI toggle ===== */
 (function () {
     'use strict';
 
@@ -1383,9 +1385,7 @@
     }
 
     function dateVisible(forcedValue) {
-        if (forcedValue !== undefined) {
-            return boolValue(forcedValue, false);
-        }
+        if (forcedValue !== undefined) return boolValue(forcedValue, false);
         return boolValue(Lampa.Storage.get(SETTING, false), false);
     }
 
