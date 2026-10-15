@@ -316,13 +316,15 @@
             "display: none !important;" +
         "}" +
         /* Фиксированная ширина блоков IMDb и KP */
-        ".rate--imdb, .rate--kp {" +
+        ".full-start-new__rate-line .rate--imdb," +
+        ".full-start-new__rate-line .rate--kp {" +
             "min-width: 5.4em !important;" +
             "display: inline-flex !important;" +
             "align-items: center;" +
             "justify-content: flex-start;" +
         "}" +
-         ".rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
+        ".full-start-new__rate-line .rate--imdb > div:first-of-type," +
+        ".full-start-new__rate-line .rate--kp > div:first-of-type {" +
             "width: 1.6em !important;" +
             "text-align: left;" +
         "}" +
