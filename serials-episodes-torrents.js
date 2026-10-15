@@ -25,24 +25,54 @@
         return null;
     }
 
+    // Сезон из заголовка "Сезон 2"
     function findSeason(el) {
+        // 1. От .items-line (страница сериала)
         var line = el.closest ? el.closest('.items-line') : null;
-        if (!line) return null;
-        var t = line.querySelector('.items-line__title');
-        if (!t) return null;
-        var m = t.textContent.trim().match(/Сезон\s+(\d+)/i);
-        return m ? parseInt(m[1], 10) : null;
+        if (line) {
+            var t = line.querySelector('.items-line__title');
+            if (t) {
+                var m = t.textContent.trim().match(/Сезон\s+(\d+)/i);
+                if (m) return parseInt(m[1], 10);
+            }
+        }
+
+        // 2. От .mapping--list (модалка сезона) — берём активный сезон из .selectbox
+        var selectboxItem = document.querySelector('.selectbox-item.selected .selectbox-item__title');
+        if (selectboxItem) {
+            var sm = selectboxItem.textContent.trim().match(/Сезон\s+(\d+)/i);
+            if (sm) return parseInt(sm[1], 10);
+        }
+
+        // 3. Fallback — из активной Activity
+        try {
+            var a = Lampa.Activity.active();
+            if (a && a.season) return a.season;
+        } catch (e) {}
+
+        return null;
     }
 
+    // Номер серии — работает для обоих типов
     function getEpNum(el) {
+        // .full-episode__num
         var n = el.querySelector('.full-episode__num');
-        if (!n) return null;
-        var v = parseInt(n.textContent.trim(), 10);
-        return isNaN(v) ? null : v;
+        if (n) {
+            var v = parseInt(n.textContent.trim(), 10);
+            if (!isNaN(v)) return v;
+        }
+        // .season-episode__episode-number
+        var sn = el.querySelector('.season-episode__episode-number');
+        if (sn) {
+            var sv = parseInt(sn.textContent.trim(), 10);
+            if (!isNaN(sv)) return sv;
+        }
+        return null;
     }
 
+    // Название серии — работает для обоих типов
     function getEpName(el) {
-        var n = el.querySelector('.full-episode__name');
+        var n = el.querySelector('.full-episode__name') || el.querySelector('.season-episode__title');
         return n ? n.textContent.trim() : '';
     }
 
@@ -52,15 +82,14 @@
             || document.querySelector('.full-episode--small.hover')
             || document.querySelector('.full-episode.focus')
             || document.querySelector('.full-episode.hover')
-            || document.querySelector('.full-episode--small.selector.focus');
+            || document.querySelector('.season-episode.focus')
+            || document.querySelector('.season-episode.hover');
     }
 
-    // Открыт ли попап выбора действия на серии
     function isPopupOpen() {
         return document.querySelector('.ep-popup-layer') !== null;
     }
 
-    // Находимся ли на странице торрентов
     function isTorrentsOpen() {
         return document.querySelector('.explorer__files') !== null;
     }
@@ -79,7 +108,6 @@
         season  = parseInt(season, 10)  || 1;
         episode = parseInt(episode, 10) || 1;
 
-        // Контекст в карточку и активность
         card.season  = season;
         card.episode = episode;
 
@@ -93,15 +121,12 @@
             }
         } catch (e) {}
 
-        // Метаданные для поиска
         var search    = card.title || card.name || '';
         var searchOne = card.original_title || card.original_name || '';
         var searchTwo = card.name || card.title || '';
 
-        // Сохраняем фильтр
         setTorrentFilter(season, episode);
 
-        // Открываем торренты через Activity.push
         try {
             log('using Activity.push torrents');
             Lampa.Activity.push({
@@ -120,7 +145,6 @@
             log('Activity.push failed', e);
         }
 
-        // Fallback — клик по кнопке
         var btn = document.querySelector('.full-start__button.view--torrent')
                || document.querySelector('.full-start__button.button--priority');
         if (btn) {
@@ -143,7 +167,6 @@
 
             if (divs[0]) {
                 var s = divs[0].textContent.trim();
-                // Поддерживаем "S8", "S1-8"
                 var single = s.match(/^S(\d+)$/i);
                 var range  = s.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
                 if (range) {
@@ -166,14 +189,12 @@
             if (season !== null) return { season: season, from: from, to: to };
         }
 
-        // Fallback из title
         var title = item.querySelector('.torrent-item__title');
         if (!title) return null;
         var t = title.textContent;
 
         var season = null, from = null, to = null;
 
-        // "2 сезон" / "1-8 сезоны" / "Сезон 2" / "5-8 сезон"
         var r1 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сезон/i);
         if (r1) season = { from: parseInt(r1[1], 10), to: parseInt(r1[2], 10) };
         if (season === null) {
@@ -181,7 +202,6 @@
             if (s1) season = parseInt(s1[1], 10);
         }
 
-        // "02х01-03" / "S02E01"
         var r2 = t.match(/(\d+)\s*[хx]\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
         if (r2) {
             if (season === null) season = parseInt(r2[1], 10);
@@ -195,15 +215,12 @@
             to   = r2b[3] ? parseInt(r2b[3], 10) : from;
         }
 
-        // "1-4 серии" / "1-73 серии"
         var r3 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сери/i);
         if (r3) { from = parseInt(r3[1], 10); to = parseInt(r3[2], 10); }
 
-        // "Серии: 1-4 из"
         var r3b = t.match(/серии?[:\s]+(\d+)\s*[-–]\s*(\d+)/i);
         if (r3b && from === null) { from = parseInt(r3b[1], 10); to = parseInt(r3b[2], 10); }
 
-        // "серия 4"
         if (from === null) {
             var r4 = t.match(/серия[:\s]+(\d+)/i);
             if (r4) { from = parseInt(r4[1], 10); to = from; }
@@ -215,18 +232,13 @@
 
     function matchFilter(range, season, episode) {
         if (!range) return true;
-
-        // Сезон
         if (range.season !== null) {
             if (typeof range.season === 'object') {
-                // диапазон сезонов: S1-8
                 if (season < range.season.from || season > range.season.to) return false;
             } else {
                 if (range.season !== season) return false;
             }
         }
-
-        // Серия
         if (range.from !== null && range.to !== null) {
             return episode >= range.from && episode <= range.to;
         }
@@ -305,7 +317,6 @@
         log('set filter S' + season + 'E' + episode);
         applyTorrentFilter._warned = false;
 
-        // Ждём появления торрентов
         var tries = 0;
         var t = setInterval(function () {
             tries++;
@@ -382,7 +393,7 @@
                 _toggle: true
             },
             {
-                title: 'Открыть торренты',
+                title: '⛊  Открыть торренты',
                 _torrent: true
             }
         ];
@@ -398,7 +409,6 @@
                     if (item._toggle) {
                         markViewed(cardEl, !isViewed);
                     } else if (item._torrent) {
-                        // Закрываем попап и только потом открываем торренты
                         if (Lampa.Controller && Lampa.Controller.toggle) {
                             Lampa.Controller.toggle('content');
                         }
@@ -424,8 +434,6 @@
     }
 
     // ================= ПЕРЕХВАТ OK =================
-    // Активный контроллер в Lampa на странице сериала — 'full_start'.
-    // Перехватываем его через Controller.trigger('enter') и Controller.enter.
 
     function installControllerHook() {
         if (!window.Lampa || !Lampa.Controller) return false;
@@ -433,12 +441,10 @@
 
         log('installing Controller hooks');
 
-        // --- Перехват trigger('enter'/'select') ---
         var origTrigger = Lampa.Controller.trigger;
         if (typeof origTrigger === 'function') {
             Lampa.Controller.trigger = function (name, params) {
                 if (name === 'enter' || name === 'select') {
-                    // Не перехватываем если открыт попап или торренты
                     if (isPopupOpen() || isTorrentsOpen()) {
                         return origTrigger.apply(this, arguments);
                     }
@@ -462,11 +468,9 @@
             };
         }
 
-        // --- Перехват enter() ---
         var origEnter = Lampa.Controller.enter;
         if (typeof origEnter === 'function') {
             Lampa.Controller.enter = function () {
-                // Не перехватываем если открыт попап или торренты
                 if (isPopupOpen() || isTorrentsOpen()) {
                     return origEnter.apply(this, arguments);
                 }
@@ -534,15 +538,18 @@
         installClickFallback.done = true;
 
         document.addEventListener('click', function (e) {
-            var card = e.target.closest ? e.target.closest('.full-episode--small') : null;
+            // Обрабатываем и .full-episode--small, и .season-episode
+            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
             if (!card) return;
             if (card.classList.contains('card-more')) return;
+
+            // .season-info — это заголовок сезона, не серия
+            if (card.classList.contains('season-info')) return;
 
             var season = findSeason(card);
             var ep = getEpNum(card);
             if (season === null || ep === null) return;
 
-            // Не срабатываем на странице торрентов
             if (isTorrentsOpen()) return;
             if (isPopupOpen()) return;
 
@@ -559,15 +566,16 @@
 
         // Долгий тап мышью
         document.addEventListener('mousedown', function (e) {
-            var card = e.target.closest ? e.target.closest('.full-episode--small') : null;
+            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
             if (!card) return;
+            if (card.classList.contains('season-info')) return;
             card.__lpTimer = setTimeout(function () {
                 longPressed = true;
                 openPopup(card);
             }, LONG_PRESS_MS);
         }, true);
         document.addEventListener('mouseup', function (e) {
-            var card = e.target.closest ? e.target.closest('.full-episode--small') : null;
+            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
             if (card && card.__lpTimer) {
                 clearTimeout(card.__lpTimer);
                 card.__lpTimer = null;
