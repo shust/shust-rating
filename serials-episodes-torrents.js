@@ -55,6 +55,16 @@
             || document.querySelector('.full-episode--small.selector.focus');
     }
 
+    // Открыт ли попап выбора действия на серии
+    function isPopupOpen() {
+        return document.querySelector('.ep-popup-layer') !== null;
+    }
+
+    // Находимся ли на странице торрентов
+    function isTorrentsOpen() {
+        return document.querySelector('.explorer__files') !== null;
+    }
+
     // ================= ОТКРЫТИЕ ТОРРЕНТОВ =================
 
     function openTorrents(season, episode) {
@@ -372,7 +382,7 @@
                 _toggle: true
             },
             {
-                title: '⛊  Открыть торренты',
+                title: 'Открыть торренты',
                 _torrent: true
             }
         ];
@@ -388,7 +398,14 @@
                     if (item._toggle) {
                         markViewed(cardEl, !isViewed);
                     } else if (item._torrent) {
-                        openTorrents(season, ep);
+                        // Закрываем попап и только потом открываем торренты
+                        if (Lampa.Controller && Lampa.Controller.toggle) {
+                            Lampa.Controller.toggle('content');
+                        }
+                        setTimeout(function () {
+                            openTorrents(season, ep);
+                        }, 300);
+                        return;
                     }
                     if (Lampa.Controller && Lampa.Controller.toggle) {
                         Lampa.Controller.toggle('content');
@@ -408,7 +425,7 @@
 
     // ================= ПЕРЕХВАТ OK =================
     // Активный контроллер в Lampa на странице сериала — 'full_start'.
-    // Перехватываем его через Controller.trigger('enter') и через Controller.enter.
+    // Перехватываем его через Controller.trigger('enter') и Controller.enter.
 
     function installControllerHook() {
         if (!window.Lampa || !Lampa.Controller) return false;
@@ -416,11 +433,16 @@
 
         log('installing Controller hooks');
 
-        // --- Перехват trigger('enter') ---
+        // --- Перехват trigger('enter'/'select') ---
         var origTrigger = Lampa.Controller.trigger;
         if (typeof origTrigger === 'function') {
             Lampa.Controller.trigger = function (name, params) {
                 if (name === 'enter' || name === 'select') {
+                    // Не перехватываем если открыт попап или торренты
+                    if (isPopupOpen() || isTorrentsOpen()) {
+                        return origTrigger.apply(this, arguments);
+                    }
+
                     var focused = getFocusedEpisode();
                     if (focused) {
                         if (longPressed) {
@@ -444,6 +466,11 @@
         var origEnter = Lampa.Controller.enter;
         if (typeof origEnter === 'function') {
             Lampa.Controller.enter = function () {
+                // Не перехватываем если открыт попап или торренты
+                if (isPopupOpen() || isTorrentsOpen()) {
+                    return origEnter.apply(this, arguments);
+                }
+
                 var focused = getFocusedEpisode();
                 if (focused) {
                     if (longPressed) {
@@ -516,7 +543,8 @@
             if (season === null || ep === null) return;
 
             // Не срабатываем на странице торрентов
-            if (document.querySelector('.explorer__files')) return;
+            if (isTorrentsOpen()) return;
+            if (isPopupOpen()) return;
 
             e.preventDefault();
             e.stopPropagation();
