@@ -25,10 +25,16 @@
         return null;
     }
 
-    // Сезон из заголовка "Сезон 2"
+    // Сезон из контекста
     function findSeason(el) {
-        // 1. От .items-line (страница сериала)
-        var line = el.closest ? el.closest('.items-line') : null;
+        // 1. Активный Activity — самый надёжный источник
+        try {
+            var a = Lampa.Activity.active();
+            if (a && a.season) return parseInt(a.season, 10);
+        } catch (e) {}
+
+        // 2. Из заголовка .items-line ("Сезон 2")
+        var line = el && el.closest ? el.closest('.items-line') : null;
         if (line) {
             var t = line.querySelector('.items-line__title');
             if (t) {
@@ -37,53 +43,51 @@
             }
         }
 
-        // 2. От .mapping--list (модалка сезона) — берём активный сезон из .selectbox
+        // 3. Из модалки выбора сезона
         var selectboxItem = document.querySelector('.selectbox-item.selected .selectbox-item__title');
         if (selectboxItem) {
             var sm = selectboxItem.textContent.trim().match(/Сезон\s+(\d+)/i);
             if (sm) return parseInt(sm[1], 10);
         }
 
-        // 3. Fallback — из активной Activity
-        try {
-            var a = Lampa.Activity.active();
-            if (a && a.season) return a.season;
-        } catch (e) {}
-
         return null;
     }
 
-    // Номер серии — работает для обоих типов
+    // Номер серии — работает для обоих типов карточек
     function getEpNum(el) {
-        // .full-episode__num
+        if (!el) return null;
+
+        // .full-episode__num (страница сериала)
         var n = el.querySelector('.full-episode__num');
         if (n) {
             var v = parseInt(n.textContent.trim(), 10);
             if (!isNaN(v)) return v;
         }
-        // .season-episode__episode-number
+
+        // .season-episode__episode-number (модалка сезона)
         var sn = el.querySelector('.season-episode__episode-number');
         if (sn) {
             var sv = parseInt(sn.textContent.trim(), 10);
             if (!isNaN(sv)) return sv;
         }
+
         return null;
     }
 
-    // Название серии — работает для обоих типов
     function getEpName(el) {
+        if (!el) return '';
         var n = el.querySelector('.full-episode__name') || el.querySelector('.season-episode__title');
         return n ? n.textContent.trim() : '';
     }
 
-    // Сфокусированная серия. Ищем по классам .focus и .hover
+    // Сфокусированная серия
     function getFocusedEpisode() {
-        return document.querySelector('.full-episode--small.focus')
+        return document.querySelector('.season-episode.focus')
+            || document.querySelector('.season-episode.hover')
+            || document.querySelector('.full-episode--small.focus')
             || document.querySelector('.full-episode--small.hover')
             || document.querySelector('.full-episode.focus')
-            || document.querySelector('.full-episode.hover')
-            || document.querySelector('.season-episode.focus')
-            || document.querySelector('.season-episode.hover');
+            || document.querySelector('.full-episode.hover');
     }
 
     function isPopupOpen() {
@@ -157,57 +161,133 @@
         if (window.Lampa && Lampa.Noty) Lampa.Noty.show('Не удалось открыть торренты');
     }
 
+    // ================= ПАРСЕР .m-general =================
+
+    // Разбирает "S13" / "S1-8" / "S131-3" / "S11-8" / "S2"
+    function parseGeneral(raw) {
+        if (!raw) return null;
+
+        raw = String(raw).trim();
+
+        // Нормальный случай: "S13" / "S1-8"
+        var m1 = raw.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
+        if (m1) {
+            return {
+                season: { from: parseInt(m1[1], 10), to: parseInt(m1[2], 10) },
+                from: null, to: null
+            };
+        }
+
+        // "S13"
+        var m2 = raw.match(/^S(\d+)$/i);
+        if (m2) {
+            return { season: parseInt(m2[1], 10), from: null, to: null };
+        }
+
+        // Слипшийся формат: "S131-3", "S11-8", "S41-4"
+        var m3 = raw.match(/^S(\d+)\s*[-–]\s*(\d+)$/i);
+        if (m3) {
+            var left  = m3[1]; // "131", "11", "41"
+            var right = m3[2]; // "3", "8", "4"
+
+            var season = null, from = null, to = null;
+
+            if (left.length === 1) {
+                // "S1-3" — сезон 1, диапазон 1-3? Или серия 1-3?
+                // Скорее всего это "S1" и серия-диапазон не указана, а 1-3 — сезон 1-3
+                season = { from: parseInt(left, 10), to: parseInt(right, 10) };
+            } else if (left.length === 2) {
+                // "S11-8" или "S41-4"
+                // Сезон = 1 или 4, серия от = 1 или 1, серия до = 8 или 4
+                season = parseInt(left[0], 10);
+                from = parseInt(left[1], 10);
+                to = parseInt(right, 10);
+            } else if (left.length === 3) {
+                // "S131-3"
+                // Сезон = 13, серия от = 1, серия до = 3
+                season = parseInt(left.substring(0, 2), 10);
+                from = parseInt(left[2], 10);
+                to = parseInt(right, 10);
+            } else {
+                // 4+ цифр — маловероятно, но пусть будет
+                season = parseInt(left.substring(0, left.length - 1), 10);
+                from = parseInt(left[left.length - 1], 10);
+                to = parseInt(right, 10);
+            }
+
+            return { season: season, from: from, to: to };
+        }
+
+        return null;
+    }
+
     // ================= ФИЛЬТР ТОРРЕНТОВ =================
 
     function parseTorrentRange(item) {
         var gen = item.querySelector('.m-general');
         if (gen) {
             var divs = gen.querySelectorAll('div');
-            var season = null, from = null, to = null;
 
-            if (divs[0]) {
+            if (divs.length >= 2) {
+                // Нормальная структура с двумя div
                 var s = divs[0].textContent.trim();
-                var single = s.match(/^S(\d+)$/i);
-                var range  = s.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
-                if (range) {
-                    season = { from: parseInt(range[1], 10), to: parseInt(range[2], 10) };
-                } else if (single) {
-                    season = parseInt(single[1], 10);
-                }
-            }
-            if (divs[1]) {
                 var e = divs[1].textContent.trim();
-                var rm = e.match(/^(\d+)\s*[-–]\s*(\d+)$/);
-                if (rm) {
-                    from = parseInt(rm[1], 10);
-                    to   = parseInt(rm[2], 10);
+
+                var result = { season: null, from: null, to: null };
+
+                // Сезон
+                var sRange = s.match(/^S(\d+)\s*[-–]\s*S?(\d+)$/i);
+                if (sRange) {
+                    result.season = { from: parseInt(sRange[1], 10), to: parseInt(sRange[2], 10) };
                 } else {
-                    var one = parseInt(e, 10);
-                    if (!isNaN(one)) { from = one; to = one; }
+                    var sSingle = s.match(/^S(\d+)$/i);
+                    if (sSingle) result.season = parseInt(sSingle[1], 10);
                 }
+
+                // Серии
+                var eRange = e.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+                if (eRange) {
+                    result.from = parseInt(eRange[1], 10);
+                    result.to   = parseInt(eRange[2], 10);
+                } else {
+                    var eSingle = parseInt(e, 10);
+                    if (!isNaN(eSingle)) { result.from = eSingle; result.to = eSingle; }
+                }
+
+                if (result.season !== null) return result;
             }
-            if (season !== null) return { season: season, from: from, to: to };
+
+            // Слипшийся формат
+            var parsed = parseGeneral(gen.textContent);
+            if (parsed) return parsed;
         }
 
+        // Fallback из title
         var title = item.querySelector('.torrent-item__title');
         if (!title) return null;
         var t = title.textContent;
 
         var season = null, from = null, to = null;
 
+        // Диапазон сезонов "1-8 сезоны"
         var r1 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сезон/i);
         if (r1) season = { from: parseInt(r1[1], 10), to: parseInt(r1[2], 10) };
+
+        // Одиночный "13 сезон" / "Сезон 13"
         if (season === null) {
             var s1 = t.match(/сезон[ыа]?\s*[:]?\s*(\d+)/i) || t.match(/(\d+)\s*сезон/i);
             if (s1) season = parseInt(s1[1], 10);
         }
 
+        // "13х01-08"
         var r2 = t.match(/(\d+)\s*[хx]\s*(\d+)(?:\s*[-–]\s*(\d+))?/i);
         if (r2) {
             if (season === null) season = parseInt(r2[1], 10);
             from = parseInt(r2[2], 10);
             to   = r2[3] ? parseInt(r2[3], 10) : from;
         }
+
+        // "S13E01"
         var r2b = t.match(/S(\d+)\s*E(\d+)(?:\s*[-–]\s*E?(\d+))?/i);
         if (r2b) {
             if (season === null) season = parseInt(r2b[1], 10);
@@ -215,12 +295,15 @@
             to   = r2b[3] ? parseInt(r2b[3], 10) : from;
         }
 
+        // "1-4 серии"
         var r3 = t.match(/(\d+)\s*[-–]\s*(\d+)\s*сери/i);
         if (r3) { from = parseInt(r3[1], 10); to = parseInt(r3[2], 10); }
 
+        // "Серии: 1-4 из"
         var r3b = t.match(/серии?[:\s]+(\d+)\s*[-–]\s*(\d+)/i);
         if (r3b && from === null) { from = parseInt(r3b[1], 10); to = parseInt(r3b[2], 10); }
 
+        // "серия 4"
         if (from === null) {
             var r4 = t.match(/серия[:\s]+(\d+)/i);
             if (r4) { from = parseInt(r4[1], 10); to = from; }
@@ -232,6 +315,7 @@
 
     function matchFilter(range, season, episode) {
         if (!range) return true;
+
         if (range.season !== null) {
             if (typeof range.season === 'object') {
                 if (season < range.season.from || season > range.season.to) return false;
@@ -239,6 +323,7 @@
                 if (range.season !== season) return false;
             }
         }
+
         if (range.from !== null && range.to !== null) {
             return episode >= range.from && episode <= range.to;
         }
@@ -538,12 +623,9 @@
         installClickFallback.done = true;
 
         document.addEventListener('click', function (e) {
-            // Обрабатываем и .full-episode--small, и .season-episode
-            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
+            var card = e.target.closest ? e.target.closest('.season-episode, .full-episode--small') : null;
             if (!card) return;
             if (card.classList.contains('card-more')) return;
-
-            // .season-info — это заголовок сезона, не серия
             if (card.classList.contains('season-info')) return;
 
             var season = findSeason(card);
@@ -564,9 +646,8 @@
             return false;
         }, true);
 
-        // Долгий тап мышью
         document.addEventListener('mousedown', function (e) {
-            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
+            var card = e.target.closest ? e.target.closest('.season-episode, .full-episode--small') : null;
             if (!card) return;
             if (card.classList.contains('season-info')) return;
             card.__lpTimer = setTimeout(function () {
@@ -575,7 +656,7 @@
             }, LONG_PRESS_MS);
         }, true);
         document.addEventListener('mouseup', function (e) {
-            var card = e.target.closest ? e.target.closest('.full-episode--small, .season-episode') : null;
+            var card = e.target.closest ? e.target.closest('.season-episode, .full-episode--small') : null;
             if (card && card.__lpTimer) {
                 clearTimeout(card.__lpTimer);
                 card.__lpTimer = null;
