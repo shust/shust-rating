@@ -318,7 +318,7 @@
         /* Фиксированная ширина блоков IMDb и KP */
         ".full-start-new__rate-line .rate--imdb," +
         ".full-start-new__rate-line .rate--kp {" +
-            "min-width: 5.4em !important;" +
+            "min-width: 1.6em !important;" +
             "display: inline-flex !important;" +
             "align-items: center;" +
             "justify-content: flex-start;" +
