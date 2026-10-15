@@ -310,11 +310,7 @@
             "min-width: 0 !important;" +
             "min-height: 0 !important;" +
         "}" +
-        ".maxsm-source-disabled {" +
-            "display: none !important;" +
-        "}" +
-        /* Скрытие возрастного рейтинга */
-        ".maxsm-hide-pg .full-start__pg {" +
+         ".maxsm-source-disabled {" +
             "display: none !important;" +
         "}" +
         ".rate--avg > div:first-of-type, .rate--tmdb > div:first-of-type, .rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
@@ -323,6 +319,10 @@
             "font-weight: var(--maxsm-rating-font-weight, 500) !important;" +
             "letter-spacing: -0.02em !important;" +
             "line-height: 1.1;" +
+        "}" +
+        /* Скрываем возрастной рейтинг */ +
+        ".full-start__pg {" +
+            "display: none !important;" +
         "}" +
         "</style>";
 
