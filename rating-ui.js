@@ -352,25 +352,26 @@
     }
 
     /* Применение класса скрытия возрастного рейтинга */
-    function applyPgVisibility(value) {
-        var hidden;
+     function applyPgVisibility(value) {
+        var visible;
 
         if (value !== undefined && value !== null) {
-            hidden = (value === true || value === 'true' || value === 1 || value === '1');
-            try { Lampa.Storage.set('maxsm_ratings_hide_pg', hidden); } catch (e) {}
+            /* "Да" в настройке = показывать возрастной рейтинг */
+            visible = (value === true || value === 'true' || value === 1 || value === '1');
+            try { Lampa.Storage.set('maxsm_ratings_show_pg', visible); } catch (e) {}
         } else {
-            var stored = false;
-            try { stored = Lampa.Storage.get('maxsm_ratings_hide_pg', false); } catch (e) {}
-            hidden = (stored === true || stored === 'true' || stored === 1 || stored === '1');
+            var stored = true; /* по умолчанию — показывать */
+            try { stored = Lampa.Storage.get('maxsm_ratings_show_pg', true); } catch (e) {}
+            visible = (stored === true || stored === 'true' || stored === 1 || stored === '1');
         }
 
         var html = document.documentElement;
         if (!html) return;
 
-        if (hidden) {
-            html.classList.add('maxsm-hide-pg');
-        } else {
+        if (visible) {
             html.classList.remove('maxsm-hide-pg');
+        } else {
+            html.classList.add('maxsm-hide-pg');
         }
     }
 
