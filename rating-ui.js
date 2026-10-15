@@ -322,8 +322,8 @@
             "align-items: center;" +
             "justify-content: flex-start;" +
         "}" +
-        ".rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
-            "min-width: 2.6em !important;" +
+         ".rate--imdb > div:first-of-type, .rate--kp > div:first-of-type {" +
+            "min-width: 1.0em !important;" +
             "text-align: left;" +
         "}" +
         /* Плейсхолдер -.- */
