@@ -349,7 +349,7 @@
 
     var C_LOGGING = false;
     var CACHE_TIME = 3 * 24 * 60 * 60 * 1000;
-    var KP_CACHE = 'maxsm_ratings_kp_cache';
+    var KP_CACHE = 'maxsm_ratings_kp_cache_v2';
     var ID_MAPPING_CACHE = 'maxsm_ratings_id_mapping_cache';
     var OMDB_CACHE = 'maxsm_ratings_omdb_cache';
 
@@ -492,52 +492,90 @@
         var mappings = Lampa.Storage.get(ID_MAPPING_CACHE) || {};
         var mapped = mappings[mappingKey] || (imdbMappingKey && mappings[imdbMappingKey]);
         var filmId = normalizedCard.kinopoisk_id ||
-            (mapped && Date.now() - mapped.timestamp < CACHE_TIME && mapped.kinopoisk_id);
+            (mapped && mapped.version === 2 && Date.now() - mapped.timestamp < CACHE_TIME && mapped.kinopoisk_id);
         if (filmId) {
             fetchRatings(filmId);
             return;
         }
 
-        var queryTitle = (normalizedCard.original_title || normalizedCard.title || '').replace(/[:\-–—]/g, ' ').trim();
-        if (!queryTitle) { finish(null); return; }
         var year = normalizedCard.release_date && typeof normalizedCard.release_date === 'string' ? normalizedCard.release_date.split('-')[0] : '';
-        var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodeURIComponent(queryTitle);
-        ratingRequest(searchUrl, {
-            method: 'GET', headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' }
-        }, 'json', 5000).then(function(data) {
-            if (!data.films || !data.films.length) { finish(null); return; }
-            var bestMatch = null;
-            var filmYear, targetYear, film;
-            if (year) {
-                for (var j = 0; j < data.films.length; j++) {
-                    film = data.films[j];
-                    if (!film.year) continue;
-                    filmYear = parseInt(film.year.substring(0, 4), 10);
-                    targetYear = parseInt(year, 10);
-                    if (isNaN(filmYear) || isNaN(targetYear)) continue;
-                    if (filmYear === targetYear) { bestMatch = film; break; }
-                }
-                if (!bestMatch) {
-                    for (var k = 0; k < data.films.length; k++) {
-                        film = data.films[k];
-                        if (!film.year) continue;
-                        filmYear = parseInt(film.year.substring(0, 4), 10);
-                        targetYear = parseInt(year, 10);
-                        if (isNaN(filmYear) || isNaN(targetYear)) continue;
-                        if (Math.abs(filmYear - targetYear) <= 1) { bestMatch = film; break; }
-                    }
-                }
-            }
-            if (!bestMatch) bestMatch = data.films[0];
-            if (!bestMatch || !bestMatch.filmId) { finish(null); return; }
-            var mapping = {kinopoisk_id: bestMatch.filmId, timestamp: Date.now()};
-            // Re-read so concurrent title searches do not overwrite each other's entries.
+        var titles = [];
+        [normalizedCard.title, normalizedCard.original_title].forEach(function(title) {
+            title = String(title || '').replace(/[:\-–—]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (title && titles.indexOf(title) === -1) titles.push(title);
+        });
+        function titleKey(title) {
+            return String(title || '').toLowerCase().replace(/ё/g, 'е').replace(/[\s.,:;!?\-–—'"«»()[\]{}\/\\]+/g, '');
+        }
+        function numberRating(value) {
+            if (!/^\d+(?:[.,]\d+)?$/.test(String(value))) return null;
+            var valueNumber = parseFloat(String(value).replace(',', '.'));
+            return valueNumber > 0 && valueNumber <= 10 ? valueNumber : null;
+        }
+        function chooseMatch(films) {
+            var best = null, bestScore = -1, tied = false;
+            (films || []).forEach(function(film) {
+                var candidateType = film.type;
+                if (candidateType && normalizedCard.type === 'tv' && candidateType === 'FILM') return;
+                if (candidateType && normalizedCard.type === 'movie' && /^(TV_SERIES|MINI_SERIES|TV_SHOW)$/.test(candidateType)) return;
+                var candidateYear = parseInt(film.year, 10), targetYear = parseInt(year, 10);
+                var difference = candidateYear && targetYear ? Math.abs(candidateYear - targetYear) : null;
+                if (difference !== null && difference > 1) return;
+                var score = -1;
+                var names = [film.nameRu, film.nameEn, film.nameOriginal];
+                names.forEach(function(name) {
+                    var key = titleKey(name);
+                    if (!key) return;
+                    titles.forEach(function(title) {
+                        var target = titleKey(title);
+                        if (key === target) score = Math.max(score, 100);
+                        else if (difference === 0 && Math.min(key.length, target.length) >= 5 &&
+                            (key.indexOf(target) >= 0 || target.indexOf(key) >= 0)) score = Math.max(score, 60);
+                    });
+                });
+                if (score < 0) return;
+                score += difference === 0 ? 20 : difference === 1 ? 10 : 0;
+                if (score > bestScore) { best = film; bestScore = score; tied = false; }
+                else if (score === bestScore && String(film.filmId || film.kinopoiskId) !== String(best.filmId || best.kinopoiskId)) tied = true;
+            });
+            return tied ? null : best;
+        }
+        function useMatch(film) {
+            var id = film && (film.kinopoiskId || film.filmId);
+            if (!id) return false;
+            var mapping = {kinopoisk_id: id, timestamp: Date.now(), version: 2};
             var currentMappings = Lampa.Storage.get(ID_MAPPING_CACHE) || {};
             currentMappings[mappingKey] = mapping;
             if (imdbMappingKey) currentMappings[imdbMappingKey] = mapping;
             Lampa.Storage.set(ID_MAPPING_CACHE, currentMappings);
-            fetchRatings(bestMatch.filmId);
-        }, function() { finish(null); });
+            // Both search endpoints can already contain the KP rating.
+            var kp = numberRating(film.ratingKinopoisk);
+            if (kp === null) kp = numberRating(film.rating);
+            if (kp !== null) finish({kinopoisk: kp, imdb: numberRating(film.ratingImdb)});
+            else fetchRatings(id);
+            return true;
+        }
+        function searchByTitle(index) {
+            if (index >= titles.length) { finish(null); return; }
+            var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodeURIComponent(titles[index]);
+            ratingRequest(searchUrl, {
+                method: 'GET', headers: {'X-API-KEY': apiKey, 'Content-Type': 'application/json'}
+            }, 'json', 5000).then(function(data) {
+                if (!useMatch(chooseMatch(data.films || data.items))) searchByTitle(index + 1);
+            }, function() { searchByTitle(index + 1); });
+        }
+        // IMDb ID gives an exact cross-catalog match, independent of translation.
+        if (/^tt\d+$/.test(normalizedCard.imdb_id || '')) {
+            ratingRequest('https://kinopoiskapiunofficial.tech/api/v2.2/films?imdbId=' + encodeURIComponent(normalizedCard.imdb_id), {
+                headers: {'X-API-KEY': apiKey}
+            }, 'json', 3500).then(function(data) {
+                var exact = null;
+                (data.items || []).forEach(function(film) {
+                    if (film.imdbId === normalizedCard.imdb_id) exact = film;
+                });
+                if (!useMatch(exact)) searchByTitle(0);
+            }, function() { searchByTitle(0); });
+        } else searchByTitle(0);
 
         function fetchRatings(filmId) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
@@ -710,8 +748,8 @@
         var normalizedCard = {
             id: card.id,
             tmdb: card.vote_average || null,
-            kinopoisk_id: card.kinopoisk_id,
-            imdb_id: card.imdb_id || card.imdb || null,
+            kinopoisk_id: card.kinopoisk_id || card.kinopoiskId || card.kp_id || null,
+            imdb_id: card.imdb_id || (card.external_ids && card.external_ids.imdb_id) || card.imdb || null,
             title: card.title || card.name || '',
             original_title: card.original_title || card.original_name || '',
             type: getCardType(card),
