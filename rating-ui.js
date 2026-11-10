@@ -448,45 +448,66 @@
     }
 
     //-----------------------------------------------------get---kinopoisk-------------------------------------
-    function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
-        if (normalizedCard.kinopoisk_id) {
-            return fetchRatings(normalizedCard.kinopoisk_id, localCurrentCard);
-        }
+    var kpRequestsInFlight = {};
 
-        var queryTitle = (normalizedCard.original_title || normalizedCard.title || '').replace(/[:\-–—]/g, ' ').trim();
-        if (!queryTitle) {
-            callback(null);
+    function ratingRequest(url, options, format, timeout) {
+        return new Promise(function(resolve, reject) {
+            var finished = false;
+            var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            var requestOptions = {};
+            for (var key in (options || {})) requestOptions[key] = options[key];
+            if (controller) requestOptions.signal = controller.signal;
+            function finish(error, value) {
+                if (finished) return;
+                finished = true;
+                clearTimeout(timer);
+                if (error) reject(error);
+                else resolve(value);
+            }
+            var timer = setTimeout(function() {
+                finish(new Error('Rating request timeout'));
+                if (controller) controller.abort();
+            }, timeout);
+            fetch(url, requestOptions).then(function(response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return format === 'json' ? response.json() : response.text();
+            }).then(function(value) { finish(null, value); }, function(error) { finish(error); });
+        });
+    }
+
+    function getKPRatings(normalizedCard, apiKey, localCurrentCard, callback) {
+        var mappingKey = normalizedCard.type + '_tmdb_' + normalizedCard.id;
+        var imdbMappingKey = normalizedCard.imdb_id ? normalizedCard.type + '_imdb_' + normalizedCard.imdb_id : null;
+        var requestKey = normalizedCard.type + '_' + (normalizedCard.kinopoisk_id || normalizedCard.imdb_id || normalizedCard.id);
+        if (kpRequestsInFlight[requestKey]) {
+            kpRequestsInFlight[requestKey].push(callback);
+            return;
+        }
+        kpRequestsInFlight[requestKey] = [callback];
+        function finish(result) {
+            var listeners = kpRequestsInFlight[requestKey] || [];
+            delete kpRequestsInFlight[requestKey];
+            listeners.forEach(function(listener) { listener(result); });
+        }
+        var mappings = Lampa.Storage.get(ID_MAPPING_CACHE) || {};
+        var mapped = mappings[mappingKey] || (imdbMappingKey && mappings[imdbMappingKey]);
+        var filmId = normalizedCard.kinopoisk_id ||
+            (mapped && Date.now() - mapped.timestamp < CACHE_TIME && mapped.kinopoisk_id);
+        if (filmId) {
+            fetchRatings(filmId);
             return;
         }
 
-        var year = '';
-        if (normalizedCard.release_date && typeof normalizedCard.release_date === 'string') {
-            year = normalizedCard.release_date.split('-')[0];
-        }
-
-        var encodedTitle = encodeURIComponent(queryTitle);
-        var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodedTitle;
-
-        fetch(searchUrl, {
-            method: 'GET',
-            headers: {
-                'X-API-KEY': apiKey,
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(function(response) {
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            return response.json();
-        })
-        .then(function(data) {
-            if (!data.films || !data.films.length) {
-                callback(null);
-                return;
-            }
-
+        var queryTitle = (normalizedCard.original_title || normalizedCard.title || '').replace(/[:\-–—]/g, ' ').trim();
+        if (!queryTitle) { finish(null); return; }
+        var year = normalizedCard.release_date && typeof normalizedCard.release_date === 'string' ? normalizedCard.release_date.split('-')[0] : '';
+        var searchUrl = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=' + encodeURIComponent(queryTitle);
+        ratingRequest(searchUrl, {
+            method: 'GET', headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' }
+        }, 'json', 5000).then(function(data) {
+            if (!data.films || !data.films.length) { finish(null); return; }
             var bestMatch = null;
             var filmYear, targetYear, film;
-
             if (year) {
                 for (var j = 0; j < data.films.length; j++) {
                     film = data.films[j];
@@ -507,95 +528,92 @@
                     }
                 }
             }
-
             if (!bestMatch) bestMatch = data.films[0];
-            if (!bestMatch || !bestMatch.filmId) { callback(null); return; }
+            if (!bestMatch || !bestMatch.filmId) { finish(null); return; }
+            var mapping = {kinopoisk_id: bestMatch.filmId, timestamp: Date.now()};
+            // Re-read so concurrent title searches do not overwrite each other's entries.
+            var currentMappings = Lampa.Storage.get(ID_MAPPING_CACHE) || {};
+            currentMappings[mappingKey] = mapping;
+            if (imdbMappingKey) currentMappings[imdbMappingKey] = mapping;
+            Lampa.Storage.set(ID_MAPPING_CACHE, currentMappings);
+            fetchRatings(bestMatch.filmId);
+        }, function() { finish(null); });
 
-            fetchRatings(bestMatch.filmId, localCurrentCard);
-        })
-        .catch(function() {
-            callback(null);
-        });
-
-        function fetchRatings(filmId, localCurrentCard) {
+        function fetchRatings(filmId) {
             var xmlUrl = 'https://rating.kinopoisk.ru/' + filmId + '.xml';
-
-            var directDone = false;
-            var directTimer = setTimeout(function() {
-                if (directDone) return;
+            var settled = false;
+            var apiStarted = false;
+            var proxyStarted = false;
+            var pending = 1;
+            var partial = null;
+            var apiTimer, proxyTimer;
+            function validRating(value) {
+                var number = parseFloat(value);
+                return isFinite(number) && number > 0 && number <= 10 ? number : null;
+            }
+            function complete(result) {
+                if (settled) return;
+                if (result) {
+                    partial = partial || {kinopoisk: null, imdb: null};
+                    if (result.kinopoisk != null) partial.kinopoisk = result.kinopoisk;
+                    if (result.imdb != null) partial.imdb = result.imdb;
+                }
+                pending--;
+                if (partial && partial.kinopoisk != null) {
+                    settled = true;
+                    clearTimeout(apiTimer);
+                    clearTimeout(proxyTimer);
+                    finish(partial);
+                } else if (pending === 0 && apiStarted && proxyStarted) {
+                    settled = true;
+                    clearTimeout(apiTimer);
+                    clearTimeout(proxyTimer);
+                    finish(partial);
+                }
+            }
+            function parseXml(xmlText) {
+                var xmlDoc = new DOMParser().parseFromString(xmlText, 'text/xml');
+                var kpNode = xmlDoc.getElementsByTagName('kp_rating')[0];
+                var imdbNode = xmlDoc.getElementsByTagName('imdb_rating')[0];
+                return {
+                    kinopoisk: validRating(kpNode && kpNode.textContent),
+                    imdb: validRating(imdbNode && imdbNode.textContent)
+                };
+            }
+            function startApi() {
+                if (settled || apiStarted) return;
+                apiStarted = true;
+                pending++;
+                ratingRequest('https://kinopoiskapiunofficial.tech/api/v2.2/films/' + filmId, {
+                    headers: {'X-API-KEY': apiKey}
+                }, 'json', 4500).then(function(data) {
+                    complete({kinopoisk: validRating(data.ratingKinopoisk), imdb: validRating(data.ratingImdb)});
+                }, function() { complete(null); });
+            }
+            function startProxy() {
+                if (settled || proxyStarted) return;
+                proxyStarted = true;
+                pending++;
                 fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
-                    if (directDone) return;
-                    directDone = true;
-                    if (!error && xmlText) parseXml(xmlText, localCurrentCard, filmId);
-                    else tryApiDirect(filmId, localCurrentCard);
+                    var result = null;
+                    if (!error && xmlText) { try { result = parseXml(xmlText); } catch (e) {} }
+                    complete(result);
                 });
-            }, 1500);
-
-            fetch(xmlUrl)
-                .then(function(response) {
-                    if (!response.ok) throw new Error('HTTP ' + response.status);
-                    return response.text();
-                })
-                .then(function(xmlText) {
-                    clearTimeout(directTimer);
-                    if (directDone) return;
-                    directDone = true;
-                    parseXml(xmlText, localCurrentCard, filmId);
-                })
-                .catch(function() {
-                    clearTimeout(directTimer);
-                    if (directDone) return;
-                    fetchWithProxy(xmlUrl, localCurrentCard, function(error, xmlText) {
-                        if (directDone) return;
-                        directDone = true;
-                        if (!error && xmlText) parseXml(xmlText, localCurrentCard, filmId);
-                        else tryApiDirect(filmId, localCurrentCard);
-                    });
-                });
-
-            function parseXml(xmlText, localCurrentCard, filmId) {
-                try {
-                    var parser = new DOMParser();
-                    var xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                    var kpNode = xmlDoc.getElementsByTagName("kp_rating")[0];
-                    var imdbNode = xmlDoc.getElementsByTagName("imdb_rating")[0];
-
-                    var kpRating = kpNode ? parseFloat(kpNode.textContent) : null;
-                    var imdbRating = imdbNode ? parseFloat(imdbNode.textContent) : null;
-
-                    var hasKp = !isNaN(kpRating) && kpRating > 0;
-                    var hasImdb = !isNaN(imdbRating) && imdbRating > 0;
-
-                    if (hasKp || hasImdb) {
-                        callback({
-                            kinopoisk: hasKp ? kpRating : null,
-                            imdb: hasImdb ? imdbRating : null
-                        });
-                        return;
-                    }
-                } catch (e) {}
-
-                tryApiDirect(filmId, localCurrentCard);
             }
-
-            function tryApiDirect(filmId, localCurrentCard) {
-                fetch('https://kinopoiskapiunofficial.tech/api/v2.2/films/' + filmId, {
-                    headers: { 'X-API-KEY': apiKey }
-                })
-                    .then(function(response) {
-                        if (!response.ok) throw new Error('API ' + response.status);
-                        return response.json();
-                    })
-                    .then(function(data) {
-                        callback({
-                            kinopoisk: data.ratingKinopoisk || null,
-                            imdb: data.ratingImdb || null
-                        });
-                    })
-                    .catch(function() {
-                        callback(null);
-                    });
-            }
+            // Prefer the free XML endpoint. A slow/blocked XML request no longer
+            // makes the API wait for both the direct and proxy timeouts.
+            apiTimer = setTimeout(startApi, 250);
+            proxyTimer = setTimeout(startProxy, 700);
+            ratingRequest(xmlUrl, {}, 'text', 3500).then(function(xmlText) {
+                var result = null;
+                try { result = parseXml(xmlText); } catch (e) {}
+                if (!result || result.kinopoisk == null) { startApi(); startProxy(); }
+                complete(result);
+            }, function() {
+                startApi();
+                startProxy();
+                complete(null);
+            });
         }
     }
     //-------------------------------------------------end---get---kinopoisk-----------------------------------
@@ -706,7 +724,8 @@
             rateLine.addClass('done');
         }
 
-        var initialCacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.kinopoisk_id || normalizedCard.id);
+        var initialCacheKey = normalizedCard.type + '_tmdb_' + normalizedCard.id;
+        var legacyCacheKey = normalizedCard.type + '_' + (normalizedCard.imdb_id || normalizedCard.kinopoisk_id || normalizedCard.id);
         var ratingsData = {};
 
         var kpElement = $('.rate--kp:not(.hide)', render);
@@ -796,12 +815,13 @@
             }
         }
 
-        var cachedKpData = getKpCache(initialCacheKey);
+        var cachedKpData = getKpCache(initialCacheKey) || getKpCache(legacyCacheKey);
 
         if (cachedKpData) {
             mergeKpData({ kinopoisk: cachedKpData.kp, imdb: cachedKpData.imdb });
             scheduleUI();
-        } else if (!kpExists) {
+        }
+        if (!kpExists && (!cachedKpData || !cachedKpData.kp)) {
             getKPRatings(normalizedCard, getRandomToken(KP_API_KEYS), localCurrentCard, function(kpRatings) {
                 if (kpRatings) {
                     mergeKpData(kpRatings);
