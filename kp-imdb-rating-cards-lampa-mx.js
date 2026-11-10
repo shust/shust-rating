@@ -468,7 +468,7 @@
     });
     Lampa.SettingsApi.addParam({
       component: "interface",
-      param: { name: "bylampa_rating_url", type: "input", default: "http://94.156.115.58:841" },
+      param: { name: "bylampa_rating_url", type: "input", values: "", default: "http://94.156.115.58:841" },
       field: {
         name: "Сервер рейтинга ByLAMPA",
         description:
