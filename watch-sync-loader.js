@@ -3,6 +3,7 @@
     'use strict';
     if (window.watchSyncLoaderStarted || window.watchSyncInstalled) return;
     window.watchSyncLoaderStarted = true;
+    window.WatchSyncMenuTitle = 'Продолжить';
     var server = 'https://lampa-watch-sync.shust-blr.workers.dev';
     var prefix = 'window.WatchSyncDefaultServer=' + JSON.stringify(server) + ';\n';
     var cacheKey = 'watch_sync_loader_code_v1', attempts = 0, completed = false;
