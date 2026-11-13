@@ -575,22 +575,35 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         if (!currentCard || !enabled()) { $('.button--lampa-ratings').remove(); return; }
         var info = currentCard.info;
         if (!info) return;
-        var container = currentCard.body ? $(currentCard.body).find('.full-start-new__buttons,.full-start__buttons').first() : $('.full-start-new__buttons,.full-start__buttons').first();
-        if (!container.length && currentCard.body) container = $(currentCard.body).filter('.full-start-new__buttons,.full-start__buttons').first();
+        var scope = currentCard.body ? $(currentCard.body) : $(document);
+        var container = scope.find('.full-start-new__rate-line,.full-start__rate-line').first();
+        var inRateLine = !!container.length;
+        if (!container.length) container = scope.find('.full-start-new__buttons,.full-start__buttons').first();
+        if (!container.length && currentCard.body) container = scope.filter('.full-start-new__buttons,.full-start__buttons').first();
         if (!container.length) return;
-        var button = container.find('.button--lampa-ratings').first();
+        var button = scope.find('.button--lampa-ratings').first();
         if (!button.length) {
-            button = $('<div class="full-start__button selector button--lampa-ratings"></div>');
-            button.on('hover:enter', function () { if (currentCard) rateMenu(currentCard.info); }); container.append(button);
+            button = $('<div class="selector button--lampa-ratings" role="button" tabindex="0"></div>');
+            button.on('hover:enter', function () { if (currentCard) rateMenu(currentCard.info); });
+        }
+        button.toggleClass('full-start__rate', inRateLine).toggleClass('full-start__button', !inRateLine);
+        if (!$.contains(container[0], button[0])) {
+            var kp = inRateLine ? container.children('.rate--kp').first() : $();
+            if (kp.length) kp.after(button); else container.append(button);
+        }
+        if (!document.getElementById('lampa-ratings-button-style')) {
+            $('<style id="lampa-ratings-button-style">.full-start__rate.button--lampa-ratings{display:inline-flex;align-items:center;gap:.25em;cursor:pointer;border-radius:.25em;padding:.15em .25em}.full-start__rate.button--lampa-ratings svg{width:1em;height:1em;flex:none}.full-start__rate.button--lampa-ratings.focus{background:#fff;color:#111}</style>').appendTo('head');
         }
         var row = signedIn() ? current(info) : null, value = row && row.rating;
         var drawing = value ? '<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="currentColor"/><text x="12" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="#161616">' + value + '</text></svg>' : icon;
         var suffix = '';
         if (row && (store.outbox[row.key] || (row.exportRequested && !row.synced))) suffix = ' · ожидает синхронизации';
-        var signature = info.key + ':' + (value || '') + ':' + suffix;
+        var signature = info.key + ':' + (value || '') + ':' + suffix + ':' + inRateLine;
         if (button.attr('data-lampa-ratings-state') === signature) return;
         button.attr('data-lampa-ratings-state', signature);
-        button.html(drawing + '<span>' + (value ? 'Моя оценка: ' + value : 'Оценить') + (suffix ? ' · в очереди' : '') + '</span>').attr('title', 'Кинопоиск' + suffix);
+        if (inRateLine) drawing = icon;
+        var label = (value ? 'Моя оценка: ' + value : 'Оценить') + (suffix ? ' · в очереди' : '');
+        button.html(drawing + '<span>' + (inRateLine ? (value || '—') : label) + '</span>').attr('title', label).attr('aria-label', label);
     }
     function resolveKp(info, callback) {
         var key = info.key, cached = cachedMapping(key), version = generation;
