@@ -592,7 +592,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
             if (kp.length) { kp.addClass('lampa-ratings-neighbor'); kp.after(button); } else container.append(button);
         }
         if (!document.getElementById('lampa-ratings-button-style')) {
-            $('<style id="lampa-ratings-button-style">.full-start-new__rate-line>.rate--kp.lampa-ratings-neighbor,.full-start__rate-line>.rate--kp.lampa-ratings-neighbor{margin-right:.8em!important}.full-start__rate.button--lampa-ratings{display:inline-flex;align-items:center;gap:.35em;cursor:pointer;position:relative;z-index:0;isolation:isolate;height:1.2em;padding:0!important;white-space:nowrap;line-height:1}.full-start__rate.button--lampa-ratings svg{width:1.2em;height:1.2em;flex:none}.full-start__rate.button--lampa-ratings svg.lampa-ratings-star{width:1em;height:1em}.full-start__rate.button--lampa-ratings svg.lampa-ratings-star path{stroke-width:2.04}.full-start__rate.button--lampa-ratings .lampa-ratings-label{display:none;line-height:1;white-space:nowrap}.full-start__rate.button--lampa-ratings.focus .lampa-ratings-label{display:inline}.button--lampa-ratings.focus{background:#fff!important;color:#111!important}.full-start__rate.button--lampa-ratings.focus{background:transparent!important}.full-start__rate.button--lampa-ratings.focus:before{content:"";position:absolute;top:-.42em;bottom:-.42em;left:-.62em;right:-.62em;background:#fff;border-radius:10em;z-index:-1;pointer-events:none}.button--lampa-ratings.focus svg circle{fill:#111}.button--lampa-ratings.focus svg text{fill:#fff}</style>').appendTo('head');
+            $('<style id="lampa-ratings-button-style">.full-start-new__rate-line>.rate--kp.lampa-ratings-neighbor,.full-start__rate-line>.rate--kp.lampa-ratings-neighbor{margin-right:.8em!important}.full-start__rate.button--lampa-ratings{display:inline-flex;align-items:center;gap:.35em;cursor:pointer;position:relative;z-index:0;isolation:isolate;height:1.2em;padding:0!important;white-space:nowrap;line-height:1}.full-start__rate.button--lampa-ratings svg{width:1.2em;height:1.2em;flex:none}.full-start__rate.button--lampa-ratings svg.lampa-ratings-star{width:1em;height:1em}.full-start__rate.button--lampa-ratings svg.lampa-ratings-star path{stroke-width:2.04}.full-start__rate.button--lampa-ratings .lampa-ratings-label{display:none;line-height:1;white-space:nowrap}.full-start__rate.button--lampa-ratings.focus .lampa-ratings-label{display:inline;font-family:"SegoeUI",sans-serif;font-size:.85em}.button--lampa-ratings.focus{background:#fff!important;color:#111!important}.full-start__rate.button--lampa-ratings.focus{background:transparent!important}.full-start__rate.button--lampa-ratings.focus:before{content:"";position:absolute;top:-.42em;bottom:-.42em;left:-.62em;right:-.62em;background:#fff;border-radius:10em;z-index:-1;pointer-events:none}.button--lampa-ratings.focus svg circle{fill:#111}.button--lampa-ratings.focus svg text{fill:#fff}</style>').appendTo('head');
         }
         var row = signedIn() ? current(info) : null, value = row && row.rating;
         var drawing = value ? '<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="currentColor"/><text x="12" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="#161616">' + value + '</text></svg>' : icon;
@@ -604,13 +604,6 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         var label = (value ? 'Моя оценка: ' + value : 'Оценить') + (suffix ? ' · в очереди' : '');
         var focusLabel = value ? 'Моя оценка' : 'Оценить';
         button.html(drawing + '<span class="lampa-ratings-label">' + (inRateLine ? focusLabel : label) + '</span>').attr('title', label).attr('aria-label', label);
-        if (inRateLine && window.getComputedStyle) {
-            var reference = scope.find('.full-start-new__buttons .full-start__button span,.full-start__buttons .full-start__button span').first();
-            if (reference.length) {
-                var textStyle = window.getComputedStyle(reference[0]);
-                button.find('.lampa-ratings-label').css({fontFamily: textStyle.fontFamily, fontSize: textStyle.fontSize, fontWeight: textStyle.fontWeight});
-            }
-        }
     }
     function resolveKp(info, callback) {
         var key = info.key, cached = cachedMapping(key), version = generation;
