@@ -572,7 +572,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
             }});
     }
     function render() {
-        if (!currentCard || !enabled()) { $('.button--lampa-ratings').remove(); return; }
+        if (!currentCard || !enabled()) { $('.button--lampa-ratings').remove(); $('.lampa-ratings-neighbor').removeClass('lampa-ratings-neighbor'); return; }
         var info = currentCard.info;
         if (!info) return;
         var scope = currentCard.body ? $(currentCard.body) : $(document);
@@ -589,10 +589,10 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         button.toggleClass('full-start__rate', inRateLine).toggleClass('full-start__button', !inRateLine);
         if (!$.contains(container[0], button[0])) {
             var kp = inRateLine ? container.children('.rate--kp').first() : $();
-            if (kp.length) kp.after(button); else container.append(button);
+            if (kp.length) { kp.addClass('lampa-ratings-neighbor'); kp.after(button); } else container.append(button);
         }
         if (!document.getElementById('lampa-ratings-button-style')) {
-            $('<style id="lampa-ratings-button-style">.full-start__rate.button--lampa-ratings{display:inline-flex;align-items:center;gap:.25em;cursor:pointer;border-radius:.25em;padding:.15em .25em}.full-start__rate.button--lampa-ratings svg{width:1em;height:1em;flex:none}.full-start__rate.button--lampa-ratings.focus{background:#fff;color:#111}</style>').appendTo('head');
+            $('<style id="lampa-ratings-button-style">.full-start-new__rate-line>.rate--kp.lampa-ratings-neighbor,.full-start__rate-line>.rate--kp.lampa-ratings-neighbor{margin-right:.35em!important}.full-start__rate.button--lampa-ratings{display:inline-flex;align-items:center;gap:.35em;cursor:pointer;border-radius:.25em;padding:.1em .12em;white-space:nowrap}.full-start__rate.button--lampa-ratings svg{width:1.2em;height:1.2em;flex:none}.full-start__rate.button--lampa-ratings .lampa-ratings-label{display:none}.full-start__rate.button--lampa-ratings.focus .lampa-ratings-label{display:inline}.button--lampa-ratings.focus{background:#fff!important;color:#111!important}.button--lampa-ratings.focus svg circle{fill:#111}.button--lampa-ratings.focus svg text{fill:#fff}</style>').appendTo('head');
         }
         var row = signedIn() ? current(info) : null, value = row && row.rating;
         var drawing = value ? '<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="currentColor"/><text x="12" y="16" text-anchor="middle" font-size="13" font-weight="700" fill="#161616">' + value + '</text></svg>' : icon;
@@ -601,9 +601,9 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         var signature = info.key + ':' + (value || '') + ':' + suffix + ':' + inRateLine;
         if (button.attr('data-lampa-ratings-state') === signature) return;
         button.attr('data-lampa-ratings-state', signature);
-        if (inRateLine) drawing = icon;
         var label = (value ? 'Моя оценка: ' + value : 'Оценить') + (suffix ? ' · в очереди' : '');
-        button.html(drawing + '<span>' + (inRateLine ? (value || '—') : label) + '</span>').attr('title', label).attr('aria-label', label);
+        var focusLabel = value ? 'Моя оценка' : 'Оценить';
+        button.html(drawing + '<span class="lampa-ratings-label">' + (inRateLine ? focusLabel : label) + '</span>').attr('title', label).attr('aria-label', label);
     }
     function resolveKp(info, callback) {
         var key = info.key, cached = cachedMapping(key), version = generation;
