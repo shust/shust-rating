@@ -235,14 +235,14 @@
           rating_url: "https://rating.kinopoisk.ru/",
           headers: { "X-API-KEY": "14342b35-714b-449d-bf10-30d0d9ac22e6" },
         };
-      function _0x30d21b() {
+      function _0x30d21b(useKeyword) {
         var _0x5ac620 = _0x25d6a0,
           _0x355e90 = _0x4a4497.url,
           _0x5a26d0 = Lampa.Utils["addUrlComponent"](
             _0x355e90 + "api/v2.1/films/search-by-keyword",
             "keyword=" + encodeURIComponent(_0xb68257),
           );
-        if (_0x1508f8["imdb_id"])
+        if (_0x1508f8["imdb_id"] && !useKeyword)
           _0x355e90 = Lampa["Utils"]["addUrlComponent"](
             _0x355e90 + "api/v2.2/films",
             "imdbId=" + encodeURIComponent(_0x1508f8.imdb_id),
@@ -256,12 +256,14 @@
               if (_0x45f003.items && _0x45f003["items"]["length"]) _0x23090c(_0x45f003.items);
               else {
                 if (_0x45f003["films"] && _0x45f003.films.length) _0x23090c(_0x45f003["films"]);
+                else if (_0x1508f8.imdb_id && !useKeyword && _0xb68257) _0x30d21b(true);
                 else _0x23090c([]);
               }
             },
             function () {
               var _0x1c35a1 = _0x5ac620;
-              (releaseRequest(_0x1c9a63), _0x1612cf("0.0"));
+              if (_0x1508f8.imdb_id && !useKeyword && _0xb68257) _0x30d21b(true);
+              else (releaseRequest(_0x1c9a63), _0x1612cf("0.0"));
             },
             ![],
             { headers: _0x4a4497.headers },
@@ -316,6 +318,14 @@
             _0x337fe4[0x0]["kinopoisk_id"] ||
             _0x337fe4[0x0]["kinopoiskId"] ||
             _0x337fe4[0x0].filmId;
+          var candidate = _0x337fe4[0], source = Lampa.Storage.get("rating_source", "tmdb");
+          var original = _0x3a0b92 || "", localTitle = _0x1508f8.title || _0x1508f8.name || "";
+          var names = [candidate.nameRu, candidate.nameEn, candidate.nameOriginal, candidate.title, candidate.ru_title, candidate.orig_title, candidate.en_title];
+          var exact = names.some(function (name) { return name && ((original && _0x24ff8e(name, original)) || (localTitle && _0x24ff8e(name, localTitle))); });
+          var yearMatches = _0xbd9ef7 && candidate.tmp_year && Math.abs(_0xbd9ef7 - candidate.tmp_year) <= 1;
+          var value = source === "kp" ? (candidate.ratingKinopoisk || candidate.rating) : candidate.ratingImdb;
+          var number = typeof value === "string" && !/^\d+(?:[.,]\d+)?$/.test(value.trim()) ? 0 : parseFloat(String(value || "0").replace(",", "."));
+          var fallback = exact && yearMatches && number > 0 && number <= 10 ? number.toFixed(1) : "0.0";
           _0x5b3a69
             ? (_0x1c9a63["timeout"](0x3a98),
               _0x1c9a63.silent(
@@ -330,11 +340,11 @@
                     _0x3a328e = Lampa.Storage["get"]("rating_source", "tmdb"),
                     _0x43bdd9 = _0x3a328e === "kp" ? _0x2348d1["kp"] : _0x2348d1.imdb;
                   (releaseRequest(_0x1c9a63),
-                    _0x1612cf(_0x43bdd9 ? parseFloat(_0x43bdd9)["toFixed"](0x1) : "0.0"));
+                    _0x1612cf(_0x43bdd9 ? parseFloat(_0x43bdd9)["toFixed"](0x1) : fallback));
                 },
                 function () {
                   var _0x55a24b = _0x4b9ea5;
-                  (releaseRequest(_0x1c9a63), _0x1612cf("0.0"));
+                  (releaseRequest(_0x1c9a63), _0x1612cf(fallback));
                 },
                 ![],
                 { headers: _0x4a4497.headers },
