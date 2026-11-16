@@ -191,7 +191,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
     var WATCH_SERVER = 'https://lampa-watch-sync.shust-blr.workers.dev';
     var SERVER = window.LampaRatingsServer || 'https://lampa-ratings.shust-blr.workers.dev';
     var context = null, fingerprint = '', generation = 0, store = null, started = false;
-    var busy = false, polling = false, exporting = false, importing = false, importCancel = null;
+    var busy = false, polling = false, exporting = false, importing = false, importCancel = null, kpEpoch = 0, kpRefreshing = false, kpWaiters = [];
     var currentCard = null, cardSequence = 0, lastStatus = 'Не выполнен вход', lastPoll = 0;
     var ratingIndex = Core.createIndex(), pendingExports = Object.create(null);
     var mappings = {}, mappingPending = Object.create(null), mappingFailures = Object.create(null);
@@ -239,7 +239,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
     function load() {
         var candidate = selected(), mark = JSON.stringify([candidate.user && candidate.user.id, candidate.token, enabled()]);
         if (mark === fingerprint) return false;
-        fingerprint = mark; generation++; context = candidate; store = empty();
+        fingerprint = mark; generation++; kpEpoch++; kpRefreshing = false; kpWaiters = []; context = candidate; store = empty();
         ratingIndex = Core.createIndex(); pendingExports = Object.create(null);
         mappings = {}; mappingPending = Object.create(null); mappingFailures = Object.create(null);
         busy = false; polling = false; exporting = false; importing = false; importCancel = null; lastPoll = 0;
@@ -264,7 +264,9 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
     function message(error) {
         var code = error && error.body && error.body.error;
         var labels = {LOGIN_REQUIRED: 'Нужно снова войти в аккаунт', INVALID_CREDENTIALS: 'Неверный логин или пароль',
-            KP_LOGIN_REQUIRED: 'Войди в Кинопоиск через плагин and7ey и повтори синхронизацию',
+            KP_LOGIN_REQUIRED: 'Войди в Кинопоиск в настройках «Оценки»', KP_AUTH_PENDING: 'Подтверди вход на ya.ru/device и снова нажми «Готово»',
+            KP_AUTH_FAILED: 'Не удалось войти в Кинопоиск. Повтори авторизацию', KP_AUTH_UNAVAILABLE: 'Сервис авторизации временно недоступен',
+            KP_AUTH_NOT_CONFIGURED: 'Авторизация Кинопоиска пока не настроена на сервере',
             KP_ID_REQUIRED: 'Не найден ID Кинопоиска. Его можно указать в меню оценки',
             MAPPING_NOT_CONFIGURED: 'Автопоиск ID пока не настроен. Укажи ID Кинопоиска вручную',
             KP_IMPORT_UNSUPPORTED: 'Прокси не вернул список оценок. Импорт CSV остаётся доступен',
@@ -402,14 +404,62 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         lastStatus = 'Оценка сохранена на устройстве'; persist(); render();
         flush(function (error) { if (error && !error.canceled) notify(message(error)); });
     }
-    function and7eyToken() {
-        var value = Lampa.Storage.get('kinopoisk_access_token', '');
-        return typeof value === 'string' ? value : '';
+    function kpKey() { return 'lampa_ratings_kp_v1_' + encodeURIComponent(SERVER) + '_' + context.user.id; }
+    function kpState() {
+        if (!signedIn()) return {};
+        var value = Lampa.Storage.get(kpKey(), null);
+        if (value && typeof value === 'object') return value;
+        var access = Lampa.Storage.get('kinopoisk_access_token', ''), refresh = Lampa.Storage.get('kinopoisk_refresh_token', '');
+        if (typeof access !== 'string' || !access) return {};
+        value = {accessToken: access, refreshToken: typeof refresh === 'string' ? refresh : '', expiresAt: Number(Lampa.Storage.get('kinopoisk_token_expires', 0)) || 0};
+        Lampa.Storage.set(kpKey(), value);
+        return value;
+    }
+    function kpAccess() { return kpState().accessToken || ''; }
+    function storeKp(body) {
+        if (!body || typeof body.accessToken !== 'string' || !body.accessToken || typeof body.refreshToken !== 'string' || !body.refreshToken ||
+            !Number.isFinite(body.expiresIn) || body.expiresIn <= 0) return false;
+        Lampa.Storage.set(kpKey(), {accessToken: body.accessToken, refreshToken: body.refreshToken, expiresAt: Date.now() + body.expiresIn * 1000});
+        return true;
     }
     function token(callback) {
-        var value = and7eyToken();
-        if (!value) return callback({status: 400, body: {error: 'KP_LOGIN_REQUIRED'}});
-        callback(null, value);
+        var state = kpState(), version = generation, epoch = kpEpoch;
+        if (!state.accessToken) return callback({status: 400, body: {error: 'KP_LOGIN_REQUIRED'}});
+        if (!state.expiresAt || state.expiresAt > Date.now() + 60000) return callback(null, state.accessToken);
+        if (!state.refreshToken) return callback({status: 400, body: {error: 'KP_LOGIN_REQUIRED'}});
+        kpWaiters.push(callback); if (kpRefreshing) return;
+        kpRefreshing = true;
+        api('POST', '/v1/kinopoisk/refresh', {value: state.refreshToken}, function (error, body) {
+            if (!active(version) || epoch !== kpEpoch) return;
+            if (!error && !storeKp(body)) error = {status: 502, body: {error: 'KP_AUTH_FAILED'}};
+            var waiters = kpWaiters; kpWaiters = []; kpRefreshing = false;
+            waiters.forEach(function (done) { done(error, error ? null : body.accessToken); });
+        });
+    }
+    function kpConnect() {
+        load(); if (!signedIn()) return notify('Сначала войди в облачный аккаунт');
+        if (exporting || importing) return notify('Дождись завершения синхронизации и повтори вход');
+        var version = generation, epoch = ++kpEpoch; kpRefreshing = false; kpWaiters = [];
+        api('POST', '/v1/kinopoisk/device', {}, function (error, body) {
+            if (!active(version) || epoch !== kpEpoch) return;
+            if (error) return notify(message(error));
+            if (!body || typeof body.userCode !== 'string' || typeof body.deviceCode !== 'string') return notify('Не удалось получить код авторизации');
+            var deviceCode = body.deviceCode, expires = Date.now() + body.expiresIn * 1000;
+            var modal = $('<div><div class="about">Открой https://ya.ru/device на любом устройстве и введи код<br><br><b></b><br><br>Затем нажми «Готово».</div><div class="broadcast__device selector" style="text-align:center">Готово</div></div>');
+            modal.find('b').text(body.userCode);
+            Lampa.Modal.open({title: 'Вход в Кинопоиск', html: modal, onBack: function () { kpEpoch++; Lampa.Modal.close(); controller(); },
+                onSelect: function () {
+                    if (epoch !== kpEpoch || !active(version)) return;
+                    if (Date.now() >= expires) { kpEpoch++; Lampa.Modal.close(); controller(); return notify('Код истёк. Начни вход заново'); }
+                    api('POST', '/v1/kinopoisk/token', {value: deviceCode}, function (err, result) {
+                        if (!active(version) || epoch !== kpEpoch) return;
+                        if (err) return notify(message(err));
+                        if (!storeKp(result)) return notify('Не удалось сохранить вход в Кинопоиск');
+                        kpEpoch++; deviceCode = ''; Lampa.Modal.close(); controller(); notify('Вход в Кинопоиск выполнен');
+                        synchronize(true, function () { flush(); });
+                    });
+                }});
+        });
     }
     function exportPending(done) {
         done = done || function () {};
@@ -422,7 +472,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
             if (error) { exporting = false; lastStatus = message(error); return done(error); }
             function next() {
                 if (!active(version)) return;
-                if (and7eyToken() !== oauth) { exporting = false; return done({canceled: true}); }
+                if (kpAccess() !== oauth) { exporting = false; return done({canceled: true}); }
                 var row = values.shift();
                 if (!row) { exporting = false; return done(); }
                 if (store.outbox[row.key]) return next();
@@ -531,7 +581,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
             }
             function page(offset) {
                 if (!active(version)) return;
-                if (and7eyToken() !== oauth) return finish('Вход Кинопоиска в плагине and7ey изменился. Импорт остановлен');
+                if (kpAccess() !== oauth) return finish('Вход в Кинопоиск изменился. Импорт остановлен');
                 if (canceled) return finish('Импорт остановлен');
                 api('POST', '/v1/kinopoisk/ratings', {oauth: oauth, offset: offset}, function (error, body) {
                     if (!active(version)) return;
@@ -650,6 +700,13 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
         function button(name, title, description, action) { Lampa.SettingsApi.addParam({component: 'lampa_ratings',
             param: {name: name, type: 'button'}, field: {name: title, description: description}, onChange: action}); }
         button('ratings_account', 'Войти в облачный аккаунт', 'Используй логин и пароль Watch Sync. Вход таймкодов останется прежним.', login);
+        button('ratings_kp_connect', 'Войти в Кинопоиск', 'Авторизация через код Яндекса. Для синхронизации нужен облачный аккаунт.', kpConnect);
+        button('ratings_kp_disconnect', 'Выйти из Кинопоиска', 'Выход только из плагина оценок.', function () {
+            load(); if (!signedIn()) return notify('Сначала войди в облачный аккаунт');
+            kpEpoch++; kpRefreshing = false; kpWaiters = []; exporting = false;
+            if (importCancel) importCancel(); importing = false; importCancel = null;
+            Lampa.Storage.set(kpKey(), {}); notify('Выполнен выход из Кинопоиска');
+        });
         button('ratings_shared', 'Использовать аккаунт Watch Sync на устройстве', 'Подключить оценки к уже выполненному входу.', function () {
             Lampa.Storage.set('lampa_ratings_connection', {}); Lampa.Storage.set('lampa_ratings_detached', false);
             load(); synchronize(true, function () { flush(); }); notify(lastStatus);
@@ -665,7 +722,7 @@ window.LampaRatingsServer="https://lampa-ratings.shust-blr.workers.dev";
             var all = combined(), total = Object.keys(all).filter(function (key) { return all[key].rating !== null; }).length;
             var pending = Object.keys(all).filter(function (key) { return all[key].exportRequested && !all[key].synced; }).length;
             notify('Аккаунт: ' + context.user.username + '. Оценок: ' + total + '. В очереди облака: ' + Object.keys(store.outbox).length +
-                '. Ожидают Кинопоиск: ' + pending + '. Вход and7ey: ' + (and7eyToken() ? 'есть' : 'не выполнен') + '. ' + lastStatus);
+                '. Ожидают Кинопоиск: ' + pending + '. Вход в Кинопоиск: ' + (kpAccess() ? 'есть' : 'не выполнен') + '. ' + lastStatus);
         });
         button('ratings_logout', 'Выйти только из плагина оценок', 'Таймкоды и облачные оценки сохранятся.', function () {
             Lampa.Storage.set('lampa_ratings_connection', {}); Lampa.Storage.set('lampa_ratings_detached', true); load(); notify('Выполнен выход из оценок');
