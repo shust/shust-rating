@@ -114,8 +114,12 @@
             param: {
                 name: 'font_switcher_family',
                 type: 'select',
-                // Список доступных шрифтов через запятую
-                values: 'default,Onest,Inter',
+                // Используем объект: ключ — сохраняемое значение, значение — отображаемый текст
+                values: {
+                    default: 'По умолчанию',
+                    Onest: 'Onest',
+                    Inter: 'Inter'
+                },
                 default: 'default'
             },
             field: {
