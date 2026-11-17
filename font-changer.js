@@ -1,152 +1,145 @@
-/**
- * Плагин "Font Switcher" для Lampa.mx
- * 
- * Назначение:
- *   Позволяет менять шрифт интерфейса Lampa на выбранный из списка
- *   (доступны шрифты Onest и Inter из Google Fonts) через настройки приложения.
- *   Дополнительно применяет набор кастомных CSS-стилей для элементов
- *   интерфейса (возрастной рейтинг, меню, заголовки, кнопки и т.д.),
- *   улучшая внешний вид и читаемость.
- * 
- * Использование:
- *   Подключить плагин в Lampa → Настройки → Шрифт интерфейса → выбрать шрифт.
- *   Выбор сохраняется и применяется автоматически при следующем запуске.
- */
-(function() {
+(function () {
     'use strict';
 
-    // Предотвращаем повторную загрузку плагина
-    if (window.font_switcher_plugin_ready) return;
-    window.font_switcher_plugin_ready = true;
+    if (window.lampa_font_changer) return;
+    window.lampa_font_changer = true;
 
-    // --- 1. Подключение шрифтов из Google Fonts ---
-    // Onest
-    var onestLink = document.createElement('link');
-    onestLink.rel = 'stylesheet';
-    onestLink.href = 'https://fonts.googleapis.com/css2?family=Onest:wght@100..900&display=swap';
-    document.head.appendChild(onestLink);
+    // ───────── Настройки плагина ─────────
 
-    // Inter
-    var interLink = document.createElement('link');
-    interLink.rel = 'stylesheet';
-    interLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap';
-    document.head.appendChild(interLink);
+    var STYLE_ID = 'lampa-font-changer-style';
+    var CDN      = 'https://cdn.jsdelivr.net/npm/';
 
-    // --- 2. Базовые стили интерфейса (применяются всегда) ---
-    // Эти правила не зависят от выбранного шрифта и применяются один раз
-    function applyBaseStyles() {
-        // Удаляем старый стиль базовых правил, если он есть
-        var oldBase = document.getElementById('font-switcher-base-style');
-        if (oldBase) {
-            oldBase.remove();
-        }
+    // Метрики оригинального Segoe UI (в % от размера шрифта)
+    var SEGOE_ASCENT  = 107.9;
+    var SEGOE_DESCENT = 25.1;
+
+    // size - начальный size-adjust (%), подгоняет размер глифов под Segoe UI
+    var FONTS = {
+        original: { name: 'Оригинальный' },
+        onest:    { name: 'Onest',  pkg: '@fontsource-variable/onest',  file: 'onest',  size: 92 },
+        inter:    { name: 'Inter',  pkg: '@fontsource-variable/inter',  file: 'inter',  size: 90 },
+        roboto:   { name: 'Roboto', pkg: '@fontsource-variable/roboto', file: 'roboto', size: 95 }
+    };
+
+    var RANGES = {
+        cyrillic: 'U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116',
+        latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD'
+    };
+
+    var KEY_FONT = 'font_changer_family';
+    var KEY_SIZE = 'font_changer_size';
+
+    // ───────── Применение шрифта ─────────
+
+    function removeStyle() {
+        var old = document.getElementById(STYLE_ID);
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+    }
+
+    function fontFace(font, subset, size) {
+        var k = size / 100;
+        var url = CDN + font.pkg + '/files/' + font.file + '-' + subset + '-wght-normal.woff2';
+
+        return '@font-face {' +
+            'font-family: "LampaCustomFont";' +
+            'font-style: normal;' +
+            'font-weight: 100 900;' +
+            'font-display: swap;' +
+            'src: url("' + url + '") format("woff2");' +
+            'unicode-range: ' + RANGES[subset] + ';' +
+            'size-adjust: ' + size + '%;' +
+            'ascent-override: ' + (SEGOE_ASCENT / k).toFixed(1) + '%;' +
+            'descent-override: ' + (SEGOE_DESCENT / k).toFixed(1) + '%;' +
+            'line-gap-override: 0%;' +
+        '}';
+    }
+
+    function apply() {
+        var key  = Lampa.Storage.get(KEY_FONT, 'original');
+        var font = FONTS[key];
+
+        removeStyle();
+
+        if (!font || key === 'original') return;
+
+        var sizeSetting = Lampa.Storage.get(KEY_SIZE, 'auto');
+        var size = sizeSetting === 'auto' ? font.size : parseInt(sizeSetting, 10);
+        if (!size || size < 50 || size > 150) size = font.size;
+
+        var css =
+            fontFace(font, 'cyrillic', size) +
+            fontFace(font, 'latin', size) +
+            'body, input, button, textarea, select {' +
+                'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
+            '}';
 
         var style = document.createElement('style');
-        style.id = 'font-switcher-base-style';
-        style.textContent = `
-            .card__age {
-                opacity: 0.65;
-                font-weight: 300;
-            }
-            .menu__text {
-                font-size: 1.2em;
-                margin-top: 0.1em;
-                font-weight: 300;
-            }
-            .items-line__title {
-                font-weight: 500;
-            }
-            .full-start-new__split {
-                zoom: 0.5;
-            }
-            .full-start__button > svg + span {
-                margin-top: -0.0em;
-            }
-            .head__time-now {
-                margin-top: 0.13em;
-            }
-            .card__vote {
-                font-weight: 600;
-            }
-        `;
+        style.id = STYLE_ID;
+        style.textContent = css;
         document.head.appendChild(style);
     }
 
-    // --- 3. Функция для применения шрифта ---
-    function applyFont(fontName) {
-        // Удаляем старый стиль шрифта, если он есть
-        var oldStyle = document.getElementById('font-switcher-style');
-        if (oldStyle) {
-            oldStyle.remove();
-        }
+    // ───────── Меню настроек ─────────
 
-        // Если выбран вариант "По умолчанию" (или пусто), ничего не делаем
-        if (!fontName || fontName === 'default') {
-            return;
-        }
-
-        // Создаем новый тег <style> с правилом для шрифта
-        var style = document.createElement('style');
-        style.id = 'font-switcher-style';
-        style.textContent = `
-            body * {
-                font-family: '${fontName}', sans-serif !important;
-            }
-        `;
-        document.head.appendChild(style);
+    function buildValues() {
+        var values = {};
+        for (var key in FONTS) values[key] = FONTS[key].name;
+        return values;
     }
 
-    // --- 4. Инициализация плагина после готовности Lampa ---
-    function init() {
-        // Применяем базовые стили сразу при запуске
-        applyBaseStyles();
+    function buildSizeValues() {
+        var values = { auto: 'Авто (подобрано для шрифта)' };
+        for (var i = 80; i <= 110; i += 2) values[String(i)] = i + '%';
+        return values;
+    }
 
-        // Регистрируем раздел настроек
+    function initSettings() {
         Lampa.SettingsApi.addComponent({
-            component: 'font_switcher',
-            name: 'Шрифт интерфейса',
-            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h5v12h3V7h5V4H9zm-6 8h3v7h3v-7h3V9H3v3z"/></svg>'
+            component: 'font_changer',
+            name: 'Шрифт',
+            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>'
         });
 
-        // Добавляем параметр выбора шрифта
         Lampa.SettingsApi.addParam({
-            component: 'font_switcher',
+            component: 'font_changer',
             param: {
-                name: 'font_switcher_family',
+                name: KEY_FONT,
                 type: 'select',
-                // Используем объект: ключ — сохраняемое значение, значение — отображаемый текст
-                values: {
-                    default: 'По умолчанию',
-                    Onest: 'Onest',
-                    Inter: 'Inter'
-                },
-                default: 'default'
+                values: buildValues(),
+                default: 'original'
             },
             field: {
-                name: 'Выберите шрифт',
-                description: 'Шрифт, который будет использоваться во всем интерфейсе Lampa'
+                name: 'Шрифт интерфейса',
+                description: 'Выберите шрифт для всего текста в Lampa'
             },
-            onChange: function() {
-                // Читаем актуальное значение из хранилища и применяем
-                var selectedFont = Lampa.Storage.field('font_switcher_family');
-                applyFont(selectedFont);
-            }
+            onChange: apply
         });
 
-        // Применяем сохраненный шрифт при запуске
-        var savedFont = Lampa.Storage.field('font_switcher_family');
-        applyFont(savedFont);
-    }
-
-    // Запускаем init, когда приложение Lampa будет готово
-    if (window.appready) {
-        init();
-    } else {
-        Lampa.Listener.follow('app', function(e) {
-            if (e.type === 'ready') {
-                init();
-            }
+        Lampa.SettingsApi.addParam({
+            component: 'font_changer',
+            param: {
+                name: KEY_SIZE,
+                type: 'select',
+                values: buildSizeValues(),
+                default: 'auto'
+            },
+            field: {
+                name: 'Размер текста',
+                description: 'Подгонка размера букв выбранного шрифта. Размеры блоков, иконок и отступов не меняются'
+            },
+            onChange: apply
         });
     }
 
+    // ───────── Запуск ─────────
+
+    function start() {
+        initSettings();
+        apply();
+    }
+
+    if (window.appready) start();
+    else Lampa.Listener.follow('app', function (e) {
+        if (e.type === 'ready') start();
+    });
 })();
