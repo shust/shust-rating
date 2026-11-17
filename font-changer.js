@@ -71,6 +71,14 @@
             fontFace(font, 'latin', size) +
             'body, input, button, textarea, select {' +
                 'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
+            '}' +
+            '.card__age {' +
+                'font-size: 1em;' +
+                'margin-top: 0.5em;' +
+                'opacity: 0.65;' +
+            '}' +
+            '.watch-sync-meta__episode {' +
+                'font-weight: 400;' +
             '}';
 
         var style = document.createElement('style');
