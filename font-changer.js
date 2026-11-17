@@ -26,19 +26,120 @@
         latin: 'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD'
     };
 
-    var KEY_FONT = 'font_changer_family';
-    var KEY_SIZE = 'font_changer_size';
-    var KEY_SMALL = 'font_changer_small';
+    // Элементы, которые всегда считаются мелким текстом (кроме автоопределения).
+    var SMALL_SELECTORS = [];
 
-    // Элементы с мелким текстом: для них буквы увеличиваются дополнительно.
-    // Добавляйте свои селекторы (классы смотрите в инспекторе).
-    var SMALL_SELECTORS = [
-        '.card__age',
-        '.card__type',
-        '.card__vote',
-        '.settings-param__descr',
-        '.watch-sync-meta__episode'
-    ];
+    var KEY_FONT   = 'font_changer_family';
+    var KEY_SIZE   = 'font_changer_size';
+    var KEY_SMALL  = 'font_changer_small';
+    var KEY_THRESH = 'font_changer_thresh';
+
+    var CLS_SMALL  = 'fc-small';
+    var CLS_NORMAL = 'fc-normal';
+
+    // ───────── Автоопределение мелкого текста ─────────
+
+    var observer = null;
+    var timer    = null;
+    var pending  = [];
+    var runId    = 0;
+
+    function isEnabled() {
+        return !!FONTS[Lampa.Storage.get(KEY_FONT, 'original')] &&
+               Lampa.Storage.get(KEY_FONT, 'original') !== 'original';
+    }
+
+    function getThreshold() {
+        var t = parseInt(Lampa.Storage.get(KEY_THRESH, '90'), 10);
+        if (!t || t < 30 || t > 120) t = 90;
+        return t / 100;
+    }
+
+    function matchesForced(el) {
+        if (!SMALL_SELECTORS.length) return false;
+        try { return el.matches(SMALL_SELECTORS.join(',')); } catch (e) { return false; }
+    }
+
+    // Размечает один элемент с текстом: мелкий или обычный
+    function classify(el, base, ratio) {
+        var size = parseFloat(window.getComputedStyle(el).fontSize);
+        var small = !!(size && base && (size / base) < ratio) || matchesForced(el);
+
+        if (small) {
+            el.classList.remove(CLS_NORMAL);
+            el.classList.add(CLS_SMALL);
+        } else {
+            el.classList.remove(CLS_SMALL);
+            el.classList.add(CLS_NORMAL);
+        }
+    }
+
+    // Обходит текстовые узлы внутри root и размечает их родителей
+    function scan(root) {
+        if (!root) return;
+
+        var base  = parseFloat(window.getComputedStyle(document.body).fontSize);
+        var ratio = getThreshold();
+
+        if (root.nodeType === 3) {
+            if (root.parentElement && root.nodeValue.trim()) classify(root.parentElement, base, ratio);
+            return;
+        }
+        if (root.nodeType !== 1) return;
+
+        var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
+        var node;
+        runId++;
+
+        while ((node = walker.nextNode())) {
+            var parent = node.parentElement;
+            if (!parent || parent.__fcRun === runId) continue;
+            if (!node.nodeValue.trim()) continue;
+
+            var tag = parent.tagName;
+            if (tag === 'SCRIPT' || tag === 'STYLE') continue;
+
+            parent.__fcRun = runId;
+            classify(parent, base, ratio);
+        }
+    }
+
+    function flush() {
+        timer = null;
+        if (!isEnabled()) { pending = []; return; }
+
+        var nodes = pending;
+        pending = [];
+        for (var i = 0; i < nodes.length; i++) scan(nodes[i]);
+    }
+
+    function onMutations(list) {
+        for (var i = 0; i < list.length; i++) {
+            var added = list[i].addedNodes;
+            for (var j = 0; j < added.length; j++) pending.push(added[j]);
+        }
+        if (!timer) timer = setTimeout(flush, 80);
+    }
+
+    function startObserver() {
+        if (observer || !window.MutationObserver) return;
+        observer = new MutationObserver(onMutations);
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+
+    function stopObserver() {
+        if (observer) { observer.disconnect(); observer = null; }
+        if (timer) { clearTimeout(timer); timer = null; }
+        pending = [];
+    }
+
+    function clearClasses() {
+        var els = document.querySelectorAll('.' + CLS_SMALL + ', .' + CLS_NORMAL);
+        for (var i = 0; i < els.length; i++) {
+            els[i].classList.remove(CLS_SMALL);
+            els[i].classList.remove(CLS_NORMAL);
+        }
+    }
 
     // ───────── Применение шрифта ─────────
 
@@ -71,7 +172,11 @@
 
         removeStyle();
 
-        if (!font || key === 'original') return;
+        if (!font || key === 'original') {
+            stopObserver();
+            clearClasses();
+            return;
+        }
 
         var sizeSetting = Lampa.Storage.get(KEY_SIZE, 'auto');
         var size = sizeSetting === 'auto' ? font.size : parseInt(sizeSetting, 10);
@@ -90,7 +195,10 @@
             'body, input, button, textarea, select {' +
                 'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
             '}' +
-            SMALL_SELECTORS.join(',') + ' {' +
+            '.' + CLS_NORMAL + ' {' +
+                'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
+            '}' +
+            '.' + CLS_SMALL + ' {' +
                 'font-family: "LampaCustomFontSmall", "SegoeUI", sans-serif !important;' +
             '}' +
             '.card__age {' +
@@ -106,6 +214,10 @@
         style.id = STYLE_ID;
         style.textContent = css;
         document.head.appendChild(style);
+
+        // Пересчитываем весь интерфейс и следим за новыми элементами
+        scan(document.body);
+        startObserver();
     }
 
     // ───────── Меню настроек ─────────
@@ -128,6 +240,12 @@
         return values;
     }
 
+    function buildThreshValues() {
+        var values = {};
+        for (var i = 60; i <= 100; i += 5) values[String(i)] = 'меньше ' + i + '% от основного';
+        return values;
+    }
+
     function initSettings() {
         Lampa.SettingsApi.addComponent({
             component: 'font_changer',
@@ -137,12 +255,7 @@
 
         Lampa.SettingsApi.addParam({
             component: 'font_changer',
-            param: {
-                name: KEY_FONT,
-                type: 'select',
-                values: buildValues(),
-                default: 'original'
-            },
+            param: { name: KEY_FONT, type: 'select', values: buildValues(), default: 'original' },
             field: {
                 name: 'Шрифт интерфейса',
                 description: 'Выберите шрифт для всего текста в Lampa'
@@ -152,12 +265,7 @@
 
         Lampa.SettingsApi.addParam({
             component: 'font_changer',
-            param: {
-                name: KEY_SIZE,
-                type: 'select',
-                values: buildSizeValues(),
-                default: 'auto'
-            },
+            param: { name: KEY_SIZE, type: 'select', values: buildSizeValues(), default: 'auto' },
             field: {
                 name: 'Размер текста',
                 description: 'Подгонка размера букв выбранного шрифта. Размеры блоков, иконок и отступов не меняются'
@@ -167,15 +275,20 @@
 
         Lampa.SettingsApi.addParam({
             component: 'font_changer',
-            param: {
-                name: KEY_SMALL,
-                type: 'select',
-                values: buildSmallValues(),
-                default: '115'
-            },
+            param: { name: KEY_SMALL, type: 'select', values: buildSmallValues(), default: '115' },
             field: {
-                name: 'Мелкий текст',
-                description: 'Дополнительное увеличение букв в мелких подписях (возраст, тип, описания). Макет не меняется'
+                name: 'Увеличение мелкого текста',
+                description: 'Насколько дополнительно увеличить буквы в мелком тексте'
+            },
+            onChange: apply
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'font_changer',
+            param: { name: KEY_THRESH, type: 'select', values: buildThreshValues(), default: '90' },
+            field: {
+                name: 'Что считать мелким текстом',
+                description: 'Текст мельче этого порога (относительно основного размера) определяется автоматически'
             },
             onChange: apply
         });
