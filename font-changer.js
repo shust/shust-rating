@@ -28,6 +28,17 @@
 
     var KEY_FONT = 'font_changer_family';
     var KEY_SIZE = 'font_changer_size';
+    var KEY_SMALL = 'font_changer_small';
+
+    // Элементы с мелким текстом: для них буквы увеличиваются дополнительно.
+    // Добавляйте свои селекторы (классы смотрите в инспекторе).
+    var SMALL_SELECTORS = [
+        '.card__age',
+        '.card__type',
+        '.card__vote',
+        '.settings-param__descr',
+        '.watch-sync-meta__episode'
+    ];
 
     // ───────── Применение шрифта ─────────
 
@@ -36,12 +47,12 @@
         if (old && old.parentNode) old.parentNode.removeChild(old);
     }
 
-    function fontFace(font, subset, size) {
+    function fontFace(font, subset, size, family) {
         var k = size / 100;
         var url = CDN + font.pkg + '/files/' + font.file + '-' + subset + '-wght-normal.woff2';
 
         return '@font-face {' +
-            'font-family: "LampaCustomFont";' +
+            'font-family: "' + family + '";' +
             'font-style: normal;' +
             'font-weight: 100 900;' +
             'font-display: swap;' +
@@ -66,19 +77,26 @@
         var size = sizeSetting === 'auto' ? font.size : parseInt(sizeSetting, 10);
         if (!size || size < 50 || size > 150) size = font.size;
 
+        // Отдельное семейство с увеличенными буквами для мелкого текста
+        var smallK = parseInt(Lampa.Storage.get(KEY_SMALL, '115'), 10);
+        if (!smallK || smallK < 80 || smallK > 200) smallK = 115;
+        var smallSize = Math.round(size * smallK / 100);
+
         var css =
-            fontFace(font, 'cyrillic', size) +
-            fontFace(font, 'latin', size) +
+            fontFace(font, 'cyrillic', size, 'LampaCustomFont') +
+            fontFace(font, 'latin', size, 'LampaCustomFont') +
+            fontFace(font, 'cyrillic', smallSize, 'LampaCustomFontSmall') +
+            fontFace(font, 'latin', smallSize, 'LampaCustomFontSmall') +
             'body, input, button, textarea, select {' +
                 'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
+            '}' +
+            SMALL_SELECTORS.join(',') + ' {' +
+                'font-family: "LampaCustomFontSmall", "SegoeUI", sans-serif !important;' +
             '}' +
             '.card__age {' +
                 'font-size: 1em;' +
                 'margin-top: 0.5em;' +
                 'opacity: 0.65;' +
-            '}' +
-           '.items-line__title {' +
-                'font-weight: 600;' +
             '}' +
             '.watch-sync-meta__episode {' +
                 'font-weight: 400;' +
@@ -101,6 +119,12 @@
     function buildSizeValues() {
         var values = { auto: 'Авто (подобрано для шрифта)' };
         for (var i = 80; i <= 110; i += 2) values[String(i)] = i + '%';
+        return values;
+    }
+
+    function buildSmallValues() {
+        var values = {};
+        for (var i = 100; i <= 150; i += 5) values[String(i)] = i + '%';
         return values;
     }
 
@@ -137,6 +161,21 @@
             field: {
                 name: 'Размер текста',
                 description: 'Подгонка размера букв выбранного шрифта. Размеры блоков, иконок и отступов не меняются'
+            },
+            onChange: apply
+        });
+
+        Lampa.SettingsApi.addParam({
+            component: 'font_changer',
+            param: {
+                name: KEY_SMALL,
+                type: 'select',
+                values: buildSmallValues(),
+                default: '115'
+            },
+            field: {
+                name: 'Мелкий текст',
+                description: 'Дополнительное увеличение букв в мелких подписях (возраст, тип, описания). Макет не меняется'
             },
             onChange: apply
         });
