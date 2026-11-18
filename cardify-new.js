@@ -62,7 +62,12 @@
                 'mask-image: none;' +
                 'margin-bottom: 1.5em;' +
             '}' +
-            '.full-start-new.cardify .full-start-new__head {font-size: 1.1em;}';
+            '.cardify__details {' +
+            'width: 60%;' +
+            '}' +
+            '.full-start-new.cardify .full-start-new__head {' +
+            'font-size: 1.1em;' +
+            }';
         (document.head || document.documentElement).appendChild(style);
 
         // Cardify can build or rearrange the card after Lampa's full event.
