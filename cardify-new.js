@@ -51,23 +51,23 @@
         var style = document.createElement('style');
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
-            '.full-start-new.cardify .full-descr__text {' +
-                'width: 60% !important;' +
-                'font-weight: 400;' +
-                'opacity: 0.8;' +
-                'display: -webkit-box;' +
-                '-webkit-line-clamp: 4;' +
-                '-webkit-box-orient: vertical;' +
-                'overflow: hidden;' +
-                'mask-image: none;' +
-                'margin-bottom: 1.5em;' +
-            '}' +
-            '.cardify__details {' +
-            'width: 60%;' +
-            '}' +
-            '.full-start-new.cardify .full-start-new__head {' +
-            'font-size: 1.1em;' +
-            }';
+    '.full-start-new.cardify .full-descr__text {' +
+        'width: 60% !important;' +
+        'font-weight: 400;' +
+        'opacity: 0.8;' +
+        'display: -webkit-box;' +
+        '-webkit-line-clamp: 4;' +
+        '-webkit-box-orient: vertical;' +
+        'overflow: hidden;' +
+        'mask-image: none;' +
+        'margin-bottom: 1.5em;' +
+    '}' +
+    '.cardify__details {' +
+        'width: 60%;' +
+    '}' +
+    '.full-start-new.cardify .full-start-new__head {' +
+        'font-size: 1.1em;' +
+    '}';
         (document.head || document.documentElement).appendChild(style);
 
         // Cardify can build or rearrange the card after Lampa's full event.
