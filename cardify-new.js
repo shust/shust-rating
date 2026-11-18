@@ -66,7 +66,7 @@
         'width: 60%;' +
     '}' +
     '.full-start-new.cardify .full-start-new__head {' +
-        'font-size: 1.1em;' +
+        'font-size: 1.0em;' +
     '}';
         (document.head || document.documentElement).appendChild(style);
 
