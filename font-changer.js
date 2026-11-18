@@ -77,6 +77,9 @@
                 'margin-top: 0.5em;' +
                 'opacity: 0.65;' +
             '}' +
+            '.items-line__title {' +
+                'font-weight: 600;' +
+            '}' +
             '.watch-sync-meta__episode {' +
                 'font-weight: 400;' +
             '}';
