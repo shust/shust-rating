@@ -99,6 +99,10 @@
             '}' +
             '.full-start-new.cardify .cardify__details {width: 60%;}' +
             '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
+            'img.full-start__background.cardify__background.loaded {' +
+    'mask-image: linear-gradient(270deg, #000 0%, rgb(0 0 0 / 59%) 34%, transparent 76%), ' +
+                'linear-gradient(180deg, transparent 0%, transparent 52%, rgb(0 0 0 / 44%) 82%, #000 100%);' +
+'}' +
             '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}';
         (document.head || document.documentElement).appendChild(style);
 
