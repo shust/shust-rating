@@ -11,6 +11,33 @@
     var scheduled = false;
     var cardSelector = '.full-start-new.cardify';
 
+    function moveEpisodesBeforeBuild(event) {
+        var page = event.link;
+        if (!page || !Array.isArray(page.rows) || typeof page.build !== 'function' ||
+            page.cardifyEpisodesBuildWrapped) return;
+
+        var originalBuild = page.build;
+        page.cardifyEpisodesBuildWrapped = true;
+        page.build = function (initialRows) {
+            // Restore the original method immediately: later builds must keep their arguments.
+            this.build = originalBuild;
+            var rows = this.rows;
+            var episodeIndex = -1;
+            var descriptionIndex = -1;
+            for (var i = 0; i < rows.length; i++) {
+                var name = Array.isArray(rows[i]) ? rows[i][0] : rows[i];
+                if (name === 'episodes') episodeIndex = i;
+                if (name === 'description') descriptionIndex = i;
+            }
+            if (episodeIndex > descriptionIndex && descriptionIndex >= 0) {
+                var episodes = rows.splice(episodeIndex, 1)[0];
+                rows.splice(descriptionIndex, 0, episodes);
+                initialRows = rows.slice(0, this.view);
+            }
+            return originalBuild.call(this, initialRows);
+        };
+    }
+
     function applyLayout() {
         scheduled = false;
 
@@ -98,6 +125,7 @@
 
         if (window.Lampa && Lampa.Listener && Lampa.Listener.follow) {
             Lampa.Listener.follow('full', function (event) {
+                if (event.type === 'start') moveEpisodesBeforeBuild(event);
                 if (event.type === 'complite' || event.type === 'build') schedule();
             });
         }
