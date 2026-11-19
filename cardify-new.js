@@ -60,6 +60,13 @@
             var scope = card.closest('.activity__body') ||
                 card.closest('.scroll__body') || card.parentNode;
             var description = scope.querySelector('.full-descr__text');
+            if (description) {
+                while (description.lastChild &&
+                    ((description.lastChild.nodeType === 1 && description.lastChild.tagName === 'BR') ||
+                     (description.lastChild.nodeType === 3 && !description.lastChild.nodeValue.trim()))) {
+                    description.removeChild(description.lastChild);
+                }
+            }
             if (description && (description.parentNode !== buttons.parentNode ||
                 description.nextElementSibling !== buttons)) {
                 // Moving the node preserves its text and existing event handlers.
