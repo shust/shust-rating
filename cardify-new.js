@@ -545,7 +545,7 @@
             '.full-start-new {padding: 0 2em; padding-bottom: 4em;}' +
             '.full-start-new.cardify .cardify__details {width: 60%;}' +
             '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
-            '.full-start__button {padding: 0.8em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 18%); box-shadow: inset 0 0 0 1px #ffffff14;}' +
+            '.full-start__button {padding: 0.8em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px #ffffff0f;}' +
             '.full-start__button.focus {padding-right: 1.4em; padding-left: 1.3em;}' +
             '.full-start__button > svg {width: 1.3em; height: 1.3em;}' +
             '.full-start__button > svg + span {margin-left: 0.5em;}' +
