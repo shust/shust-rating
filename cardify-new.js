@@ -38,6 +38,14 @@
                 // Moving the node preserves its text and existing event handlers.
                 buttons.parentNode.insertBefore(description, buttons);
             }
+            if (description) description.classList.remove('selector', 'focus');
+
+            var ratings = card.querySelector('.cardify__right');
+            var anchor = description && description.parentNode === buttons.parentNode ? description : buttons;
+            if (ratings && (ratings.parentNode !== anchor.parentNode ||
+                ratings.nextElementSibling !== anchor)) {
+                anchor.parentNode.insertBefore(ratings, anchor);
+            }
         }
     }
 
@@ -51,23 +59,20 @@
         var style = document.createElement('style');
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
-    '.full-start-new.cardify .full-descr__text {' +
-        'width: 60% !important;' +
-        'font-weight: 400;' +
-        'opacity: 0.8;' +
-        'display: -webkit-box;' +
-        '-webkit-line-clamp: 4;' +
-        '-webkit-box-orient: vertical;' +
-        'overflow: hidden;' +
-        'mask-image: none;' +
-        'margin-bottom: 1.5em;' +
-    '}' +
-    '.cardify__details {' +
-        'width: 60%;' +
-    '}' +
-    '.full-start-new.cardify .full-start-new__head {' +
-        'font-size: 1.0em;' +
-    '}';
+            '.full-start-new.cardify .full-descr__text {' +
+                'width: 60% !important;' +
+                'font-weight: 400;' +
+                'opacity: 0.8;' +
+                'display: -webkit-box;' +
+                '-webkit-line-clamp: 4;' +
+                '-webkit-box-orient: vertical;' +
+                'overflow: hidden;' +
+                'mask-image: none;' +
+                'margin-bottom: 1.5em;' +
+            '}' +
+            '.full-start-new.cardify .cardify__details {width: 60%;}' +
+            '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
+            '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}';
         (document.head || document.documentElement).appendChild(style);
 
         // Cardify can build or rearrange the card after Lampa's full event.
@@ -94,6 +99,25 @@
         if (window.Lampa && Lampa.Listener && Lampa.Listener.follow) {
             Lampa.Listener.follow('full', function (event) {
                 if (event.type === 'complite' || event.type === 'build') schedule();
+            });
+        }
+
+        // Lampa selects the first navigable element when returning to the start.
+        // Ratings now precede the buttons in DOM order, so explicitly choose a button.
+        if (window.Lampa && Lampa.Controller && Lampa.Controller.listener &&
+            Lampa.Controller.listener.follow) {
+            Lampa.Controller.listener.follow('toggle', function (event) {
+                if (event.name !== 'full_start') return;
+                var active = document.querySelector('.activity--active');
+                var card = active && active.querySelector(cardSelector);
+                var buttons = card && card.querySelectorAll('.full-start-new__buttons .selector');
+                if (!buttons) return;
+                for (var i = 0; i < buttons.length; i++) {
+                    if (!buttons[i].classList.contains('hide') && buttons[i].offsetParent !== null) {
+                        Lampa.Controller.collectionFocus(buttons[i], card);
+                        break;
+                    }
+                }
             });
         }
 
