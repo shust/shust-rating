@@ -87,7 +87,7 @@
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
             '.full-start-new.cardify .full-descr__text {width: 60% !important; height: auto !important; min-height: 0 !important; font-weight: 400; opacity: 0.8; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; mask-image: none; margin-bottom: 1.5em;}' +
-            '.full-start-new {padding: 0 2.2em; padding-bottom: 4em;}' +
+            '.full-start-new {padding: 0 2em; padding-bottom: 4em;}' +
             '.full-start-new.cardify .cardify__details {width: 60%;}' +
             '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
             'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: linear-gradient(270deg, #000 0%, rgb(0 0 0 / 59%) 34%, transparent 76%), linear-gradient( 26deg, transparent 0%, transparent 52%, rgb(0 0 0 / 44%) 82%, #000 100%);}' +
