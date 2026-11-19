@@ -43,22 +43,64 @@
 
         var setting = 'cardify_color_only_in_full';
         var root = document.documentElement;
+        var background = Lampa.Background;
+        var cancelPending = background && background.change;
+        var lastFull = null;
         var style = document.createElement('style');
         style.id = 'cardify-background-only-full-style';
         style.textContent =
             'html.cardify-black-outside body {background-color: #000 !important;}' +
             'html.cardify-black-outside .background {background: #000 !important;}' +
+            'html.cardify-color-in-full .background {background-color: #000 !important;}' +
             'html.cardify-black-outside .background canvas {visibility: hidden !important;}';
         (document.head || root).appendChild(style);
 
-        function update(component) {
-            var enabled = Lampa.Storage.get(setting, false);
-            enabled = enabled === true || enabled === 'true';
-            if (typeof component !== 'string') {
-                var active = Lampa.Activity && Lampa.Activity.active && Lampa.Activity.active();
-                component = active && active.component;
+        function isEnabled() {
+            var value = Lampa.Storage.get(setting, false);
+            return value === true || value === 'true';
+        }
+
+        function active() {
+            return Lampa.Activity && Lampa.Activity.active && Lampa.Activity.active();
+        }
+
+        function clearBackground() {
+            var canvases = document.querySelectorAll('.background canvas');
+            for (var i = 0; i < canvases.length; i++) {
+                var context = canvases[i].getContext('2d');
+                if (context) context.clearRect(0, 0, canvases[i].width, canvases[i].height);
             }
+        }
+
+        function update(component) {
+            var enabled = isEnabled();
+            if (typeof component !== 'string') {
+                var current = active();
+                component = current && current.component;
+            }
+            root.classList.toggle('cardify-color-in-full', enabled);
             root.classList.toggle('cardify-black-outside', enabled && component !== 'full');
+            if (enabled && component !== 'full' && typeof cancelPending === 'function') {
+                cancelPending.call(background, '');
+            }
+        }
+
+        if (background) {
+            ['change', 'immediately'].forEach(function (method) {
+                var original = background[method];
+                if (typeof original !== 'function') return;
+                background[method] = function () {
+                    if (isEnabled()) {
+                        var current = active();
+                        if (!current || current.component !== 'full') return;
+                        if (current !== lastFull) {
+                            clearBackground();
+                            lastFull = current;
+                        }
+                    }
+                    return original.apply(this, arguments);
+                };
+            });
         }
 
         Lampa.SettingsApi.addParam({
@@ -71,7 +113,27 @@
             onChange: function () { update(); }
         });
         Lampa.Listener.follow('activity', function (event) {
-            if (event.type === 'start') update(event.component);
+            if (event.type === 'init' && event.component === 'full' && isEnabled()) {
+                clearBackground();
+                lastFull = event.object;
+            }
+            if (event.type === 'start') {
+                if (event.component === 'full' && isEnabled() && event.object !== lastFull) {
+                    clearBackground();
+                    lastFull = event.object;
+                }
+                update(event.component);
+            }
+        });
+        Lampa.Listener.follow('full', function (event) {
+            if (!isEnabled() || event.type !== 'start' || !event.data || !event.data.movie ||
+                !background || !Lampa.Utils || !Lampa.Utils.cardImgBackgroundBlur) return;
+            var url = Lampa.Utils.cardImgBackgroundBlur(event.data.movie);
+            if (url) {
+                background.change(url);
+                // If Lampa already has this image cached, restore its cleared canvas.
+                if (background.update) background.update();
+            }
         });
         update();
     }
