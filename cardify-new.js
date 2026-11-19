@@ -197,6 +197,8 @@
             '.full-start-new {padding: 0 2em; padding-bottom: 4em;}' +
             '.full-start-new.cardify .cardify__details {width: 60%;}' +
             '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
+            '.full-start__button {padding: 1em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 18%); box-shadow: inset 0 0 0 1px #ffffff14;}' +
+            '.full-start__button.focus {padding-right: 1.5em;}' +
             'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: linear-gradient(270deg, #000 0%, rgb(0 0 0 / 59%) 34%, transparent 76%), linear-gradient( 26deg, transparent 0%, transparent 52%, rgb(0 0 0 / 44%) 82%, #000 100%);}' +
             '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}';
         (document.head || document.documentElement).appendChild(style);
