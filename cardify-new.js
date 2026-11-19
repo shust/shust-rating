@@ -38,6 +38,44 @@
         };
     }
 
+    function initCardifyBackground() {
+        if (!window.Lampa || !Lampa.SettingsApi || !Lampa.Storage || !Lampa.Listener) return;
+
+        var setting = 'cardify_color_only_in_full';
+        var root = document.documentElement;
+        var style = document.createElement('style');
+        style.id = 'cardify-background-only-full-style';
+        style.textContent =
+            'html.cardify-black-outside body {background-color: #000 !important;}' +
+            'html.cardify-black-outside .background {background: #000 !important;}' +
+            'html.cardify-black-outside .background canvas {visibility: hidden !important;}';
+        (document.head || root).appendChild(style);
+
+        function update(component) {
+            var enabled = Lampa.Storage.get(setting, false);
+            enabled = enabled === true || enabled === 'true';
+            if (typeof component !== 'string') {
+                var active = Lampa.Activity && Lampa.Activity.active && Lampa.Activity.active();
+                component = active && active.component;
+            }
+            root.classList.toggle('cardify-black-outside', enabled && component !== 'full');
+        }
+
+        Lampa.SettingsApi.addParam({
+            component: 'interface',
+            param: {name: setting, type: 'trigger', default: false},
+            field: {
+                name: 'Цветной фон только в карточке',
+                description: 'В остальных разделах использовать чёрный фон'
+            },
+            onChange: function () { update(); }
+        });
+        Lampa.Listener.follow('activity', function (event) {
+            if (event.type === 'start') update(event.component);
+        });
+        update();
+    }
+
     function applyLayout() {
         scheduled = false;
 
@@ -148,6 +186,7 @@
             });
         }
 
+        initCardifyBackground();
         applyLayout();
     }
 
