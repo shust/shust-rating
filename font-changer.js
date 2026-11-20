@@ -18,7 +18,8 @@
         original: { name: 'Оригинальный' },
         onest:    { name: 'Onest',  pkg: '@fontsource-variable/onest',  file: 'onest',  size: 92 },
         inter:    { name: 'Inter',  pkg: '@fontsource-variable/inter',  file: 'inter',  size: 90 },
-        roboto:   { name: 'Roboto', pkg: '@fontsource-variable/roboto', file: 'roboto', size: 95 }
+        roboto:   { name: 'Roboto', pkg: '@fontsource-variable/roboto', file: 'roboto', size: 95 },
+        googlesans: { name: 'Google Sans', pkg: '@fontsource-variable/google-sans', file: 'google-sans', size: 92 }
     };
 
     var RANGES = {
@@ -76,9 +77,6 @@
                 'font-size: 1em;' +
                 'margin-top: 0.5em;' +
                 'opacity: 0.65;' +
-            '}' +
-            '.items-line__title {' +
-                'font-weight: 600;' +
             '}' +
             '.watch-sync-meta__episode {' +
                 'font-weight: 400;' +
