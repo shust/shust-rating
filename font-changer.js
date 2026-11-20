@@ -14,10 +14,11 @@
     var SEGOE_DESCENT = 25.1;
 
     // size - начальный size-adjust (%), подгоняет размер глифов под Segoe UI
+    // letterSpacing - необязательный межбуквенный интервал для шрифта (в em, чтобы масштабироваться с размером текста)
     var FONTS = {
         original: { name: 'Оригинальный' },
         onest:    { name: 'Onest',  pkg: '@fontsource-variable/onest',  file: 'onest',  size: 92 },
-        inter:    { name: 'Inter',  pkg: '@fontsource-variable/inter',  file: 'inter',  size: 90 },
+        inter:    { name: 'Inter',  pkg: '@fontsource-variable/inter',  file: 'inter',  size: 90, letterSpacing: '-0.01em' },
         roboto:   { name: 'Roboto', pkg: '@fontsource-variable/roboto', file: 'roboto', size: 95 },
         googlesans: { name: 'Google Sans', pkg: '@fontsource-variable/google-sans', file: 'google-sans', size: 92 }
     };
@@ -73,6 +74,9 @@
             'body, input, button, textarea, select {' +
                 'font-family: "LampaCustomFont", "SegoeUI", sans-serif !important;' +
             '}' +
+            (font.letterSpacing
+                ? 'body, body * { letter-spacing: ' + font.letterSpacing + '; }'
+                : '') +
             '.card__age {' +
                 'font-size: 1em;' +
                 'margin-top: 0.5em;' +
