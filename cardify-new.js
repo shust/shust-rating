@@ -551,7 +551,7 @@
             '.full-start__button > svg + span {margin-left: 0.5em;}' +
             '.selector.button--lampa-ratings.full-start__rate.focus {margin-left: 0.8em !important;}' +
             '.selectbox__title {font-size: 1.6em; font-weight: 400;}' +
-            'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: radial-gradient( ellipse 170% 340% at -49% 111%, transparent 43%, #000 80% );}' +
+            'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: linear-gradient( 72.5deg, transparent 16%, #000000 85%);}' +
             '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}';
         (document.head || document.documentElement).appendChild(style);
 
