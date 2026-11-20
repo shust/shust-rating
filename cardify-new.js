@@ -393,6 +393,7 @@
         var root = document.documentElement;
         var background = Lampa.Background;
         var cancelPending = background && background.change;
+        var immediately = background && background.immediately;
         var lastFull = null;
         var style = document.createElement('style');
         style.id = 'cardify-background-only-full-style';
@@ -464,6 +465,12 @@
             if (event.type === 'init' && event.component === 'full' && isEnabled()) {
                 clearBackground();
                 lastFull = event.object;
+                // Begin loading before full details arrive.
+                var card = event.object && event.object.card;
+                if (card && typeof immediately === 'function' && Lampa.Utils && Lampa.Utils.cardImgBackgroundBlur) {
+                    var earlyUrl = Lampa.Utils.cardImgBackgroundBlur(card);
+                    if (earlyUrl) immediately.call(background, earlyUrl);
+                }
             }
             if (event.type === 'start') {
                 if (event.component === 'full' && isEnabled() && event.object !== lastFull) {
@@ -478,6 +485,8 @@
                 !background || !Lampa.Utils || !Lampa.Utils.cardImgBackgroundBlur) return;
             var url = Lampa.Utils.cardImgBackgroundBlur(event.data.movie);
             if (url) {
+                // Avoid the normal delay when possible; keep change as a fallback.
+                if (background.immediately) background.immediately(url);
                 background.change(url);
                 // If Lampa already has this image cached, restore its cleared canvas.
                 if (background.update) background.update();
