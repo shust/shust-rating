@@ -395,6 +395,7 @@
         var cancelPending = background && background.change;
         var immediately = background && background.immediately;
         var lastFull = null;
+        var earlyBackgroundFull = null;
         var style = document.createElement('style');
         style.id = 'cardify-background-only-full-style';
         style.textContent =
@@ -442,6 +443,8 @@
                     if (isEnabled()) {
                         var current = active();
                         if (!current || current.component !== 'full') return;
+                        // Keep the initial background until this card is left.
+                        if (current === earlyBackgroundFull) return;
                         if (current !== lastFull) {
                             clearBackground();
                             lastFull = current;
@@ -465,11 +468,17 @@
             if (event.type === 'init' && event.component === 'full' && isEnabled()) {
                 clearBackground();
                 lastFull = event.object;
+                earlyBackgroundFull = null;
                 // Begin loading before full details arrive.
                 var card = event.object && event.object.card;
                 if (card && typeof immediately === 'function' && Lampa.Utils && Lampa.Utils.cardImgBackgroundBlur) {
                     var earlyUrl = Lampa.Utils.cardImgBackgroundBlur(card);
-                    if (earlyUrl) immediately.call(background, earlyUrl);
+                    if (earlyUrl) {
+                        earlyBackgroundFull = event.object;
+                        immediately.call(background, earlyUrl);
+                        // Lampa can throttle immediate calls; its normal change is the fallback.
+                        if (typeof cancelPending === 'function') cancelPending.call(background, earlyUrl);
+                    }
                 }
             }
             if (event.type === 'start') {
@@ -483,6 +492,7 @@
         Lampa.Listener.follow('full', function (event) {
             if (!isEnabled() || event.type !== 'start' || !event.data || !event.data.movie ||
                 !background || !Lampa.Utils || !Lampa.Utils.cardImgBackgroundBlur) return;
+            if (event.object && event.object === earlyBackgroundFull) return;
             var url = Lampa.Utils.cardImgBackgroundBlur(event.data.movie);
             if (url) {
                 // Avoid the normal delay when possible; keep change as a fallback.
