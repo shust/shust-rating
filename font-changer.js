@@ -82,6 +82,7 @@
                 'margin-top: 0.5em;' +
                 'opacity: 0.65;' +
             '}' +
+            '.card__title,.items-line__title,.head__title {font-weight: 500;}' +
             '.watch-sync-meta__episode {' +
                 'font-weight: 400;' +
             '}';
