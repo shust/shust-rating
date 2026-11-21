@@ -560,7 +560,7 @@
         var style = document.createElement('style');
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
-            '.menu__text,.settings-folder__name { font-size: 1.3em;}' +
+            '.menu__text,.settings-folder__name {font-size: 1.3em; line-height: 1.4;}' +
             '.full-person {max-width: 22em;}' +
             '.full-start-new.cardify .full-descr__text {width: 60% !important; height: auto !important; min-height: 0 !important; font-weight: 400; opacity: 0.8; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; mask-image: none; margin-bottom: 1.5em; line-height: 1.5em;}' +
             '.full-start-new {padding: 0 2em; padding-bottom: 4em;}' +
