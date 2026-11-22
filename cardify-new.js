@@ -560,7 +560,8 @@
         var style = document.createElement('style');
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
-            '.menu__text,.settings-folder__name {font-size: 1.3em; line-height: 1.4;}' +
+            '.menu__text,.settings-folder__name {font-size: 1.3em; line-height: 1.4;font-weight: 400;}' +
+            '.full-person__name {font-size: 1.3em; font-weight: 500;}' +
             '.full-person {max-width: 22em;}' +
             '.full-start-new__title {width: 60% !important; line-height: 1.0em; padding-bottom: 0.3em; }' +
             'img.cardify__logo { margin-bottom: 0.1em; }' +
