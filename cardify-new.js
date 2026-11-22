@@ -977,11 +977,16 @@
         document.head.appendChild(style);
     }
 
+    // Accept common release tags and Dolby Vision codec identifiers, but not DVD/DVDRip.
+    function hasDolbyVision(text) {
+        return /(?:^|[^a-z0-9])(?:dolby[\s._-]*vision|dovi|dvhe|dvh1|dvav|dva1|dv)(?=$|[^a-z0-9]|p(?:rofile)?[\s._-]*\d)/i.test(text || '');
+    }
+
     // Только надёжные признаки HDR — без коротких/неоднозначных
     function hasHDR(text) {
         if (!text) return false;
         var t = text.toUpperCase();
-        return /(HDR10\+|HDR10|HDR\s*10|\bHDR\b|DOLBY\s*VISION|DV\s*P\d|\bHLG\b)/.test(t);
+        return hasDolbyVision(text) || /(HDR10\+|HDR10|HDR\s*10|\bHDR\b|\bHLG\b)/.test(t);
     }
 
     function hasSDR(text) {
@@ -1005,13 +1010,30 @@
         var changed = 0;
 
         items.forEach(function (item, idx) {
-            if (item.dataset.sdrProcessed === '1') return;
-
             var titleEl = item.querySelector('.torrent-item__title');
             var title = titleEl ? titleEl.textContent : '';
 
             var block = item.querySelector('.torrent-item__ffprobe');
             if (!block) return;
+
+            // Check again even for processed items: metadata may arrive later.
+            var badgeText = block.textContent || '';
+            var probeInfo = (block.getAttribute('title') || '') + ' ' + (block.getAttribute('data-original-title') || '');
+            var badges = block.querySelectorAll('.m-resolution');
+            for (var k = 0; k < badges.length; k++) {
+                probeInfo += ' ' + (badges[k].getAttribute('title') || '') + ' ' + (badges[k].getAttribute('data-original-title') || '');
+            }
+            var dolbyVision = hasDolbyVision(title + ' ' + badgeText + ' ' + probeInfo);
+            if (dolbyVision) {
+                for (var j = 0; j < badges.length; j++) {
+                    if (/^HDR(?:10\+?)?$/i.test(badges[j].textContent.trim())) badges[j].textContent = 'DV';
+                    if (badges[j].classList.contains('m-resolution--sdr')) {
+                        badges[j].textContent = '4K';
+                        badges[j].classList.remove('m-resolution--sdr');
+                    }
+                }
+            }
+            if (item.dataset.sdrProcessed === '1') return;
 
             var is4k = is4K(title, block);
             if (!is4k) {
@@ -1019,7 +1041,7 @@
                 return;
             }
 
-            var titleHasHDR = hasHDR(title);
+            var titleHasHDR = dolbyVision || hasHDR(title);
             var titleHasSDR = hasSDR(title);
 
             var hasHdrBadge = false;
