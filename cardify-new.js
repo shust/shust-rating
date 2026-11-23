@@ -1029,6 +1029,10 @@
             var badgeText = block.textContent || '';
             var probeInfo = (block.getAttribute('title') || '') + ' ' + (block.getAttribute('data-original-title') || '');
             var badges = block.querySelectorAll('.m-resolution');
+            for (var f = 0; f < badges.length; f++) {
+                if (/^FHD$/i.test(badges[f].textContent.trim())) badges[f].textContent = '1080p';
+                else if (/^HD$/i.test(badges[f].textContent.trim())) badges[f].textContent = '720p';
+            }
             for (var k = 0; k < badges.length; k++) {
                 probeInfo += ' ' + (badges[k].getAttribute('title') || '') + ' ' + (badges[k].getAttribute('data-original-title') || '');
             }
