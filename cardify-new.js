@@ -963,8 +963,10 @@
             display: none !important;
         }
 
-        /* Скрываем плашки аудиоканалов */
-        .torrent-item__ffprobe .m-channels {
+        /* Скрываем плашки аудиоканалов и разрешения видео. */
+        .torrent-item__ffprobe .m-channels,
+        .torrent-item__ffprobe .m-video,
+        .torrent-item__ffprobe .m-resolution--merged-hide {
             display: none !important;
         }
     `;
@@ -1033,6 +1035,23 @@
                         badges[j].classList.remove('m-resolution--sdr');
                     }
                 }
+            }
+            // Merge only when a 4K badge exists; keep metadata nodes for later updates.
+            var fourKBadge = null;
+            var formatBadges = [];
+            for (var b = 0; b < badges.length; b++) {
+                var badgeName = badges[b].textContent.trim();
+                if (/^4K(?:\s+(?:SDR|HDR|DV))?$/i.test(badgeName)) fourKBadge = badges[b];
+                else if (/^(?:HDR(?:10\+?)?|DV|Dolby[\s._-]*Vision)$/i.test(badgeName)) formatBadges.push(badges[b]);
+            }
+            var hdrFormat = dolbyVision ? 'DV' : (hasHDR(title + ' ' + badgeText + ' ' + probeInfo) ? 'HDR' : '');
+            if (fourKBadge && hdrFormat) {
+                var merged = '4K ' + hdrFormat;
+                if (fourKBadge.textContent.trim() !== merged) fourKBadge.textContent = merged;
+                fourKBadge.classList.remove('m-resolution--sdr');
+                for (var h = 0; h < formatBadges.length; h++) formatBadges[h].classList.add('m-resolution--merged-hide');
+                item.dataset.sdrProcessed = '1';
+                return;
             }
             if (item.dataset.sdrProcessed === '1') return;
 
