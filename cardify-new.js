@@ -580,6 +580,7 @@
             '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}' +
             '.full-descr__info-name {opacity: 0.65;}' +
             '.torrent-item__details,.season-info__head {font-weight: 400;}' +
+            '.torrent-item__bitrate > span, .torrent-item__grabs > span, .torrent-item__seeds > span {font-weight: 500;}' +
             '.screensaver__title, .screensaver__datetime {text-shadow: none;}';
         (document.head || document.documentElement).appendChild(style);
 
