@@ -958,6 +958,12 @@
             border: none !important;
         }
 
+        /* Стиль объединённой плашки Dolby Vision. */
+        .m-resolution.m-resolution--dv {
+            background: #7b6c00 !important;
+            box-shadow: none !important;
+        }
+
         /* Скрываем плашки субтитров */
         .torrent-item__ffprobe .m-subtitle {
             display: none !important;
@@ -1049,6 +1055,7 @@
                 var merged = '4K ' + hdrFormat;
                 if (fourKBadge.textContent.trim() !== merged) fourKBadge.textContent = merged;
                 fourKBadge.classList.remove('m-resolution--sdr');
+                fourKBadge.classList.toggle('m-resolution--dv', hdrFormat === 'DV');
                 for (var h = 0; h < formatBadges.length; h++) formatBadges[h].classList.add('m-resolution--merged-hide');
                 item.dataset.sdrProcessed = '1';
                 return;
