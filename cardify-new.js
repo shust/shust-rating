@@ -579,6 +579,7 @@
             'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: linear-gradient(270deg, #000 0%, rgb(0 0 0 / 59%) 34%, transparent 76%), linear-gradient( 26deg, transparent 0%, transparent 52%, rgb(0 0 0 / 44%) 82%, #000 100%); mask-image: linear-gradient( 90deg, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 40%) 50%, #000 80% );}' +
             '.full-start-new.cardify .full-start-new__head {font-size: 1.0em;}' +
             '.full-descr__info-name {opacity: 0.65;}' +
+            '.torrent-item__details,.season-info__head {font-weight: 400;}' +
             '.screensaver__title, .screensaver__datetime {text-shadow: none;}';
         (document.head || document.documentElement).appendChild(style);
 
