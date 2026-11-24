@@ -977,6 +977,12 @@
             border: none !important;
         }
 
+        /* Стиль объединённой плашки HDR. */
+        .m-resolution.m-resolution--hdr {
+            background: #49180d !important;
+            box-shadow: none !important;
+        }
+
         /* Стиль объединённой плашки Dolby Vision. */
         .m-resolution.m-resolution--dv {
             background: #7b6c00 !important;
@@ -1079,6 +1085,7 @@
                 if (fourKBadge.textContent.trim() !== merged) fourKBadge.textContent = merged;
                 fourKBadge.classList.remove('m-resolution--sdr');
                 fourKBadge.classList.toggle('m-resolution--dv', hdrFormat === 'DV');
+                fourKBadge.classList.toggle('m-resolution--hdr', hdrFormat === 'HDR');
                 for (var h = 0; h < formatBadges.length; h++) formatBadges[h].classList.add('m-resolution--merged-hide');
                 item.dataset.sdrProcessed = '1';
                 return;
