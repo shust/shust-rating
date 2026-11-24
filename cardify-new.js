@@ -581,7 +581,7 @@
             '.full-descr__info-name {opacity: 0.65;}' +
             '.torrent-item__details,.season-info__head {font-weight: 400;}' +
             '.torrent-item__bitrate > span, .torrent-item__grabs > span, .torrent-item__seeds > span {font-weight: 500;}' +
-            '.card__promo-text { font-size: 1.1em; line-height: 1.4em; font-weight: 400; opacity: 0.8;display: -webkit-box; -webkit-line-clamp:2; -webkit-box-orient: vertical;}' +
+            '.card__promo-text { font-size: 1.1em; line-height: 1.4em; font-weight: 400; opacity: 0.8;display: -webkit-box; -webkit-line-clamp:2; -webkit-box-orient: vertical;overflow: hidden;}' +
             '.card__promo-title { font-weight: 600; }' +
             '.screensaver__title, .screensaver__datetime {text-shadow: none;}';
         (document.head || document.documentElement).appendChild(style);
