@@ -573,7 +573,7 @@
             '.full-start__button {padding: 0.8em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px #ffffff0f;}' +
             '.full-start__button.focus {padding-right: 1.4em; padding-left: 1.3em;}' +
             '.full-start__button > svg {width: 1.3em; height: 1.3em;}' +
-            '.full-start__button > svg + span {margin-left: 0.5em;font-size: 0.9em; font-weight: 600;}' +
+            '.full-start__button > svg + span {margin-left: 0.5em;font-size: 1em; font-weight: 600;}' +
             '.selector.button--lampa-ratings.full-start__rate.focus {margin-left: 0.8em !important;}' +
             '.selectbox__title {font-size: 1.6em; font-weight: 400;}' +
             'img.full-start__background.cardify__background.loaded {width: 100%; height: 100vh; top: -4em; mask-image: linear-gradient(270deg, #000 0%, rgb(0 0 0 / 59%) 34%, transparent 76%), linear-gradient( 26deg, transparent 0%, transparent 52%, rgb(0 0 0 / 44%) 82%, #000 100%); mask-image: linear-gradient( 90deg, rgb(0 0 0 / 0%) 0%, rgb(0 0 0 / 40%) 50%, #000 80% );}' +
