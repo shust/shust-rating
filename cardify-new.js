@@ -612,22 +612,37 @@
             });
         }
 
-        // Lampa selects the first navigable element when returning to the start.
-        // Ratings now precede the buttons in DOM order, so explicitly choose a button.
+        // Resolve the card from the active controller: the active slide can still
+        // point to the screen being closed while Lampa restores its controller.
         if (window.Lampa && Lampa.Controller && Lampa.Controller.listener &&
             Lampa.Controller.listener.follow) {
             Lampa.Controller.listener.follow('toggle', function (event) {
-                if (event.name !== 'full_start') return;
-                var active = document.querySelector('.activity--active');
-                var card = active && active.querySelector(cardSelector);
-                var buttons = card && card.querySelectorAll('.full-start-new__buttons .selector');
-                if (!buttons) return;
+                if (!event || event.name !== 'full_start') return;
+                var state = Lampa.Controller.enabled && Lampa.Controller.enabled();
+                var start = state && state.controller && state.controller.link;
+                var rendered = start && typeof start.render === 'function' && start.render(true);
+                var card = rendered && (rendered.jquery ? rendered[0] : rendered);
+                if (!card || !card.matches || !card.matches(cardSelector)) {
+                    var active = document.querySelector('.activity--active');
+                    card = active && active.querySelector(cardSelector);
+                }
+                if (!card) return;
+
+                var buttons = card.querySelectorAll('.full-start-new__buttons .selector');
+                var last = start && start.last;
+                if (last && last.closest) last = last.closest('.full-start__button');
+                var target = null;
                 for (var i = 0; i < buttons.length; i++) {
-                    if (!buttons[i].classList.contains('hide') && buttons[i].offsetParent !== null) {
-                        Lampa.Controller.collectionFocus(buttons[i], card);
+                    var button = buttons[i];
+                    if (button.classList.contains('hide') || button.offsetParent === null) continue;
+                    if (!target) target = button;
+                    if (button === last || (last && last.classList.contains('button--priority') &&
+                        button.classList.contains('button--priority'))) {
+                        target = button;
                         break;
                     }
                 }
+                if (target) Lampa.Controller.collectionFocus(target, card);
             });
         }
 
