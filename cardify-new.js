@@ -1,3 +1,15 @@
+/* Shared settings section for Cardify features. */
+window.cardifyEnsureUI = function () {
+    if (!Lampa.SettingsApi.getComponent('cardify_ui')) {
+        Lampa.SettingsApi.addComponent({
+            component: 'cardify_ui',
+            name: 'UI',
+            after: 'interface',
+            icon: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/></svg>'
+        });
+    }
+};
+
 /* Cardify: combined Logo Title and cardify-new. */
 /* Cardify + Logo Title 1.1 for Lampa. Based on the two supplied plugins.
  * Domain-independent; settings: Cardify -> Логотип вместо названия.
@@ -263,15 +275,9 @@
     }
 
     function addSettings() {
-        if (!Lampa.SettingsApi.getComponent('cardify')) {
-            Lampa.SettingsApi.addComponent({
-                component: 'cardify',
-                name: 'Cardify',
-                icon: '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 15l4-4 3 3 2-2 3 3" fill="none" stroke="currentColor" stroke-width="2"/></svg>'
-            });
-        }
+        window.cardifyEnsureUI();
         Lampa.SettingsApi.addParam({
-            component: 'cardify',
+            component: 'cardify_ui',
             param: {name: settingName, type: 'trigger', default: true},
             field: {
                 name: 'Логотип вместо названия',
@@ -455,8 +461,9 @@
             });
         }
 
+        window.cardifyEnsureUI();
         Lampa.SettingsApi.addParam({
-            component: 'interface',
+            component: 'cardify_ui',
             param: {name: setting, type: 'trigger', default: false},
             field: {
                 name: 'Цветной фон только в карточке',
@@ -865,8 +872,9 @@
         window.hide_date_ready = true;
         window.hide_date_version = '2.0.0-integrated';
 
+        window.cardifyEnsureUI();
         Lampa.SettingsApi.addParam({
-            component: 'interface',
+            component: 'cardify_ui',
             param: { name: SETTING, type: 'trigger', 'default': false },
             field: {
                 name: 'Дата в шапке',
@@ -1289,14 +1297,10 @@
     }
 
     function initSettings() {
-        Lampa.SettingsApi.addComponent({
-            component: 'font_changer',
-            name: 'Шрифт',
-            icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>'
-        });
+        window.cardifyEnsureUI();
 
         Lampa.SettingsApi.addParam({
-            component: 'font_changer',
+            component: 'cardify_ui',
             param: { name: KEY_FONT, type: 'select', values: buildValues(), default: 'original' },
             field: {
                 name: 'Шрифт интерфейса',
@@ -1306,7 +1310,7 @@
         });
 
         Lampa.SettingsApi.addParam({
-            component: 'font_changer',
+            component: 'cardify_ui',
             param: { name: KEY_SIZE, type: 'select', values: buildSizeValues(), default: 'auto' },
             field: {
                 name: 'Размер текста',
