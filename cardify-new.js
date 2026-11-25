@@ -412,6 +412,9 @@ window.cardifyEnsureUI = function () {
                     }
                 }
             }
+            // Keep the next shelves ready after the two relocated person rows.
+            // Lampa also uses view as its look-ahead window while scrolling.
+            if (this.tv && typeof this.view === 'number') this.view = Math.max(this.view, 7);
             initialRows = rows.slice(0, this.view);
             return originalBuild.call(this, initialRows);
         };
