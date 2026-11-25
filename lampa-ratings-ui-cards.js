@@ -1146,7 +1146,7 @@ try {
 
         Lampa.SettingsApi.addComponent({
             component: "maxsm_ratings",
-            name: Lampa.Lang.translate("maxsm_ratings"),
+            name: "Источник рейтинга",
             icon: star_svg
         });
 
@@ -1767,7 +1767,7 @@ try {
 
   function addSettings() {
     Lampa.SettingsApi.addParam({
-      component: "interface",
+      component: "maxsm_ratings",
       param: {
         name: "rating_source",
         type: "select",
@@ -1790,7 +1790,7 @@ try {
       },
     });
     Lampa.SettingsApi.addParam({
-      component: "interface",
+      component: "maxsm_ratings",
       param: { name: "bylampa_rating_url", type: "input", values: "", default: "http://94.156.115.58:841" },
       field: {
         name: "Сервер рейтинга ByLAMPA",
@@ -2085,7 +2085,7 @@ try {
         window.__lampa_rating_icons_toggle_fixed_loaded = true;
 
         Lampa.SettingsApi.addParam({
-            component: 'interface',
+            component: 'maxsm_ratings',
             param: { name: SETTING, type: 'trigger', 'default': true },
             field: {
                 name: 'Иконки возле рейтинга',
