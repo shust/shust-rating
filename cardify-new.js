@@ -386,8 +386,33 @@ window.cardifyEnsureUI = function () {
             if (episodeIndex > descriptionIndex && descriptionIndex >= 0) {
                 var episodes = rows.splice(episodeIndex, 1)[0];
                 rows.splice(descriptionIndex, 0, episodes);
-                initialRows = rows.slice(0, this.view);
             }
+
+            // Reorder the actual row model before creation so TV navigation and
+            // lazy loading follow the same order as the visible shelves.
+            var titles = window.Lampa && Lampa.Lang && Lampa.Lang.translate;
+            var directorTitle = titles && Lampa.Lang.translate('title_producer');
+            var actorTitle = titles && Lampa.Lang.translate('title_actors');
+            var directors = null;
+            var actors = null;
+            for (var j = 0; j < rows.length; j++) {
+                var row = rows[j];
+                if (!Array.isArray(row) || row[0] !== 'persons' || !row[1]) continue;
+                if (!directors && directorTitle && row[1].title === directorTitle) directors = row;
+                else if (!actors && actorTitle && row[1].title === actorTitle) actors = row;
+            }
+            if (descriptionIndex >= 0) {
+                if (directors) rows.splice(rows.indexOf(directors), 1);
+                if (actors) rows.splice(rows.indexOf(actors), 1);
+                for (var k = 0; k < rows.length; k++) {
+                    if ((Array.isArray(rows[k]) ? rows[k][0] : rows[k]) === 'description') {
+                        if (actors) rows.splice(k + 1, 0, actors);
+                        if (directors) rows.splice(k + 1, 0, directors);
+                        break;
+                    }
+                }
+            }
+            initialRows = rows.slice(0, this.view);
             return originalBuild.call(this, initialRows);
         };
     }
