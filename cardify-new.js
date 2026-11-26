@@ -595,6 +595,7 @@ window.cardifyEnsureUI = function () {
         var style = document.createElement('style');
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
+            '.head__logo-icon { display: none; }' +
             '.head__action.head__settings.selector.black-friday__button, .head__action.selector.open--broadcast, .head__action.selector.open--friends,.head__markers {display: none !important;}' +
             '.head__time-now {margin-left: 0.8em;}' +
             '.menu__text,.settings-folder__name {font-size: 1.3em; line-height: 1.4;font-weight: 400;}' +
