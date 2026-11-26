@@ -8,7 +8,8 @@
     style.textContent = [
         '.torrent-item.torrent-poster--ready {display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:1em;position:relative;}',
         '.torrent-item.torrent-poster--ready > * {grid-column:2;min-width:0;}',
-        '.torrent-item.torrent-poster--ready > .torrent-poster__image {grid-column:1;grid-row:1 / span 3;align-self:start;width:auto;height:10em;border-radius:.7em;object-fit:contain;}',
+        '.torrent-item > .torrent-poster__image {display:none;width:auto;height:10em;border-radius:.7em;object-fit:contain;}',
+        '.torrent-item.torrent-poster--ready > .torrent-poster__image {display:block;grid-column:1;grid-row:1 / span 3;align-self:start;}',
         '.torrent-item.torrent-poster--ready .torrent-poster__quality {position:absolute;top:1.4em;left:1.4em;z-index:1;float:none;margin:0;border-radius:.4em !important;}',
         '.torrent-item.torrent-poster--ready .torrent-poster__quality.torrent-poster__basic {background:#000 !important;box-shadow:none !important;}',
         '.torrent-item.torrent-poster--ready > .torrent-item__viewed {grid-column:auto;grid-row:auto;left:-.75em;top:-.75em;}',
