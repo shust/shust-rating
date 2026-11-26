@@ -659,9 +659,13 @@ window.cardifyEnsureUI = function () {
         // point to the screen being closed while Lampa restores its controller.
         if (window.Lampa && Lampa.Controller && Lampa.Controller.listener &&
             Lampa.Controller.listener.follow) {
+            var previousController = null;
             Lampa.Controller.listener.follow('toggle', function (event) {
-                if (!event || event.name !== 'full_start') return;
+                if (!event) return;
+                var previous = previousController;
                 var state = Lampa.Controller.enabled && Lampa.Controller.enabled();
+                previousController = state && state.controller;
+                if (event.name !== 'full_start') return;
                 var start = state && state.controller && state.controller.link;
                 var rendered = start && typeof start.render === 'function' && start.render(true);
                 var card = rendered && (rendered.jquery ? rendered[0] : rendered);
@@ -671,8 +675,16 @@ window.cardifyEnsureUI = function () {
                 }
                 if (!card) return;
 
+                // Only shelf controllers belonging to this card count as a
+                // vertical return; other activities keep their remembered button.
+                var sourceLink = previous && previous.link;
+                var source = sourceLink && typeof sourceLink.render === 'function' && sourceLink.render(true);
+                source = source && (source.jquery ? source[0] : source);
+                var scope = card.closest && card.closest('.activity__body');
+                var fromShelf = scope && source && source !== card && source.closest &&
+                    source.closest('.activity__body') === scope && !card.contains(source);
                 var buttons = card.querySelectorAll('.full-start-new__buttons .selector');
-                var last = start && start.last;
+                var last = !fromShelf && start && start.last;
                 if (last && last.closest) last = last.closest('.full-start__button');
                 var target = null;
                 for (var i = 0; i < buttons.length; i++) {
