@@ -675,6 +675,26 @@ window.cardifyEnsureUI = function () {
                 }
                 if (!card) return;
 
+                // When moving down from ratings, use the first visible action
+                // instead of Navigator's nearest geometric match.
+                var controller = state && state.controller;
+                if (controller && typeof controller.down === 'function' && !controller.cardifyRatingDownWrapped) {
+                    var originalDown = controller.down;
+                    controller.cardifyRatingDownWrapped = true;
+                    controller.down = function () {
+                        if (card.querySelector('.cardify__right .selector.focus')) {
+                            var actions = card.querySelectorAll('.full-start-new__buttons .selector');
+                            for (var b = 0; b < actions.length; b++) {
+                                if (!actions[b].classList.contains('hide') && actions[b].offsetParent !== null) {
+                                    Lampa.Controller.collectionFocus(actions[b], card);
+                                    return;
+                                }
+                            }
+                        }
+                        return originalDown.apply(this, arguments);
+                    };
+                }
+
                 // Only shelf controllers belonging to this card count as a
                 // vertical return; other activities keep their remembered button.
                 var sourceLink = previous && previous.link;
