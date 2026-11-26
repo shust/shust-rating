@@ -596,6 +596,8 @@ window.cardifyEnsureUI = function () {
         style.id = 'cardify-layout-lampa-mx-style';
         style.textContent =
             '.head__logo-icon { display: none; }' +
+            '.torrent-item {border-radius: 1em; background-color: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px #ffffff0f;}' +
+            '.torrent-item.focus::after { border-radius: 1.4em; }' +
             '.head__action.head__settings.selector.black-friday__button, .head__action.selector.open--broadcast, .head__action.selector.open--friends,.head__markers {display: none !important;}' +
             '.head__time-now {margin-left: 0.8em;}' +
             '.menu__text,.settings-folder__name {font-size: 1.3em; line-height: 1.4;font-weight: 400;}' +
