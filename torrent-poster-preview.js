@@ -10,7 +10,14 @@
         '.torrent-item.torrent-poster--ready > * {grid-column:2;min-width:0;}',
         '.torrent-item.torrent-poster--ready > .torrent-poster__image {grid-column:1;grid-row:1 / span 3;align-self:start;width:auto;height:10em;border-radius:.7em;object-fit:contain;}',
         '.torrent-item.torrent-poster--ready .torrent-poster__quality {position:absolute;top:1.4em;left:1.4em;z-index:1;float:none;margin:0;border-radius:.4em !important;}',
-        '.torrent-item.torrent-poster--ready .torrent-poster__quality.torrent-poster__basic {background:#000 !important;box-shadow:none !important;}'
+        '.torrent-item.torrent-poster--ready .torrent-poster__quality.torrent-poster__basic {background:#000 !important;box-shadow:none !important;}',
+        '.torrent-item.torrent-poster--ready > .torrent-item__viewed {grid-column:auto;grid-row:auto;left:-.75em;top:-.75em;}',
+        '.explorer.torrent-poster--explorer .explorer-card__head-left {display:none;}',
+        '.explorer.torrent-poster--explorer .explorer-card__head {margin-bottom:2em;}',
+        '.explorer.torrent-poster--explorer .explorer-card__head-rate {display:none;}',
+        '.explorer.torrent-poster--explorer .explorer-card__descr {font-weight:400;opacity:.8;}',
+        '.explorer.torrent-poster--explorer .explorer__left {padding-right:3%;}',
+        '.explorer.torrent-poster--explorer .explorer-card__title.selector.focus {text-decoration:underline;}'
     ].join('\n');
     (document.head || document.documentElement).appendChild(style);
 
@@ -50,6 +57,23 @@
         var activities = document.querySelectorAll('.activity--active');
         for (var i = 0; i < activities.length; i++) {
             var activity = activities[i];
+            var list = activity.querySelector('.torrent-list');
+            var explorer = list && list.closest('.explorer');
+            if (!explorer) continue;
+            explorer.classList.add('torrent-poster--explorer');
+
+            // Keep Lampa's original cover handler as the sole navigation action.
+            var cover = explorer.querySelector('.explorer-card__head-img.selector');
+            var title = explorer.querySelector('.explorer-card__title');
+            var jq = window.jQuery || window.$;
+            if (cover && title && jq && !title.torrentPosterTitleBound &&
+                !explorer.classList.contains('explorer--fullsize')) {
+                title.torrentPosterTitleBound = true;
+                title.classList.add('selector');
+                (function (element, original, $) {
+                    $(element).on('hover:enter', function () { $(original).trigger('hover:enter'); });
+                })(title, cover, jq);
+            }
             var headerImage = activity.querySelector('.explorer-card__head-img img');
             var posterUrl = headerImage && headerImage.getAttribute('src');
             if (!posterUrl || /^data:|img_broken/i.test(posterUrl)) continue;
