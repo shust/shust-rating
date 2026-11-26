@@ -406,8 +406,8 @@ window.cardifyEnsureUI = function () {
                 if (actors) rows.splice(rows.indexOf(actors), 1);
                 for (var k = 0; k < rows.length; k++) {
                     if ((Array.isArray(rows[k]) ? rows[k][0] : rows[k]) === 'description') {
-                        if (actors) rows.splice(k + 1, 0, actors);
-                        if (directors) rows.splice(k + 1, 0, directors);
+                        if (directors) rows.splice(k, 0, directors);
+                        if (actors) rows.splice(k, 0, actors);
                         break;
                     }
                 }
