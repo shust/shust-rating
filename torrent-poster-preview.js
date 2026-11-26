@@ -6,6 +6,8 @@
 
     var style = document.createElement('style');
     style.textContent = [
+        '.torrent-item {border-radius:1em;background-color:rgb(255 255 255 / 7%);box-shadow:inset 0 0 0 1px #ffffff0f;}',
+        '.torrent-item.focus::after {border-radius:1.4em;}',
         '.torrent-item.torrent-poster--ready {display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:1.3em;position:relative;}',
         '.torrent-item.torrent-poster--ready > * {grid-column:2;min-width:0;}',
         '.torrent-item > .torrent-poster__image {display:none;width:auto;height:8.5em;border-radius:.7em;object-fit:contain;}',
