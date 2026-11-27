@@ -608,7 +608,7 @@ window.cardifyEnsureUI = function () {
             '.full-start-new {padding: 0 2em; padding-bottom: 4em;}' +
             '.full-start-new.cardify .cardify__details {width: 60%;}' +
             '.full-start-new.cardify .cardify__right {margin-bottom: 1.7em; zoom: 0.8;}' +
-            '.full-start__button {padding: 0.8em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px #ffffff0f;}' +
+            '.full-start__button {padding: 0.8em; height: auto; border-radius: 10em; background-color: rgb(255 255 255 / 14%); box-shadow: inset 0 0 0 1px #ffffff0f;    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 3%), inset 0 1px 0 rgb(255 255 255 / 9%);}' +
             '.full-start__button.focus {padding-right: 1.4em; padding-left: 1.3em;}' +
             '.full-start__button > svg {width: 1.3em; height: 1.3em;}' +
             '.full-start__button > svg + span {margin-left: 0.5em;font-size: 1em; font-weight: 600;opacity: 0.75;}' +
